@@ -17,8 +17,7 @@ idna==3.11
 lxml==6.0.2
 oscrypto==1.3.0
 pillow==12.1.0
-psycopg==3.3.2
-
+psycopg2-binary==2.9.10
 pycparser==3.0
 pyHanko==0.32.0
 pyhanko-certvalidator==0.29.0

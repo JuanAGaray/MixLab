@@ -11,7 +11,10 @@ urlpatterns = [
     path('api/', include('store.api_urls')),
 ]
 
-# Serve media files in development
+# En producción (Vercel) no hay DEBUG; servir estáticos desde STATICFILES_DIRS
+# para que /static/css/, /static/img/, etc. respondan sin depender de collectstatic.
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])
+
+# Media solo en desarrollo (en Vercel los uploads suelen ir a un storage externo)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

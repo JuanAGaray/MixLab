@@ -2277,36 +2277,17 @@ def quotation_detail(request, quotation_id):
 
 
 def quotation_pdf(request, quotation_id):
-    """Genera PDF de una cotización usando xhtml2pdf (si está instalado)."""
+    """
+    Vista de cotización en formato imprimible.
+
+    En lugar de generar un PDF en el servidor (que requiere librerías nativas como
+    Cairo, problemáticas en Vercel), devolvemos HTML listo para imprimir.
+    Desde el navegador el usuario puede usar \"Imprimir\" → \"Guardar como PDF\".
+    """
     q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
     items = q.items.select_related('product', 'product__category').all()
     expires_at = q.created_at + timedelta(days=1)
 
-    try:
-        from django.template.loader import get_template
-        from xhtml2pdf import pisa
-    except Exception:
-        return HttpResponse('No está disponible la generación de PDF. Instala xhtml2pdf.', status=500)
-
-    # Resolver rutas de static/media para xhtml2pdf
-    from django.conf import settings
-    from django.contrib.staticfiles import finders
-    import os
-
-    def link_callback(uri, rel):
-        if uri.startswith(settings.MEDIA_URL):
-            path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, ""))
-        elif uri.startswith(settings.STATIC_URL):
-            path = finders.find(uri.replace(settings.STATIC_URL, ""))
-        else:
-            path = uri
-        if not path:
-            raise Exception(f'No se pudo resolver el recurso: {uri}')
-        if isinstance(path, (list, tuple)):
-            path = path[0]
-        return path
-
-    template = get_template('store/quotation_pdf.html')
     # Reusar mismos cálculos del detalle
     def split_iva(amount: Decimal):
         if amount is None:
@@ -2329,37 +2310,17 @@ def quotation_pdf(request, quotation_id):
         total_base += it.base_subtotal
         total_iva += it.iva_subtotal
 
-    html = template.render(
+    return render(
+        request,
+        'store/quotation_pdf.html',
         {
             'quote': q,
             'items': items,
             'expires_at': expires_at,
             'total_base': total_base,
             'total_iva': total_iva,
-        }
+        },
     )
-
-    from io import BytesIO
-    result = BytesIO()
-    pdf = pisa.pisaDocument(
-        BytesIO(html.encode('utf-8')),
-        result,
-        encoding='utf-8',
-        link_callback=link_callback,
-    )
-    if pdf.err:
-        return HttpResponse('Error generando el PDF.', status=500)
-
-    # Nombre de archivo: COT{id}-FECHA-CLIENTE.pdf (cliente slugificado, sin espacios)
-    from django.utils.text import slugify
-    safe_client = slugify(q.client_name or 'sin-cliente')[:40]
-    safe_date = q.created_at.strftime('%Y-%m-%d')
-    filename = f"COT{q.id}-{safe_date}-{safe_client}.pdf"
-
-    response = HttpResponse(result.getvalue(), content_type='application/pdf')
-    # inline: se abre en el navegador; el usuario puede imprimir o descargar desde ahí
-    response['Content-Disposition'] = f'inline; filename=\"{filename}\"'
-    return response
 
 
 @staff_member_required

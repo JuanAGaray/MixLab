@@ -18,9 +18,29 @@
     .top-row { width: 100%; }
     .logo { width: 140px; }
     .fineprint { font-size: 10px; color: #555; line-height: 1.4; }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+    }
   </style>
+  <script>
+    // Al abrir esta vista en una pestaña nueva, dispara el diálogo de impresión
+    window.addEventListener('load', function() {
+      // Pequeño delay para asegurar que todo está renderizado
+      setTimeout(function() {
+        window.print();
+      }, 500);
+    });
+  </script>
 </head>
 <body>
+  <div class="no-print" style="margin-bottom: 8px; text-align: right;">
+    <button onclick="window.print()" style="padding: 6px 10px; font-size: 12px; cursor: pointer;">
+      Imprimir / Guardar como PDF
+    </button>
+  </div>
   <div class="header">
     <table class="top-row" style="border:0;">
       <tr>

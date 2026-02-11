@@ -10,3 +10,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'frozz.settings')
 
 application = get_wsgi_application()
 
+# Vercel serverless expects "app" or "handler"
+app = application
+

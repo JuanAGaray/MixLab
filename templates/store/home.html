@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}MixLab - Todos tus insumos en un solo lugar{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Mobile-first: home hero y productos en cel */
+@media (min-width: 768px) {
+    .hero-section .hero-title { font-size: 1.75rem !important; }
+    .hero-section .hero-promise { font-size: 1.1rem !important; }
+    .hero-section .hero-img { max-height: 320px !important; }
+}
+@media (min-width: 992px) {
+    .hero-section .hero-title { font-size: 2rem !important; }
+    .hero-section .hero-img { max-height: 380px !important; }
+}
+.product-card-img { height: 160px !important; }
+.product-card-img-placeholder { height: 160px !important; }
+@media (min-width: 768px) {
+    .product-card-img, .product-card-img-placeholder { height: 200px !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%); padding: 1.5rem 0; margin-top: 0.5rem;">
+    <div class="container">
+        <div class="row align-items-center g-3 g-lg-4">
+            <div class="col-12 col-lg-6 order-2 order-lg-1">
+                <h1 class="fw-bold mb-2 mb-lg-3 hero-title" style="color: var(--text-dark); font-size: 1.5rem; line-height: 1.2;">Bienvenido a MixLab</h1>
+                <p class="hero-promise mb-3 mb-lg-4" style="font-size: 0.95rem; color: var(--text-dark); padding: 0.6rem 1rem; background: #ffffff; border-radius: 10px; display: block; font-weight: 600; line-height: 1.5; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+                    En Mix Lab encuentras <span style="background: linear-gradient(120deg, #fff176 0%, #fff176 100%); background-repeat: no-repeat; background-size: 100% 0.4em; background-position: 0 85%; padding: 0 0.2em;">todo lo que tu negocio necesita</span> para <span style="background: linear-gradient(120deg, #fff176 0%, #fff176 100%); background-repeat: no-repeat; background-size: 100% 0.4em; background-position: 0 85%; padding: 0 0.2em;">crecer</span>.
+                </p>
+                <div class="d-flex gap-2 gap-lg-3 mt-3 mt-lg-4 flex-wrap justify-content-center justify-content-lg-start">
+                    <div class="stat-box text-center" style="background: #ffffff; padding: 0.5rem 0.75rem; border-radius: 10px; min-width: 90px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+                        <h2 class="mb-0 fw-bold" style="color: var(--text-dark); font-size: 1.35rem; line-height: 1;" id="productCount">50+</h2>
+                        <small style="color: var(--text-dark); font-size: 0.75rem; font-weight: 500;">Productos</small>
+                    </div>
+                    <div class="stat-box text-center" style="background: #ffffff; padding: 0.5rem 0.75rem; border-radius: 10px; min-width: 90px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+                        <h2 class="mb-0 fw-bold" style="color: var(--text-dark); font-size: 1.35rem; line-height: 1;" id="clientCount">100+</h2>
+                        <small style="color: var(--text-dark); font-size: 0.75rem; font-weight: 500;">Clientes</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6 text-center order-1 order-lg-2">
+                <img src="{% static 'img/Posterinit.png' %}" alt="MixLab" class="img-fluid hero-img" style="max-height: 220px; width: auto;">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Featured Products -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-4 mb-md-5 section-title" style="color: var(--text-dark); font-size: 1.35rem;">Productos Destacados</h2>
+        <div class="row g-3 g-md-4">
+            {% for product in featured_products %}
+            <div class="col-6 col-md-6 col-lg-3">
+                <div class="card product-card h-100" style="border: 1px solid var(--gray-200); box-shadow: var(--shadow-lg);">
+                    <a href="{% url 'store:product_detail' product.slug %}" style="text-decoration: none; color: inherit;">
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" class="card-img-top product-card-img" alt="{{ product.name }}" style="height: 160px; object-fit: contain; object-position: center; background: #f8fafc;">
+                        {% else %}
+                        <div class="card-img-top bg-light d-flex align-items-center justify-content-center product-card-img-placeholder" style="height: 160px;">
+                            <i class="bi bi-image" style="font-size: 3rem; color: var(--gray-400);"></i>
+                        </div>
+                        {% endif %}
+                    </a>
+                    <div class="card-body d-flex flex-column">
+                    <a href="{% url 'store:product_detail' product.slug %}" style="text-decoration: none; color: inherit;">
+                        <h5 class="card-title mb-1 mb-md-2 product-card-title" style="color: var(--text-dark); font-size: 0.9rem;">{{ product.name }}</h5>
+                    </a>
+                        <div class="text-center mb-2 mb-md-3">
+                            {% if product.has_discount %}
+                            <p class="text-dark mb-0 fw-bold product-card-price" style="font-size: 0.9rem; line-height: 1.2;">
+                                <span class="text-decoration-line-through text-muted small">{{ product.price|pesos_colombianos }}</span>
+                                <span class="text-danger ms-1">{{ product.promotional_price|pesos_colombianos }}</span>
+                                <span class="badge bg-danger ms-1" style="font-size: 0.7rem;">-{{ product.discount_percentage }}%</span>
+                            </p>
+                            {% else %}
+                            <p class="text-dark mb-0 fw-bold product-card-price" style="font-size: 0.9rem; line-height: 1.2;">{{ product.price|pesos_colombianos }}</p>
+                            {% endif %}
+                            <small class="text-muted d-none d-md-block" style="font-size: 0.7rem;">IVA incluido</small>
+                        </div>
+                        {% if product.stock > 0 %}
+                            {% if product.cart_quantity >= product.stock %}
+                            <div class="text-center mb-1 mb-md-2 cart-full-message">
+                                <small class="text-muted d-block mb-1 mb-md-2" style="font-size: 0.7rem;">
+                                    Las unidades disponibles las tienes en el carrito
+                                    <i class="bi bi-info-circle" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       data-bs-title="Tenerlo en el carrito no garantiza que esté reservado. Realiza el pago ahora para evitar que otros clientes compren las unidades disponibles."
+                                       style="cursor: help;"></i>
+                                </small>
+                            </div>
+                            <div class="d-flex gap-1 gap-md-2">
+                                <button type="button" class="btn btn-primary flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" disabled style="padding: 0.35rem 0.5rem; font-size: 0.75rem; opacity: 0.6; cursor: not-allowed;">
+                                    <i class="bi bi-cart-plus"></i><span class="d-none d-sm-inline"> Agregar</span>
+                                </button>
+                                <button type="button" class="btn btn-dark flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" disabled style="padding: 0.35rem 0.5rem; font-size: 0.75rem; opacity: 0.6; cursor: not-allowed;">
+                                    Comprar
+                                </button>
+                            </div>
+                            {% else %}
+                            <div class="d-flex gap-1 gap-md-2">
+                                <button type="button" class="btn btn-primary flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="bi bi-cart-plus"></i><span class="d-none d-sm-inline"> Agregar</span>
+                                </button>
+                                <button type="button" class="btn btn-dark flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                                    Comprar
+                                </button>
+                            </div>
+                            {% endif %}
+                        {% else %}
+                        <p class="text-muted small text-center mb-0">Agotado</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <p class="text-center text-muted">No hay productos destacados disponibles.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<script>
+// Animated counters
+document.addEventListener('DOMContentLoaded', function() {
+    const productCountEl = document.getElementById('productCount');
+    const clientCountEl = document.getElementById('clientCount');
+    
+    function animateCounter(element, target, duration = 2000) {
+        const start = 0;
+        const increment = target / (duration / 16);
+        let current = start;
+        
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                element.textContent = target + '+';
+                clearInterval(timer);
+            } else {
+                element.textContent = Math.floor(current) + '+';
+            }
+        }, 16);
+    }
+    
+    // Use Intersection Observer to trigger animation when section is visible
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                animateCounter(productCountEl, 50);
+                animateCounter(clientCountEl, 100);
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.5 });
+    
+    if (productCountEl) {
+        observer.observe(productCountEl);
+    }
+    
+    // Initialize Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Function to update product card buttons based on cart quantity
+    function updateProductCardButtons(productId, cartQuantity, productStock) {
+        const productCards = document.querySelectorAll('.product-card');
+        
+        productCards.forEach(productCard => {
+            const addButton = productCard.querySelector(`.add-to-cart-btn[data-product-id="${productId}"]`);
+            if (!addButton) return;
+            
+            const stock = parseInt(productStock || addButton.dataset.productStock || addButton.getAttribute('data-product-stock') || '0');
+            const currentCartQuantity = parseInt(cartQuantity !== undefined ? cartQuantity : (addButton.dataset.productCartQuantity || addButton.getAttribute('data-product-cart-quantity') || '0'));
+            
+            // Update data attributes
+            addButton.setAttribute('data-product-cart-quantity', currentCartQuantity);
+            addButton.setAttribute('data-product-stock', stock);
+            addButton.dataset.productCartQuantity = currentCartQuantity;
+            addButton.dataset.productStock = stock;
+            
+            const buttonsContainer = addButton.closest('.d-flex.gap-2');
+            
+            // Find all add-to-cart buttons in this card
+            const allAddButtons = productCard.querySelectorAll('.add-to-cart-btn');
+            const buyButton = Array.from(allAddButtons).find(btn => btn.classList.contains('btn-dark'));
+            
+            if (currentCartQuantity >= stock && stock > 0) {
+                // All units are in cart - disable buttons and show message
+                allAddButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.6';
+                    btn.style.cursor = 'not-allowed';
+                });
+                
+                // Check if message already exists
+                let messageDiv = productCard.querySelector('.cart-full-message');
+                if (!messageDiv && buttonsContainer) {
+                    messageDiv = document.createElement('div');
+                    messageDiv.className = 'text-center mb-2 cart-full-message';
+                    messageDiv.innerHTML = `
+                        <small class="text-muted d-block mb-2" style="font-size: 0.85rem;">
+                            Las unidades disponibles las tienes en el carrito
+                            <i class="bi bi-info-circle" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               data-bs-title="Tenerlo en el carrito no garantiza que esté reservado. Realiza el pago ahora para evitar que otros clientes compren las unidades disponibles."
+                               style="cursor: help;"></i>
+                        </small>
+                    `;
+                    buttonsContainer.parentNode.insertBefore(messageDiv, buttonsContainer);
+                    
+                    // Initialize tooltip for new element
+                    const tooltipEl = messageDiv.querySelector('[data-bs-toggle="tooltip"]');
+                    if (tooltipEl) {
+                        new bootstrap.Tooltip(tooltipEl);
+                    }
+                }
+            } else {
+                // Not all units in cart - enable buttons and remove message
+                allAddButtons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                });
+                
+                // Always remove message when not all units are in cart
+                const messageDiv = productCard.querySelector('.cart-full-message');
+                if (messageDiv) {
+                    // Dispose tooltip before removing
+                    const tooltipEl = messageDiv.querySelector('[data-bs-toggle="tooltip"]');
+                    if (tooltipEl) {
+                        const tooltipInstance = bootstrap.Tooltip.getInstance(tooltipEl);
+                        if (tooltipInstance) {
+                            tooltipInstance.dispose();
+                        }
+                    }
+                    messageDiv.remove();
+                }
+            }
+        });
+    }
+    
+    // Listen for custom event when cart is updated
+    document.addEventListener('cartUpdated', function(e) {
+        const { productId, productStock, cartQuantity } = e.detail;
+        if (productId) {
+            updateProductCardButtons(productId, cartQuantity, productStock);
+        }
+    });
+    
+    // Listen for custom event when cart item is updated
+    document.addEventListener('cartItemUpdated', function(e) {
+        const { productId, productStock, cartQuantity } = e.detail;
+        if (productId) {
+            updateProductCardButtons(productId, cartQuantity, productStock);
+        }
+    });
+});
+</script>
+{% endblock %}

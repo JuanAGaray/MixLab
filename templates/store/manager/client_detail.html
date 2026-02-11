@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load static store_tags %}
+
+{% block title %}Cliente {{ client.username }} - Manager{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a href="{% url 'store:client_list' %}">Clientes</a></li>
+            <li class="breadcrumb-item active">{{ client.username }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <h2 class="h5 mb-0 fw-normal text-muted">{{ client.get_full_name|default:client.username }}</h2>
+        <div class="d-flex gap-2">
+            <a href="{% url 'store:client_edit' client.id %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            <a href="{% url 'store:client_delete' client.id %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i> Eliminar
+            </a>
+            <a href="{% url 'store:client_list' %}" class="btn btn-sm btn-outline-secondary">Volver</a>
+        </div>
+    </div>
+
+    <!-- Credenciales para enviar al cliente -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <h5 class="card-title small text-muted mb-3">Credenciales de acceso</h5>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1">Usuario</label>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control bg-light" id="creds-username" value="{{ client.username }}" readonly>
+                        <button type="button" class="btn btn-outline-secondary" onclick="copyCred(event, 'creds-username')" title="Copiar usuario">
+                            <i class="bi bi-clipboard"></i> Copiar
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1">Contraseña</label>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control bg-light" id="creds-password" value="{{ new_password|default:'' }}" placeholder="{% if not new_password %}Genera una nueva contraseña{% endif %}" readonly>
+                        <button type="button" class="btn btn-outline-secondary {% if new_password %}d-none{% endif %}" id="btn-gen-pwd" title="Generar contraseña">
+                            <i class="bi bi-key"></i> Generar
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary {% if not new_password %}d-none{% endif %}" id="btn-copy-pwd" onclick="copyCred(event, 'creds-password')" title="Copiar contraseña">
+                            <i class="bi bi-clipboard"></i> Copiar
+                        </button>
+                    </div>
+                    <div id="pwd-saved-hint" class="form-text small text-success mt-1 d-none">
+                        La nueva contraseña ya fue <strong>guardada</strong> para este cliente. Cópiala y envíasela al usuario.
+                    </div>
+                    {% if new_password %}
+                    <div class="form-text text-warning small mt-1">Copia esta contraseña ahora; no se mostrará de nuevo.</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-primary btn-sm w-100" id="btn-copy-all" title="Copiar usuario y contraseña">
+                        <i class="bi bi-clipboard-check"></i> Copiar todo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="small text-muted">Usuario</div>
+                    <div class="fw-medium">{{ client.username }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="small text-muted">Correo</div>
+                    <div>{{ client.email|default:"—" }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="small text-muted">Teléfono</div>
+                    <div>
+                        {% with phone=client|profile_phone wa=client|whatsapp_url %}
+                        {% if phone %}
+                        {{ phone }}
+                        {% if wa %}
+                        <a href="{{ wa }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-success ms-1 py-0 px-1" title="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+                        {% endif %}
+                        {% else %}—{% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="small text-muted">Tipo de cliente</div>
+                    <div>{{ client|client_type_display }}</div>
+                </div>
+                <div class="col-12">
+                    <div class="small text-muted">Dirección</div>
+                    <div>{{ client|profile_address:0|linebreaksbr }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="small text-muted">Fecha de registro</div>
+                    <div>{{ client.date_joined|date:"d/m/Y H:i" }} <span class="text-muted">({{ client.date_joined|days_ago }})</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Métricas -->
+    <div class="row g-3 mt-0 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="small text-muted">Cotizaciones activas</div>
+                    <div class="h4 mb-0">{{ active_quotations_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="small text-muted">Total cotizaciones</div>
+                    <div class="h4 mb-0">{{ total_quotations }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="small text-muted">Total cotizado</div>
+                    <div class="h5 mb-0">{{ total_quoted|pesos_colombianos }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="small text-muted">Pedidos / Total</div>
+                    <div class="h5 mb-0">{{ total_orders }} · {{ total_ordered|pesos_colombianos }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cotizaciones activas -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-2">
+            <h5 class="card-title mb-0 small text-muted">Cotizaciones activas</h5>
+            <a href="{% url 'store:quotation_list' %}?cliente={{ client.email|default:client.username }}" class="btn btn-sm btn-outline-secondary">Ver todas</a>
+        </div>
+        <div class="card-body p-0">
+            {% if quotations_active %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 small">
+                    <thead class="text-muted">
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th class="text-end">Total</th>
+                            <th style="width:1px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for q in quotations_active %}
+                        <tr>
+                            <td class="fw-medium">COT{{ q.id }}</td>
+                            <td>{{ q.created_at|date:"d/m/Y" }}</td>
+                            <td><span class="badge bg-secondary">{{ q.get_quotation_status_display }}</span></td>
+                            <td class="text-end">{{ q.total|pesos_colombianos }}</td>
+                            <td>
+                                <a href="{% url 'store:quotation_detail' quotation_id=q.id %}" class="btn btn-sm btn-light py-0 px-1" title="Ver"><i class="bi bi-eye"></i></a>
+                                <a href="{% url 'store:quotation_pdf' quotation_id=q.id %}" class="btn btn-sm btn-light py-0 px-1" title="PDF" target="_blank"><i class="bi bi-file-earmark-pdf"></i></a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                No hay cotizaciones activas.
+                <a href="{% url 'store:quotation' %}">Crear cotización</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Pedidos recientes -->
+    {% if orders %}
+    <div class="card border-0 shadow-sm mt-3">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-2">
+            <h5 class="card-title mb-0 small text-muted">Pedidos recientes</h5>
+            {% if total_orders > 10 %}
+            <span class="text-muted small">Mostrando 10 de {{ total_orders }}</span>
+            {% endif %}
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 small">
+                    <thead class="text-muted">
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th class="text-end">Total</th>
+                            <th style="width:1px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in orders %}
+                        <tr>
+                            <td class="fw-medium">#{{ o.id }}</td>
+                            <td>{{ o.created_at|date:"d/m/Y" }}</td>
+                            <td><span class="badge bg-{% if o.status == 'delivered' %}success{% elif o.status == 'paid' or o.status == 'shipped' %}info{% elif o.status == 'cancelled' %}danger{% else %}secondary{% endif %}">{{ o.get_status_display }}</span></td>
+                            <td class="text-end">{{ o.total|pesos_colombianos }}</td>
+                            <td>
+                                <a href="{% url 'store:order_detail' order_id=o.id %}" class="btn btn-sm btn-light py-0 px-1" title="Ver"><i class="bi bi-eye"></i></a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+<script>
+(function() {
+  var clientId = {{ client.id }};
+  var copyUrl = '{% url "store:client_generate_password" client.id %}';
+
+  function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      var cookies = document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  window.copyCred = function(ev, id) {
+    var el = document.getElementById(id);
+    if (!el || !el.value) return;
+    navigator.clipboard.writeText(el.value).then(function() {
+      var btn = ev && ev.target ? ev.target.closest('button') : null;
+      if (btn) {
+        var icon = btn.querySelector('i');
+        var orig = icon ? icon.className : '';
+        if (icon) { icon.className = 'bi bi-check'; }
+        setTimeout(function() { if (icon) icon.className = orig; }, 800);
+      }
+    });
+  }
+
+  var genBtn = document.getElementById('btn-gen-pwd');
+  if (genBtn) {
+    genBtn.addEventListener('click', function() {
+      var btn = this;
+      var input = document.getElementById('creds-password');
+      var copyBtn = document.getElementById('btn-copy-pwd');
+      var savedHint = document.getElementById('pwd-saved-hint');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+      fetch(copyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({})
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        input.value = data.password || '';
+        btn.classList.add('d-none');
+        copyBtn.classList.remove('d-none');
+        if (savedHint) {
+          savedHint.classList.remove('d-none');
+        }
+      }).catch(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-key"></i> Generar';
+      }).finally(function() {
+        btn.disabled = false;
+        if (!copyBtn.classList.contains('d-none')) return;
+        btn.innerHTML = '<i class="bi bi-key"></i> Generar';
+      });
+    });
+  }
+
+  var copyAllBtn = document.getElementById('btn-copy-all');
+  if (copyAllBtn) {
+    copyAllBtn.addEventListener('click', function() {
+      var user = document.getElementById('creds-username').value;
+      var pwd = document.getElementById('creds-password').value;
+      var text = 'Usuario: ' + user + '\nContraseña: ' + (pwd || '(genera primero la contraseña)');
+      navigator.clipboard.writeText(text).then(function() {
+        var icon = copyAllBtn.querySelector('i');
+        if (icon) {
+          var o = icon.className;
+          icon.className = 'bi bi-check';
+          setTimeout(function() { icon.className = o; }, 800);
+        }
+      });
+    });
+  }
+})();
+</script>
+{% endblock %}

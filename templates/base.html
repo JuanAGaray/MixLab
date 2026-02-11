@@ -1,0 +1,895 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MixLab{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Promotional Banner -->
+    <div class="promo-banner text-center py-2">
+        <strong><i class="bi bi-truck"></i> Envíos gratis para Cartagena por compras superiores a $290.000</strong>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'store:home' %}">
+                <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="35">
+            </a>
+            <!-- Botón menú móvil (offcanvas) -->
+            <button class="navbar-toggler" type="button"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#mainNavOffcanvas"
+                    aria-controls="mainNavOffcanvas"
+                    aria-label="Abrir menú">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <!-- Navegación escritorio -->
+            <div class="d-none d-lg-flex flex-grow-1 justify-content-between" id="navbarNavDesktop">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:home' %}">Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:product_list' %}">Productos</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Categorías
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                            {% for category in categories %}
+                            <li><a class="dropdown-item" href="{% url 'store:product_list' %}?category={{ category.slug }}">{{ category.name }}</a></li>
+                            {% empty %}
+                            <li><span class="dropdown-item text-muted">No hay categorías</span></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    {% if user.is_staff %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="managerDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Manager
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="managerDropdown">
+                            <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:client_list' %}"><i class="bi bi-people"></i> Clientes</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:sales_list' %}"><i class="bi bi-graph-up"></i> Ventas</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                    {% load store_tags %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="user-avatar me-2">
+                                <span class="avatar-initials">{{ user|initials }}</span>
+                            </div>
+                            <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{% url 'store:order_list' %}"><i class="bi bi-box-seam"></i> Mis Pedidos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person"></i> Mi Perfil</a></li>
+                            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}#direcciones"><i class="bi bi-geo-alt"></i> Mis Direcciones</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item logout-link border-0 bg-transparent w-100 text-start" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:login' %}">Iniciar Sesión</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Offcanvas Menú principal (móvil) -->
+    <div class="offcanvas offcanvas-start d-lg-none" tabindex="-1" id="mainNavOffcanvas" aria-labelledby="mainNavOffcanvasLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="mainNavOffcanvasLabel">
+                <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="28" class="me-2">
+                Menú
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column justify-content-between">
+            <div>
+                <ul class="navbar-nav mb-3">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:home' %}"><i class="bi bi-house me-1"></i> Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-1"></i> Productos</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMobile" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-grid me-1"></i> Categorías
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMobile">
+                            {% for category in categories %}
+                            <li><a class="dropdown-item" href="{% url 'store:product_list' %}?category={{ category.slug }}">{{ category.name }}</a></li>
+                            {% empty %}
+                            <li><span class="dropdown-item text-muted">No hay categorías</span></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    {% if user.is_staff %}
+                    <li class="nav-item dropdown mt-2">
+                        <a class="nav-link dropdown-toggle" href="#" id="managerDropdownMobile" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-speedometer2 me-1"></i> Manager
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="managerDropdownMobile">
+                            <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:client_list' %}"><i class="bi bi-people"></i> Clientes</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:sales_list' %}"><i class="bi bi-graph-up"></i> Ventas</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <hr>
+
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <span class="nav-link disabled small text-muted">
+                            Sesión iniciada como <strong>{{ user.get_full_name|default:user.username }}</strong>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:order_list' %}"><i class="bi bi-box-seam me-1"></i> Mis Pedidos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:profile' %}"><i class="bi bi-person me-1"></i> Mi Perfil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:profile' %}#direcciones"><i class="bi bi-geo-alt me-1"></i> Mis Direcciones</a>
+                    </li>
+                    <li class="nav-item mt-2">
+                        <form method="post" action="{% url 'accounts:logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger w-100">
+                                <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión
+                            </button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:login' %}"><i class="bi bi-box-arrow-in-right me-1"></i> Iniciar Sesión</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:register' %}"><i class="bi bi-person-plus me-1"></i> Crear cuenta</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages (minimal bottom-center toast) -->
+    {% if messages %}
+    <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 1080;">
+        {% for message in messages %}
+        <div class="toast frozz-toast align-items-center text-bg-dark border-0 mb-2"
+             role="alert"
+             aria-live="assertive"
+             aria-atomic="true"
+             data-bs-delay="2600">
+            <div class="d-flex">
+                <div class="toast-body py-2 px-3">
+                    {{ message }}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <style>
+      .frozz-toast {
+        backdrop-filter: blur(10px);
+        background: rgba(20, 20, 20, 0.92) !important;
+        border-radius: 999px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.25);
+        max-width: min(520px, calc(100vw - 2rem));
+      }
+      .frozz-toast .toast-body { font-size: .95rem; }
+    </style>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.frozz-toast').forEach(function (el) {
+          try {
+            const t = bootstrap.Toast.getOrCreateInstance(el);
+            t.show();
+          } catch (e) {}
+        });
+      });
+    </script>
+    {% endif %}
+
+    <!-- Toast container para mensajes desde JS (mismo estilo que los de Django) -->
+    <div id="js-toast-container" class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 1080;"></div>
+    <style>#js-toast-container .toast { backdrop-filter: blur(10px); border-radius: 999px; box-shadow: 0 10px 30px rgba(0,0,0,.25); max-width: min(520px, calc(100vw - 2rem)); background: rgba(20, 20, 20, 0.92) !important; } #js-toast-container .toast.text-bg-success { background: rgba(16, 185, 129, 0.95) !important; } #js-toast-container .toast.text-bg-danger { background: rgba(239, 68, 68, 0.95) !important; } #js-toast-container .toast-body { font-size: .95rem; }</style>
+
+    <!-- Modal confirmación eliminar del carrito -->
+    <div class="modal fade" id="confirmRemoveCartModal" tabindex="-1" aria-labelledby="confirmRemoveCartLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-3 shadow">
+                <div class="modal-body text-center py-4">
+                    <p class="mb-0" id="confirmRemoveCartMessage">¿Estás seguro de que deseas eliminar este producto del carrito?</p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center gap-2 pb-4 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmRemoveCartBtn">Eliminar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content-wrapper">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer bg-dark text-white mt-5 py-5">
+        <div class="container">
+            <div class="row g-4">
+                <!-- Información -->
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="footer-title">Información</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2"><a href="{% url 'store:about' %}" class="text-white-50 text-decoration-none">Quiénes Somos</a></li>
+                        <li class="mb-2"><a href="{% url 'store:privacy_policy' %}" class="text-white-50 text-decoration-none">Políticas y Privacidad</a></li>
+                        <li class="mb-2"><a href="{% url 'store:normatividad' %}" class="text-white-50 text-decoration-none">Normatividad</a></li>
+                    </ul>
+                </div>
+                <!-- Contacto -->
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="footer-title">Contacto</h6>
+                    <ul class="list-unstyled mb-0 text-white-50">
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-envelope me-2 mt-1"></i>
+                            <a href="mailto:ventas@mixlab.com.co" class="text-white-50 text-decoration-none">ventas@mixlab.com.co</a>
+                        </li>
+                        <li class="mb-2 d-flex align-items-center">
+                            <i class="bi bi-telephone me-2"></i>
+                            <span>+573045379501</span>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-geo-alt me-2 mt-1"></i>
+                            <span>Cartagena, Colombia</span>
+                        </li>
+                    </ul>
+                </div>
+                <!-- Logo y redes -->
+                <div class="col-lg-6 col-md-12 footer-logo-redes">
+                    <a href="{% url 'store:home' %}" class="d-inline-block mb-4">
+                        <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="40" class="footer-logo">
+                    </a>
+                    <h6 class="footer-title">Síguenos en redes</h6>
+                    <div class="footer-redes">
+                        <a href="https://www.instagram.com/mixlab_co?utm_source=qr&igsh=Z2tjMjlxaHRzb3M4" class="text-white-50" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                        <a href="https://www.tiktok.com/@mixlab_co?_r=1&_t=ZS-93oYlA79zUe" class="text-white-50" target="_blank" rel="noopener noreferrer" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                    </div>
+                </div>
+            </div>
+            <hr class="bg-secondary my-4 opacity-25">
+            <div class="text-center text-white-50 small">
+                <p class="mb-0">&copy; 2026 MixLab. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Floating WhatsApp Button (above cart) -->
+    <a href="https://wa.me/573045379501" class="floating-wa-btn" target="_blank" rel="noopener noreferrer" title="Contactar por WhatsApp" aria-label="WhatsApp">
+        <i class="bi bi-whatsapp"></i>
+    </a>
+
+    <!-- Floating Cart Button -->
+    <button type="button" class="floating-cart-btn" data-bs-toggle="offcanvas" data-bs-target="#cartOffcanvas" aria-controls="cartOffcanvas" title="Ver Carrito">
+        <i class="bi bi-cart3"></i>
+        {% if cart_item_count > 0 %}
+        <span class="floating-cart-badge">{{ cart_item_count }}</span>
+        {% endif %}
+    </button>
+
+    <!-- Cart Offcanvas Sidebar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="cartOffcanvas" aria-labelledby="cartOffcanvasLabel">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title" id="cartOffcanvasLabel">
+                <i class="bi bi-cart3"></i> Mi Carrito
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            {% if user.is_authenticated and cart and cart.items.all %}
+            <div class="cart-items">
+                {% for item in cart.items.all %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0 me-3">
+                                {% if item.product.image %}
+                                <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 5px;">
+                                {% else %}
+                                <div class="bg-light d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; border-radius: 5px;">
+                                    <i class="bi bi-image text-muted"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ item.product.name }}</h6>
+                                {% load store_tags %}
+                                <p class="text-muted small mb-2">
+                                    {% if item.product.has_discount %}
+                                    <span class="text-decoration-line-through">{{ item.product.price|pesos_colombianos }}</span>
+                                    <span class="text-danger fw-bold">{{ item.product.selling_price|pesos_colombianos }}</span>
+                                    <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">-{{ item.product.discount_percentage }}%</span>
+                                    {% else %}
+                                    {{ item.product.selling_price|pesos_colombianos }}
+                                    {% endif %}
+                                    c/u
+                                </p>
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" 
+                                               name="quantity" 
+                                               value="{{ item.quantity }}" 
+                                               min="1" 
+                                               max="{{ item.product.stock }}" 
+                                               class="form-control form-control-sm d-inline-block cart-quantity-input" 
+                                               style="width: 70px;" 
+                                               data-item-id="{{ item.id }}"
+                                               data-product-id="{{ item.product.id }}">
+                                    </div>
+                                    <strong class="text-primary cart-item-subtotal" data-item-id="{{ item.id }}">{{ item.subtotal|pesos_colombianos }}</strong>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-danger cart-remove-btn" 
+                                            title="Eliminar"
+                                            data-item-id="{{ item.id }}"
+                                            data-product-id="{{ item.product.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="cart-summary border-top pt-3 mt-3">
+                {% load store_tags %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Subtotal:</span>
+                    <strong>{{ cart.total|pesos_colombianos }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3 text-muted small">
+                    <span>Envío:</span>
+                    <span>Calculado al finalizar</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3 border-top pt-2">
+                    <strong>Total:</strong>
+                    <strong class="h5 text-primary mb-0">{{ cart.total|pesos_colombianos }}</strong>
+                </div>
+                <div class="d-grid gap-2">
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'store:checkout' %}" class="btn btn-primary">
+                        <i class="bi bi-credit-card"></i> Proceder al Pago
+                    </a>
+                    {% else %}
+                    <a href="{% url 'store:guest_checkout' %}" class="btn btn-primary">
+                        <i class="bi bi-credit-card"></i> Proceder al Pago
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% elif not user.is_authenticated and session_cart_items %}
+            <div class="cart-items">
+                {% for item in session_cart_items %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0 me-3">
+                                {% if item.product.image %}
+                                <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 5px;">
+                                {% else %}
+                                <div class="bg-light d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; border-radius: 5px;">
+                                    <i class="bi bi-image text-muted"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ item.product.name }}</h6>
+                                {% load store_tags %}
+                                <p class="text-muted small mb-2">
+                                    {% if item.product.has_discount %}
+                                    <span class="text-decoration-line-through">{{ item.product.price|pesos_colombianos }}</span>
+                                    <span class="text-danger fw-bold">{{ item.product.selling_price|pesos_colombianos }}</span>
+                                    <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">-{{ item.product.discount_percentage }}%</span>
+                                    {% else %}
+                                    {{ item.product.selling_price|pesos_colombianos }}
+                                    {% endif %}
+                                    c/u
+                                </p>
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <input type="number"
+                                               name="quantity"
+                                               value="{{ item.quantity }}"
+                                               min="1"
+                                               max="{{ item.product.stock }}"
+                                               class="form-control form-control-sm d-inline-block cart-quantity-input"
+                                               style="width: 70px;"
+                                               data-item-id="{{ item.id }}"
+                                               data-product-id="{{ item.product.id }}">
+                                    </div>
+                                    <strong class="text-primary cart-item-subtotal" data-item-id="{{ item.id }}">{{ item.subtotal|pesos_colombianos }}</strong>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-danger cart-remove-btn"
+                                            title="Eliminar"
+                                            data-item-id="{{ item.id }}"
+                                            data-product-id="{{ item.product.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="cart-summary border-top pt-3 mt-3">
+                {% load store_tags %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Subtotal:</span>
+                    <strong>{{ cart_total|pesos_colombianos }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3 text-muted small">
+                    <span>Envío:</span>
+                    <span>Calculado al finalizar</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3 border-top pt-2">
+                    <strong>Total:</strong>
+                    <strong class="h5 text-primary mb-0">{{ cart_total|pesos_colombianos }}</strong>
+                </div>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'store:guest_checkout' %}" class="btn btn-primary">
+                        <i class="bi bi-credit-card"></i> Proceder al Pago
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-cart-x" style="font-size: 64px; color: #6c757d; opacity: 0.5;"></i>
+                <h5 class="mt-3">Tu carrito está vacío</h5>
+                <p class="text-muted">Agrega productos a tu carrito para comenzar a comprar.</p>
+                <a href="{% url 'store:product_list' %}" class="btn btn-primary" data-bs-dismiss="offcanvas">
+                    Ver Productos
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+    // Get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Mostrar toast abajo al centro (como los mensajes de Django)
+    function showToast(type, message) {
+        var container = document.getElementById('js-toast-container');
+        if (!container) return;
+        var toastEl = document.createElement('div');
+        toastEl.className = 'toast frozz-toast align-items-center text-bg-dark border-0 mb-2';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.setAttribute('data-bs-delay', '2600');
+        if (type === 'success') toastEl.classList.add('text-bg-success');
+        else if (type === 'error') toastEl.classList.add('text-bg-danger');
+        toastEl.innerHTML = '<div class="d-flex"><div class="toast-body py-2 px-3">' + (message || '') + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button></div>';
+        container.appendChild(toastEl);
+        var t = new bootstrap.Toast(toastEl, { delay: 2600 });
+        t.show();
+        toastEl.addEventListener('hidden.bs.toast', function() { toastEl.remove(); });
+    }
+    
+    // Format number as Colombian Pesos
+    function formatPesos(value) {
+        const num = parseFloat(value);
+        const formatted = num.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return '$' + formatted;
+    }
+    
+    // Add to cart: delegado para listado, home y detalle
+    document.addEventListener('DOMContentLoaded', function() {
+        document.body.addEventListener('click', function(e) {
+            const btn = e.target.closest('.add-to-cart-btn');
+            if (!btn || btn.disabled) return;
+            const productId = btn.dataset.productId;
+            const productName = btn.dataset.productName || 'Producto';
+            const productStock = parseInt(btn.dataset.productStock || btn.getAttribute('data-product-stock') || '0', 10);
+            const quantityInput = document.getElementById('quantity-input');
+            const quantity = quantityInput ? (parseInt(quantityInput.value, 10) || 1) : 1;
+            if (productStock > 0 && quantity > productStock) {
+                if (typeof alert === 'function') alert('No hay suficiente stock. Solo hay ' + productStock + ' unidades disponibles.');
+                return;
+            }
+            if (quantity < 1) return;
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Agregando...';
+            fetch('/cart/add/' + productId + '/', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ quantity: quantity }),
+            })
+            .then(function(response) {
+                const ct = response.headers.get('Content-Type') || '';
+                if (!ct.includes('application/json')) {
+                    return response.text().then(function(t) { throw new Error('JSON expected'); });
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    if (typeof updateCartBadge === 'function' && data.cart_item_count !== undefined) {
+                        updateCartBadge(data.cart_item_count);
+                    }
+                    var badge = document.querySelector('.floating-cart-badge');
+                    if (badge && data.cart_item_count !== undefined) {
+                        badge.textContent = data.cart_item_count;
+                        badge.style.display = data.cart_item_count > 0 ? 'flex' : 'none';
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast('success', '\u00a1' + productName + ' agregado al carrito!');
+                    } else if (typeof alert === 'function') {
+                        alert('\u00a1' + productName + ' agregado al carrito!');
+                    }
+                    if (data.product_id && data.cart_quantity !== undefined) {
+                        document.dispatchEvent(new CustomEvent('cartItemUpdated', {
+                            detail: {
+                                productId: parseInt(data.product_id),
+                                productStock: productStock || parseInt(data.product_stock || 0, 10),
+                                cartQuantity: parseInt(data.cart_quantity, 10),
+                            }
+                        }));
+                    }
+                    if (typeof updateOffcanvasContent === 'function') updateOffcanvasContent();
+                } else {
+                    if (typeof alert === 'function') alert(data.error || 'Error al agregar al carrito');
+                }
+            })
+            .catch(function(err) {
+                console.error('Add to cart error:', err);
+                if (typeof alert === 'function') alert('Error al agregar al carrito. Intenta de nuevo.');
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+        });
+    });
+    
+    // Function to show error message below quantity input
+    function showQuantityError(inputElement, message) {
+        // Remove any existing error message
+        const flexContainer = inputElement.closest('.d-flex.align-items-center');
+        if (flexContainer) {
+            const existingError = flexContainer.parentElement.querySelector('.quantity-error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+        }
+        
+        // Create error message element
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'quantity-error-message';
+        errorDiv.style.cssText = 'color: #dc3545; font-size: 0.75rem; margin-top: 0.25rem; display: block; line-height: 1.2; padding-left: 0;';
+        errorDiv.textContent = message;
+        
+        // Find the flex container and insert error message after it
+        const flexContainerParent = inputElement.closest('.d-flex.align-items-center');
+        if (flexContainerParent && flexContainerParent.parentElement) {
+            flexContainerParent.parentElement.insertBefore(errorDiv, flexContainerParent.nextSibling);
+        } else {
+            inputElement.parentElement.appendChild(errorDiv);
+        }
+        
+        // Remove error message after 4 seconds
+        setTimeout(() => {
+            if (errorDiv.parentElement) {
+                errorDiv.remove();
+            }
+        }, 4000);
+    }
+    
+    // Function to update offcanvas content via AJAX
+    function updateOffcanvasContent() {
+        const offcanvasBody = document.querySelector('#cartOffcanvas .offcanvas-body');
+        if (!offcanvasBody) return;
+        
+        // Fetch the base template to get updated cart content
+        fetch('/', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const newOffcanvasBody = doc.querySelector('#cartOffcanvas .offcanvas-body');
+            if (newOffcanvasBody) {
+                const currentScroll = offcanvasBody.scrollTop;
+                offcanvasBody.innerHTML = newOffcanvasBody.innerHTML;
+                offcanvasBody.scrollTop = currentScroll;
+                // Re-initialize event listeners
+                initializeCartEventListeners();
+            }
+        })
+        .catch(error => {
+            console.error('Error updating offcanvas:', error);
+            // Fallback: reload the page if AJAX fails
+            // window.location.reload();
+        });
+    }
+    
+    // Function to update cart badge
+    function updateCartBadge(count) {
+        const floatingCartBtn = document.querySelector('.floating-cart-btn');
+        const badge = document.getElementById('cartBadge') || (floatingCartBtn && floatingCartBtn.querySelector('.floating-cart-badge'));
+        if (badge) {
+            badge.textContent = count;
+            badge.style.display = count > 0 ? 'flex' : 'none';
+        } else if (floatingCartBtn && count > 0) {
+            const newBadge = document.createElement('span');
+            newBadge.id = 'cartBadge';
+            newBadge.className = 'floating-cart-badge';
+            newBadge.textContent = count;
+            newBadge.style.display = 'flex';
+            floatingCartBtn.appendChild(newBadge);
+        }
+    }
+    
+    // Initialize cart event listeners
+    function initializeCartEventListeners() {
+        // Handle quantity updates
+        document.querySelectorAll('.cart-quantity-input').forEach(input => {
+            input.addEventListener('change', function() {
+                const itemId = this.dataset.itemId;
+                const quantity = parseInt(this.value);
+                const inputElement = this;
+                
+                if (quantity < 1) {
+                    this.value = 1;
+                    return;
+                }
+                
+                // Disable input during request
+                inputElement.disabled = true;
+                
+                fetch(`/cart/update/${itemId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'quantity': quantity
+                    }),
+                })
+                .then(response => {
+                    const contentType = response.headers.get('Content-Type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        return response.text().then(text => {
+                            throw new Error('Expected JSON but got: ' + text.substring(0, 100));
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Update subtotal
+                        const subtotalEl = document.querySelector(`.cart-item-subtotal[data-item-id="${itemId}"]`);
+                        if (subtotalEl && data.item_subtotal) {
+                            subtotalEl.textContent = formatPesos(data.item_subtotal);
+                        }
+                        
+                        // Update cart total in summary
+                        const cartTotalEls = document.querySelectorAll('.cart-summary strong:last-child, .cart-summary .h5.text-primary');
+                        if (cartTotalEls.length > 0 && data.cart_total) {
+                            cartTotalEls.forEach(el => {
+                                if (el.textContent.includes('$') || el.classList.contains('text-primary')) {
+                                    el.textContent = formatPesos(data.cart_total);
+                                }
+                            });
+                        }
+                        
+                        // Update cart badge
+                        if (data.cart_item_count !== undefined) {
+                            updateCartBadge(data.cart_item_count);
+                        }
+                        
+                        // Update offcanvas content
+                        updateOffcanvasContent();
+                        
+                        // Dispatch event for product card updates
+                        if (data.product_id && data.cart_quantity !== undefined) {
+                            const event = new CustomEvent('cartItemUpdated', {
+                                detail: {
+                                    productId: parseInt(data.product_id),
+                                    productStock: parseInt(data.product_stock || 0),
+                                    cartQuantity: parseInt(data.cart_quantity || 0),
+                                }
+                            });
+                            document.dispatchEvent(event);
+                        }
+                    } else {
+                        showQuantityError(inputElement, data.error || 'Error al actualizar la cantidad');
+                        // Restore original value
+                        inputElement.value = inputElement.getAttribute('data-original-value') || 1;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showQuantityError(inputElement, 'Error al actualizar la cantidad. Por favor, intenta de nuevo.');
+                    // Restore original value
+                    inputElement.value = inputElement.getAttribute('data-original-value') || 1;
+                })
+                .finally(() => {
+                    inputElement.disabled = false;
+                });
+            });
+            
+            // Store original value
+            input.setAttribute('data-original-value', input.value);
+        });
+        
+        // Handle remove buttons: abrir modal de confirmación en lugar de confirm()
+        var pendingRemove = null;
+        var confirmModal = document.getElementById('confirmRemoveCartModal');
+        var confirmBtn = document.getElementById('confirmRemoveCartBtn');
+        if (confirmModal && confirmBtn) {
+            confirmBtn.addEventListener('click', function() {
+                if (!pendingRemove) return;
+                var itemId = pendingRemove.itemId;
+                var productId = pendingRemove.productId;
+                var buttonElement = pendingRemove.buttonElement;
+                pendingRemove = null;
+                var modalInstance = bootstrap.Modal.getInstance(confirmModal);
+                if (modalInstance) modalInstance.hide();
+                buttonElement.disabled = true;
+                fetch('/cart/remove/' + itemId + '/', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                })
+                .then(function(response) {
+                    var ct = response.headers.get('Content-Type') || '';
+                    if (!ct.includes('application/json')) {
+                        return response.text().then(function(t) { throw new Error('Expected JSON'); });
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        if (typeof showToast === 'function') {
+                            showToast('success', 'Producto eliminado del carrito');
+                        }
+                        if (data.cart_item_count !== undefined) {
+                            updateCartBadge(data.cart_item_count);
+                        }
+                        var cartTotalEls = document.querySelectorAll('.cart-summary strong:last-child, .cart-summary .h5.text-primary');
+                        if (cartTotalEls.length > 0 && data.cart_total) {
+                            cartTotalEls.forEach(function(el) {
+                                if (el.textContent.indexOf('$') !== -1 || el.classList.contains('text-primary')) {
+                                    el.textContent = formatPesos(data.cart_total);
+                                }
+                            });
+                        }
+                        updateOffcanvasContent();
+                        if (productId) {
+                            document.dispatchEvent(new CustomEvent('cartItemUpdated', {
+                                detail: {
+                                    productId: parseInt(productId),
+                                    productStock: parseInt(data.product_stock || 0),
+                                    cartQuantity: 0,
+                                }
+                            }));
+                        }
+                    } else {
+                        if (typeof showToast === 'function') {
+                            showToast('error', data.error || 'Error al eliminar el producto');
+                        } else {
+                            alert(data.error || 'Error al eliminar el producto');
+                        }
+                        buttonElement.disabled = false;
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error:', error);
+                    if (typeof showToast === 'function') {
+                        showToast('error', 'Error al eliminar. Intenta de nuevo.');
+                    } else {
+                        alert('Error al eliminar el producto. Por favor, intenta de nuevo.');
+                    }
+                    buttonElement.disabled = false;
+                });
+            });
+        }
+        document.querySelectorAll('.cart-remove-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                pendingRemove = {
+                    itemId: this.dataset.itemId,
+                    productId: this.dataset.productId,
+                    buttonElement: this,
+                };
+                var modalEl = document.getElementById('confirmRemoveCartModal');
+                if (modalEl) {
+                    var m = new bootstrap.Modal(modalEl);
+                    m.show();
+                }
+            });
+        });
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeCartEventListeners();
+    });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

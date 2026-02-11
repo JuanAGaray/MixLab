@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Mi Perfil - MixLab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="h5 mb-4 fw-normal text-muted">Mi Perfil</h2>
+
+    <!-- Perfil: teléfonos y dirección predeterminada -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Datos de contacto</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'accounts:profile' %}">
+                {% csrf_token %}
+                <input type="hidden" name="profile_form" value="1">
+                <div class="mb-3">
+                    <label class="form-label">Teléfonos</label>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        {% for phone in user_profile.phone|split:"," %}
+                        <span class="badge bg-primary">{{ phone|striptags }}</span>
+                        {% empty %}
+                        <span class="text-muted small">Sin teléfonos</span>
+                        {% endfor %}
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text">+57</span>
+                        {{ profile_form.new_phone }}
+                    </div>
+                    <small class="text-muted">Puedes cambiar el indicativo manualmente si lo necesitas.</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ profile_form.default_shipping_address.label }}</label>
+                    {{ profile_form.default_shipping_address }}
+                </div>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Direcciones de envío (DPA Colombia) -->
+    <div class="card border-0 shadow-sm mb-4" id="direcciones">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Mis direcciones de envío</h5>
+            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#nuevaDireccion" aria-expanded="false" aria-controls="nuevaDireccion">
+                <i class="bi bi-plus"></i> Agregar nueva dirección
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="collapse mb-4" id="nuevaDireccion">
+                <h6 class="text-muted mb-3">Agregar dirección (Departamento, Ciudad, Dirección exacta, Punto de referencia, Google Maps)</h6>
+                <form method="post" action="{% url 'accounts:profile' %}#direcciones">
+                    {% csrf_token %}
+                    <input type="hidden" name="address_form" value="1">
+                    {% for field in address_form %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                        {% if field.name == 'phone' %}
+                        <div class="input-group">
+                            <span class="input-group-text">+57</span>
+                            {{ field }}
+                        </div>
+                        <small class="text-muted d-block mt-1">Puedes cambiar el indicativo manualmente si lo necesitas.</small>
+                        {% else %}
+                        {{ field }}
+                        {% endif %}
+                        {% if field.help_text %}<div class="form-text small">{{ field.help_text }}</div>{% endif %}
+                        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors.0 }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="mb-3">
+                        <label class="form-label">O marca tu ubicación en el mapa</label>
+                        <p class="form-text small mb-2">Haz clic en el mapa (OpenStreetMap) para colocar el marcador. Se generará un enlace que se abrirá en Google Maps.</p>
+                        <div id="map-ubicacion" class="border rounded" style="height: 280px; width: 100%;"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar dirección</button>
+                </form>
+                <hr class="my-4">
+            </div>
+
+            {% for addr in shipping_addresses %}
+            <div class="border rounded p-3 mb-3 {% if addr.is_default %}border-primary bg-light{% endif %}">
+                {% if addr.is_default %}<span class="badge bg-primary mb-2">Predeterminada</span>{% endif %}
+                <p class="mb-1"><strong>Departamento:</strong> {{ addr.departamento|default:"—" }}</p>
+                <p class="mb-1"><strong>Ciudad:</strong> {{ addr.city }}</p>
+                <p class="mb-1"><strong>Dirección exacta:</strong> {{ addr.address }}</p>
+                {% if addr.punto_referencia %}
+                <p class="mb-1"><strong>Punto de referencia:</strong> {{ addr.punto_referencia }}</p>
+                {% endif %}
+                {% if addr.google_maps_ubicacion %}
+                <p class="mb-1">
+                    <strong>Ubicación:</strong>
+                    <a href="{{ addr.google_maps_ubicacion }}" target="_blank" rel="noopener noreferrer">Abrir en Google Maps <i class="bi bi-box-arrow-up-right"></i></a>
+                </p>
+                {% endif %}
+                {% if addr.phone %}<p class="mb-0 text-muted small">Tel: {{ addr.phone }}</p>{% endif %}
+            </div>
+            {% empty %}
+            <p class="text-muted mb-0">No tienes direcciones guardadas. Agrega una arriba.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.hash === '#direcciones') {
+        var el = document.getElementById('direcciones');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // DPA Colombia: ciudad según departamento
+    var selDepto = document.getElementById('id_departamento_address');
+    var selCity = document.getElementById('id_city_address');
+    if (selDepto && selCity) {
+        fetch("{% static 'data/colombia_dpa.json' %}")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var deptos = data.departamentos || [];
+                function normalizar(s) {
+                    if (!s) return '';
+                    return String(s).trim().toLowerCase().normalize('NFD').replace(/\u0300-\u036f/g, '');
+                }
+                selDepto.addEventListener('change', function() {
+                    var nombre = this.value;
+                    selCity.innerHTML = '';
+                    var opt0 = document.createElement('option');
+                    opt0.value = '';
+                    opt0.textContent = nombre ? '-- Seleccione ciudad/municipio --' : '-- Primero seleccione departamento --';
+                    selCity.appendChild(opt0);
+                    if (!nombre) return;
+                    var dep = deptos.find(function(d) {
+                        return (d.nombre === nombre) || (normalizar(d.nombre) === normalizar(nombre));
+                    });
+                    if (dep && dep.municipios && Array.isArray(dep.municipios)) {
+                        dep.municipios.forEach(function(m) {
+                            var opt = document.createElement('option');
+                            opt.value = m;
+                            opt.textContent = m;
+                            selCity.appendChild(opt);
+                        });
+                    }
+                });
+                if (selDepto.value) selDepto.dispatchEvent(new Event('change'));
+            })
+            .catch(function(err) { console.warn('No se pudo cargar municipios:', err); });
+    }
+
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function() {
+    var mapInstance = null;
+    function initMap() {
+        var mapEl = document.getElementById('map-ubicacion');
+        var inputMaps = document.getElementById('id_google_maps_ubicacion');
+        if (!mapEl || !inputMaps || typeof L === 'undefined') return;
+        mapInstance = L.map('map-ubicacion').setView([10.3997, -75.5144], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(mapInstance);
+        var marker = null;
+        mapInstance.on('click', function(e) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            if (marker) mapInstance.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(mapInstance);
+            inputMaps.value = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+        });
+        var collapse = document.getElementById('nuevaDireccion');
+        if (collapse) {
+            collapse.addEventListener('shown.bs.collapse', function() {
+                if (mapInstance) mapInstance.invalidateSize();
+            });
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMap);
+    } else {
+        initMap();
+    }
+})();
+</script>
+{% endblock %}

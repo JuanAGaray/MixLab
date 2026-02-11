@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Dashboard de Inventario - Frozz{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-bar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1.5rem 2rem;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 1.5rem;
+}
+.stat-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+.stat-item .stat-value { font-size: 1.25rem; font-weight: 600; }
+.stat-item .stat-label { font-size: 0.8rem; color: #6c757d; }
+
+.inv-table td, .inv-table th { vertical-align: middle !important; }
+.inv-table tbody tr { position: relative; }
+.inv-table tbody tr .row-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+.inv-table tbody tr:hover .row-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+.inv-table .row-actions .btn { padding: 0.2rem 0.4rem; font-size: 0.8rem; }
+.stock-low { background-color: rgba(255, 193, 7, 0.25); padding: 0.15rem 0.4rem; border-radius: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="h5 mb-4 fw-normal text-muted">Inventario</h2>
+
+    <!-- Statistics -->
+    <div class="stat-bar">
+        <div class="stat-item">
+            <span class="stat-value">{{ total_products }}</span>
+            <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ available_products }}</span>
+            <span class="stat-label">Disponibles</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ low_stock_products }}</span>
+            <span class="stat-label">Stock bajo</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ out_of_stock_products }}</span>
+            <span class="stat-label">Agotados</span>
+        </div>
+    </div>
+
+    <!-- Products Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <a href="{% url 'store:inventory_list' %}" class="text-muted small text-decoration-none">Ver todos</a>
+                <a href="{% url 'store:inventory_create' %}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> Nuevo producto
+                </a>
+            </div>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 inv-table">
+                            <thead class="small text-muted">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Categoría</th>
+                                    <th>Stock</th>
+                                    <th>Costo compra</th>
+                                    <th>Precio venta</th>
+                                    <th>Estado</th>
+                                    <th style="width: 1px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in page_obj %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if product.image %}
+                                            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
+                                            {% else %}
+                                            <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                                <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
+                                            </div>
+                                            {% endif %}
+                                            <div>
+                                                <a href="{% url 'store:inventory_detail' product.id %}" class="text-decoration-none text-dark fw-medium">{{ product.name }}</a>
+                                                <br>
+                                                <small class="text-muted">{{ product.get_product_type_display }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="small">{{ product.category.name }}</td>
+                                    <td class="small">
+                                        {% if product.stock < 5 %}
+                                        <span class="stock-low">{{ product.stock }}</span>
+                                        {% else %}
+                                        {{ product.stock }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="small">{{ product.purchase_cost|pesos_colombianos }}</td>
+                                    <td class="small">
+                                        {% if product.has_discount %}
+                                        <span class="text-decoration-line-through text-muted">{{ product.price|pesos_colombianos }}</span>
+                                        <span class="text-primary">{{ product.promotional_price|pesos_colombianos }}</span>
+                                        <small class="text-danger">-{{ product.discount_percentage }}%</small>
+                                        {% else %}
+                                        {{ product.price|pesos_colombianos }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form action="{% url 'store:inventory_toggle_available' product.id %}" method="get" class="d-inline">
+                                            <input type="hidden" name="next" value="dashboard">
+                                            {% if request.GET.page %}<input type="hidden" name="page" value="{{ request.GET.page }}">{% endif %}
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" {% if product.available %}checked{% endif %} onchange="this.form.submit()" title="Activar/Desactivar">
+                                            </div>
+                                        </form>
+                                    </td>
+                                    <td class="text-end" style="min-width: 100px;">
+                                        <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                                            <a href="{% url 'store:inventory_detail' product.id %}" class="btn btn-light btn-sm" title="Ver">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{% url 'store:inventory_edit' product.id %}" class="btn btn-light btn-sm" title="Modificar">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a href="{% url 'store:inventory_duplicate' product.id %}" class="btn btn-light btn-sm" title="Duplicar">
+                                                <i class="bi bi-copy"></i>
+                                            </a>
+                                            <a href="{% url 'store:inventory_delete' product.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        No hay productos. <a href="{% url 'store:inventory_create' %}">Crear producto</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if page_obj.has_other_pages %}
+                    <nav class="p-3 border-top">
+                        <ul class="pagination pagination-sm mb-0 justify-content-center">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                            </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+                            {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

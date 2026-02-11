@@ -1,0 +1,511 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}{{ product.name }} - Frozz{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Contenedor de imagen: dimensiones fijas, sin box-shadow */
+.product-images .position-relative {
+    box-shadow: none !important;
+}
+.product-images img {
+    box-shadow: none !important;
+}
+/* Evitar que las cards se extiendan con height: 100% */
+.product-detail-page .card {
+    height: auto !important;
+    overflow: hidden;
+}
+.product-detail-page .card-body {
+    min-height: 0 !important;
+}
+.highlight-underline {
+    display: inline-block;
+    background: linear-gradient(180deg, transparent 60%, rgba(13,110,253,0.25) 60%);
+}
+/* Pestañas descripción / valoración: centradas, negrita, con animación */
+#productTabs {
+    justify-content: center;
+}
+#productTabs .nav-link {
+    font-weight: 700;
+    color: #6c757d;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 0.75rem 1rem;
+}
+#productTabs .nav-link:hover { color: var(--primary-color); }
+#productTabs .nav-link.active {
+    color: var(--primary-color);
+    background: transparent;
+    border-bottom-color: var(--primary-color);
+}
+#productTabsContent .tab-pane {
+    transition: opacity 0.25s ease-in-out;
+}
+#productTabsContent .tab-pane.fade:not(.show) {
+    opacity: 0;
+}
+#productTabsContent .tab-pane.fade.show {
+    opacity: 1;
+}
+.product-description-body {
+    max-width: 100%;
+    line-height: 1.6;
+}
+.product-description-body img { max-width: 100%; height: auto; }
+</style>
+
+
+{% endblock %}
+
+{% block content %}
+<div class="container my-5 product-detail-page">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb mb-0" style="background: transparent; padding: 0;">
+            <li class="breadcrumb-item">
+                <a href="{% url 'store:home' %}" class="text-decoration-none d-inline-flex align-items-center">
+                    <i class="bi bi-house-door me-1"></i>
+                    <span>Todos los productos</span>
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'store:product_list' %}?category={{ product.category.slug }}" class="text-decoration-none">
+                    {{ product.category.name }}
+                </a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                <span class="text-muted">{{ product.name }}</span>
+            </li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+        <!-- Left Column: Images -->
+        <div class="col-lg-6">
+            <div class="product-images">
+                {# Contenedor con dimensiones fijas - el box no cambia de tamaño #}
+                <div class="position-relative rounded overflow-hidden d-flex align-items-center justify-content-center" style="width: 100%; height: 450px; background: #f8f9fa;">
+                    {# Botones expandir y favorito #}
+                    <div class="position-absolute top-0 end-0 m-2 d-flex gap-1" style="z-index: 10;">
+                        {% if primary_image or product.image %}
+                        <button type="button" class="btn btn-light btn-sm rounded-circle shadow-sm" onclick="expandImage()" title="Expandir imagen">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
+                        {% endif %}
+                        <button
+                            type="button"
+                            class="btn btn-light btn-sm rounded-circle shadow-sm"
+                            id="favorite-btn"
+                            data-product-id="{{ product.id }}"
+                            data-auth="{% if user.is_authenticated %}1{% else %}0{% endif %}"
+                            data-toggle-url="{% url 'store:favorite_toggle' product.id %}"
+                            data-favorited="{% if is_favorited %}1{% else %}0{% endif %}"
+                            onclick="toggleFavorite()"
+                            title="Agregar a favoritos"
+                        >
+                            <i class="bi bi-heart" id="favorite-icon"></i>
+                        </button>
+                    </div>
+                    {% if primary_image %}
+                        {% if primary_image.image %}
+                        <img src="{{ primary_image.image.url }}" alt="{{ product.name }}" class="rounded" id="main-product-image" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        {% else %}
+                        <img src="{{ primary_image.url }}" alt="{{ product.name }}" class="rounded" id="main-product-image" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        {% endif %}
+                    {% elif product.image %}
+                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded" id="main-product-image" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                    {% else %}
+                    <i class="bi bi-image" style="font-size: 64px; color: #ccc;"></i>
+                    {% endif %}
+                    
+                    {# Selector de imágenes dentro de la imagen, en la parte inferior (solo si hay más de una) #}
+                    {% if images.count > 1 or product.image and images.count >= 1 %}
+                    <div class="image-selector position-absolute bottom-0 start-0 end-0 d-flex justify-content-center gap-1 py-2 px-2" style="background: rgba(0,0,0,0.4);">
+                        {% if product.image %}
+                        <div class="thumbnail-item position-relative" style="cursor: pointer; border: 2px solid #fff; border-radius: 6px; padding: 1px; opacity: 1; transition: all 0.2s; flex-shrink: 0;" onclick="changeMainImage('{{ product.image.url }}')" data-image-url="{{ product.image.url }}">
+                            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded" style="width: 44px; height: 44px; object-fit: cover;">
+                        </div>
+                        {% endif %}
+                        {% for image in images %}
+                        <div class="thumbnail-item position-relative" style="cursor: pointer; border: 2px solid rgba(255,255,255,0.6); border-radius: 6px; padding: 1px; opacity: 0.85; transition: all 0.2s; flex-shrink: 0;" onclick="changeMainImage('{{ image.image.url }}')" data-image-url="{{ image.image.url }}">
+                            <img src="{{ image.image.url }}" alt="{{ product.name }}" class="rounded" style="width: 44px; height: 44px; object-fit: cover;">
+                            {% if image.is_primary %}
+                            <span class="badge bg-primary" style="position: absolute; top: 0; right: 0; font-size: 0.5rem; padding: 1px 2px;">P</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {# Debug info - remove after testing #}
+                {% comment %}
+                <div class="mt-2 small text-muted">
+                    <p>Debug: Primary image exists: {% if primary_image %}Yes{% else %}No{% endif %}</p>
+                    <p>Debug: Images count: {{ images.count }}</p>
+                    {% if primary_image %}
+                    <p>Debug: Primary image type: {% if primary_image.image %}ProductImage{% else %}ImageField{% endif %}</p>
+                    {% endif %}
+                </div>
+                {% endcomment %}
+            </div>
+
+            <!-- Product Attributes -->
+            {% if attributes %}
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body">
+                    <h6 class="card-title mb-3"><span class="highlight-underline">Características</span></h6>
+                    <div class="row g-2">
+                        {% for attribute in attributes %}
+                        <div class="col-6">
+                            <strong class="small text-muted">{{ attribute.key }}:</strong>
+                            <p class="mb-0 small">{{ attribute.value }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column: Product Info -->
+        <div class="col-lg-6">
+            <div class="product-info">
+                <h1 class="h2 mb-3">{{ product.name }}</h1>
+                
+                <!-- Price - alineado a la izquierda, descuento al lado -->
+                <div class="price-section mb-3 text-start d-flex align-items-center gap-2 flex-wrap">
+                    {% if product.promotional_price %}
+                        <span class="text-decoration-line-through text-muted">{{ product.price|pesos_colombianos }}</span>
+                        <span class="h4 mb-0">{{ product.promotional_price|pesos_colombianos }}</span>
+                        {% if product.has_discount %}
+                        <span class="badge bg-danger text-white px-2 py-1" style="font-size: 0.9rem;">-{{ product.discount_percentage }}%</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="h4 mb-0">{{ product.price|pesos_colombianos }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Stock: solo resaltador amarillo para pocas unidades -->
+                {% if product.stock > 0 and product.stock < 5 %}
+                <p class="small mb-3 text-start" style="border-left: 3px solid #ffc107; padding-left: 0.5rem;">
+                    Pocas unidades ({{ product.stock }})
+                </p>
+                {% endif %}
+
+                <!-- Cantidad y botones de compra - arriba de la descripción -->
+                <div class="add-to-cart-section mb-4">
+                    {% if product.stock > 0 %}
+                        <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+                            <label for="quantity-input" class="form-label mb-0 small">Cantidad</label>
+                            <input type="number" id="quantity-input" class="form-control" value="1" min="1" max="{{ product.stock }}" style="width: 80px;">
+                        </div>
+                        <div class="d-flex gap-2 mb-2">
+                            <button type="button" class="btn btn-primary flex-fill add-to-cart-btn" 
+                                    data-product-id="{{ product.id }}" 
+                                    data-product-name="{{ product.name }}" 
+                                    data-product-stock="{{ product.stock }}" 
+                                    data-product-cart-quantity="{{ cart_quantity }}">
+                                <i class="bi bi-cart-plus"></i> Agregar
+                            </button>
+                            <button type="button" class="btn btn-dark flex-fill add-to-cart-btn" 
+                                    data-product-id="{{ product.id }}" 
+                                    data-product-name="{{ product.name }}" 
+                                    data-product-stock="{{ product.stock }}" 
+                                    data-product-cart-quantity="{{ cart_quantity }}">
+                                Comprar
+                            </button>
+                        </div>
+                        {% if cart_quantity > 0 %}
+                        <p class="text-muted small mb-0">
+                            {{ cart_quantity }} en tu carrito
+                        </p>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted small mb-0">Agotado</p>
+                    {% endif %}
+                </div>
+
+                <!-- Staff Edit Button -->
+                {% if user.is_staff %}
+                <div class="mt-4">
+                    <a href="{% url 'store:inventory_edit' product.id %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil"></i> Editar Producto
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Products -->
+    {% if related_products %}
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="mb-4">Productos Relacionados</h3>
+            <div class="row g-4">
+                {% for related in related_products %}
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm product-card">
+                        {% if related.image %}
+                        <img src="{{ related.image.url }}" class="card-img-top" alt="{{ related.name }}" style="height: 200px; object-fit: contain; object-position: center; background: #f8fafc;">
+                        {% else %}
+                        <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                            <i class="bi bi-image" style="font-size: 48px; color: #ccc;"></i>
+                        </div>
+                        {% endif %}
+                        <div class="card-body d-flex flex-column">
+                            <h6 class="card-title">{{ related.name }}</h6>
+                            <p class="card-text text-primary mb-auto">
+                                {% if related.promotional_price %}
+                                    <span class="text-decoration-line-through text-muted small">{{ related.price|pesos_colombianos }}</span>
+                                    {{ related.promotional_price|pesos_colombianos }}
+                                {% else %}
+                                    {{ related.price|pesos_colombianos }}
+                                {% endif %}
+                            </p>
+                            <a href="{% url 'store:product_detail' related.slug %}" class="btn btn-outline-primary btn-sm mt-2">
+                                Ver Detalles
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Descripción y Valoración: ancho completo, con pestañas -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0 description-section">
+                    <ul class="nav nav-tabs border-bottom px-3 pt-2 justify-content-center" id="productTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tab-descripcion" data-bs-toggle="tab" data-bs-target="#panel-descripcion" type="button" role="tab" aria-controls="panel-descripcion" aria-selected="true">Descripción</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-valoracion" data-bs-toggle="tab" data-bs-target="#panel-valoracion" type="button" role="tab" aria-controls="panel-valoracion" aria-selected="false">Valoración</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content p-4" id="productTabsContent">
+                        <div class="tab-pane fade show active" id="panel-descripcion" role="tabpanel" aria-labelledby="tab-descripcion">
+                            {% if product.description %}
+                            <div class="product-description">
+                                <div id="description-content" class="product-description-body">
+                                    {{ product.description|safe }}
+                                </div>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0">Este producto no tiene descripción.</p>
+                            {% endif %}
+                        </div>
+                        <div class="tab-pane fade" id="panel-valoracion" role="tabpanel" aria-labelledby="tab-valoracion">
+                            <p class="text-muted mb-0">No hay valoraciones aún. Las valoraciones de clientes se mostrarán aquí.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para expandir imagen -->
+<div class="modal fade" id="imageExpandModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0 bg-transparent">
+            <div class="modal-body p-0 position-relative">
+                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-2" style="z-index: 11;" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                <img src="" alt="{{ product.name }}" id="expanded-image" class="img-fluid rounded w-100" style="max-height: 90vh; object-fit: contain;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function expandImage() {
+    const mainImage = document.getElementById('main-product-image');
+    if (mainImage && mainImage.src) {
+        document.getElementById('expanded-image').src = mainImage.src;
+        const modal = new bootstrap.Modal(document.getElementById('imageExpandModal'));
+        modal.show();
+    }
+}
+
+const FAVORITES_KEY = 'frozz_favorites';
+function getFavorites() {
+    try {
+        const data = localStorage.getItem(FAVORITES_KEY);
+        return data ? JSON.parse(data) : [];
+    } catch (e) { return []; }
+}
+function saveFavorites(ids) {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
+}
+function toggleFavorite() {
+    const icon = document.getElementById('favorite-icon');
+    const btn = document.getElementById('favorite-btn');
+    const productId = btn ? parseInt(btn.getAttribute('data-product-id') || '0', 10) : 0;
+    const isAuth = btn && btn.getAttribute('data-auth') === '1';
+    const toggleUrl = btn ? (btn.getAttribute('data-toggle-url') || '') : '';
+
+    // Si está logueado, persistimos en backend; si no, usamos localStorage.
+    if (isAuth && toggleUrl) {
+        fetch(toggleUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.ok) return;
+            const favorited = !!data.favorited;
+            if (favorited) {
+                icon.classList.remove('bi-heart');
+                icon.classList.add('bi-heart-fill', 'text-danger');
+                btn.title = 'Quitar de favoritos';
+            } else {
+                icon.classList.remove('bi-heart-fill', 'text-danger');
+                icon.classList.add('bi-heart');
+                btn.title = 'Agregar a favoritos';
+            }
+            btn.setAttribute('data-favorited', favorited ? '1' : '0');
+        })
+        .catch(() => {});
+        return;
+    }
+
+    if (!productId) return;
+    const favorites = getFavorites();
+    const idx = favorites.indexOf(productId);
+    if (idx >= 0) {
+        favorites.splice(idx, 1);
+        icon.classList.remove('bi-heart-fill', 'text-danger');
+        icon.classList.add('bi-heart');
+        btn.title = 'Agregar a favoritos';
+    } else {
+        favorites.push(productId);
+        icon.classList.remove('bi-heart');
+        icon.classList.add('bi-heart-fill', 'text-danger');
+        btn.title = 'Quitar de favoritos';
+    }
+    saveFavorites(favorites);
+}
+
+// Inicializar estado de favorito
+document.addEventListener('DOMContentLoaded', function() {
+    const icon = document.getElementById('favorite-icon');
+    const btn = document.getElementById('favorite-btn');
+    if (!icon || !btn) return;
+
+    const isAuth = btn.getAttribute('data-auth') === '1';
+    const favoritedFromServer = btn.getAttribute('data-favorited') === '1';
+    const productId = parseInt(btn.getAttribute('data-product-id') || '0', 10);
+
+    if (isAuth) {
+        if (favoritedFromServer) {
+            icon.classList.remove('bi-heart');
+            icon.classList.add('bi-heart-fill', 'text-danger');
+            btn.title = 'Quitar de favoritos';
+        } else {
+            icon.classList.remove('bi-heart-fill', 'text-danger');
+            icon.classList.add('bi-heart');
+            btn.title = 'Agregar a favoritos';
+        }
+        return;
+    }
+
+    const favorites = getFavorites();
+    if (productId && favorites.includes(productId)) {
+        icon.classList.remove('bi-heart');
+        icon.classList.add('bi-heart-fill', 'text-danger');
+        btn.title = 'Quitar de favoritos';
+    } else {
+        icon.classList.remove('bi-heart-fill', 'text-danger');
+        icon.classList.add('bi-heart');
+        btn.title = 'Agregar a favoritos';
+    }
+});
+
+function changeMainImage(imageUrl) {
+    const mainImage = document.getElementById('main-product-image');
+    if (mainImage) {
+        mainImage.src = imageUrl;
+        
+        // Update active thumbnail
+        document.querySelectorAll('.thumbnail-item').forEach(item => {
+            const itemUrl = item.getAttribute('data-image-url') || item.querySelector('img').src;
+            if (itemUrl === imageUrl || itemUrl.includes(imageUrl.split('/').pop())) {
+                item.style.borderColor = '#fff';
+                item.style.opacity = '1';
+            } else {
+                item.style.borderColor = 'rgba(255,255,255,0.6)';
+                item.style.opacity = '0.85';
+            }
+        });
+    }
+}
+
+// Initialize thumbnail selection on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const mainImage = document.getElementById('main-product-image');
+    if (mainImage) {
+        const currentSrc = mainImage.src;
+        document.querySelectorAll('.thumbnail-item').forEach(item => {
+            const itemUrl = item.getAttribute('data-image-url') || item.querySelector('img').src;
+            if (itemUrl === currentSrc || itemUrl.includes(currentSrc.split('/').pop())) {
+                item.style.borderColor = '#fff';
+                item.style.opacity = '1';
+            } else {
+                item.style.borderColor = 'rgba(255,255,255,0.6)';
+                item.style.opacity = '0.85';
+            }
+        });
+    }
+});
+
+
+// El agregar al carrito se maneja en base.html. Aquí solo actualizamos el texto "Tienes X en tu carrito".
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('cartItemUpdated', function(e) {
+        const firstBtn = document.querySelector('.add-to-cart-section .add-to-cart-btn');
+        const productId = firstBtn && firstBtn.dataset.productId ? parseInt(firstBtn.dataset.productId, 10) : null;
+        if (productId != null && e.detail && e.detail.productId === productId && e.detail.cartQuantity !== undefined) {
+            const qty = parseInt(e.detail.cartQuantity, 10);
+            const quantityDisplay = document.querySelector('.add-to-cart-section .text-muted.small.mb-0');
+            if (quantityDisplay) {
+                if (qty > 0) {
+                    quantityDisplay.innerHTML = '<i class="bi bi-info-circle"></i> Tienes ' + qty + ' unidad' + (qty > 1 ? 'es' : '') + ' en tu carrito';
+                    quantityDisplay.style.display = 'block';
+                } else {
+                    quantityDisplay.style.display = 'none';
+                }
+            }
+        }
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

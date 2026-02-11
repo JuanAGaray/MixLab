@@ -1,0 +1,570 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Productos{% if current_category %} - {{ current_category }}{% endif %} - MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+.price-input {
+  width: 100%;
+  display: flex;
+  margin: 16px 0 20px;
+  gap: 4px;
+  align-items: center;
+}
+.price-input .field {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  gap: 4px;
+}
+.price-input .field span.label {
+  font-size: 11px;
+  color: #555;
+  flex-shrink: 0;
+}
+.price-input .field .input-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 0 6px;
+  height: 100%;
+  background: #fff;
+}
+.price-input .field .input-wrap .peso-prefix {
+  font-size: 11px;
+  color: #555;
+  flex-shrink: 0;
+}
+.price-input .field input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  outline: none;
+  font-size: 11px;
+  margin: 0;
+  border: none;
+  text-align: right;
+  -moz-appearance: textfield;
+  background: transparent;
+}
+.price-input input[type="number"]::-webkit-outer-spin-button,
+.price-input input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+/* Product grid: 2 cols on mobile */
+@media (min-width: 768px) {
+  .product-card-img-mobile { height: 200px !important; }
+}
+.price-input .separator {
+  width: 12px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+}
+.slider {
+  height: 5px;
+  position: relative;
+  background: #ddd;
+  border-radius: 5px;
+}
+.slider .progress {
+  height: 100%;
+  left: 25%;
+  right: 25%;
+  position: absolute;
+  border-radius: 5px;
+  background: var(--primary-color);
+  border: 1px solid var(--primary-dark);
+}
+.range-input {
+  position: relative;
+}
+.range-input input {
+  position: absolute;
+  width: 100%;
+  height: 5px;
+  top: -5px;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  height: 17px;
+  width: 17px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  border: 1px solid var(--primary-dark);
+  pointer-events: auto;
+  -webkit-appearance: none;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.05);
+}
+input[type="range"]::-moz-range-thumb {
+  height: 17px;
+  width: 17px;
+  border: none;
+  border-radius: 50%;
+  background: #17a2b8;
+  pointer-events: auto;
+  -moz-appearance: none;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.05);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <!-- Sidebar de filtros (solo escritorio) -->
+        <aside class="col-lg-3 order-2 order-lg-1 d-none d-lg-block">
+            <!-- Filtro por precio -->
+            <div class="mb-4">
+                <h6 class="text-uppercase small fw-bold mb-3" style="color: #64748b;">FILTRAR POR PRECIO</h6>
+                <form method="get" class="" id="price-filter-form">
+                    {% if price_range.min_price_global is not None and price_range.max_price_global is not None %}
+                    <div class="wrapper">
+                        <div class="price-input">
+                          <div class="field">
+                            <span class="label">Min</span>
+                            <div class="input-wrap">
+                              <span class="peso-prefix">$</span>
+                              <input type="number" class="input-min" value="0" placeholder="0">
+                            </div>
+                          </div>
+                          <div class="separator">–</div>
+                          <div class="field">
+                            <span class="label">Max</span>
+                            <div class="input-wrap">
+                              <span class="peso-prefix">$</span>
+                              <input type="number" class="input-max" value="{{ price_range.max_price_global|floatformat:0 }}" placeholder="0">
+                            </div>
+                          </div>
+                        </div>
+                        <div class="slider">
+                          <div class="progress"></div>
+                        </div>
+                        <div class="range-input">
+                          <input type="range" class="range-min" min="0" max="{{ price_range.min_price_global|floatformat:0 }}" value="0" step="100">
+                          <input type="range" class="range-max" min="0" max="{{ price_range.max_price_global|floatformat:0 }}" value="{{ price_range.max_price_global|floatformat:0 }}" step="100">
+                        </div>
+                      </div>
+                  
+                    {% endif %}
+                    {% if current_category %}
+                    <input type="hidden" name="category" value="{{ current_category }}">
+                    {% endif %}
+                    {% if search_query %}
+                    <input type="hidden" name="q" value="{{ search_query }}">
+                    {% endif %}
+                    {% if order %}
+                    <input type="hidden" name="order" value="{{ order }}">
+                    {% endif %}
+                </form>
+            </div>
+
+            <!-- Categorías -->
+            <div class="mb-4">
+                <h6 class="text-uppercase small fw-bold mb-2">Categorías del producto</h6>
+                <div class="list-group list-group-flush small">
+                    <a href="{% url 'store:product_list' %}{% if min_price or max_price or search_query or order %}?{% if min_price %}min_price={{ min_price }}&{% endif %}{% if max_price %}max_price={{ max_price }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}{% if order %}order={{ order }}{% endif %}{% endif %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if not current_category %}active{% endif %}">
+                        <span>Todas las categorías</span>
+                        <span class="badge bg-light text-dark border">{{ products.paginator.count }}</span>
+                    </a>
+                    {% for c in categories %}
+                    <a href="{% url 'store:product_list' %}?category={{ c.slug }}{% if min_price %}&min_price={{ min_price }}{% endif %}{% if max_price %}&max_price={{ max_price }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if c.slug == current_category %}active{% endif %}">
+                        <span>{{ c.name }}</span>
+                        <span class="badge {% if c.slug == current_category %}bg-light text-dark{% else %}bg-light text-dark border{% endif %}">{{ c.product_count }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Productos destacados -->
+            {% if top_products %}
+            <div class="mb-4">
+                <h6 class="text-uppercase small fw-bold mb-2">Productos destacados</h6>
+                <div class="list-group list-group-flush small">
+                    {% for tp in top_products %}
+                    <a href="{% url 'store:product_detail' tp.slug %}" class="list-group-item list-group-item-action d-flex">
+                        <div class="me-2" style="width: 48px; height: 48px; flex-shrink: 0;">
+                            {% if tp.image %}
+                            <img src="{{ tp.image.url }}" alt="{{ tp.name }}" class="img-fluid rounded" style="width: 48px; height: 48px; object-fit: cover;">
+                            {% else %}
+                            <div class="bg-light d-flex align-items-center justify-content-center rounded" style="width: 48px; height: 48px;">
+                                <i class="bi bi-image text-muted"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold mb-1" style="font-size: 0.8rem;">{{ tp.name }}</div>
+                            <div class="text-primary" style="font-size: 0.8rem;">{{ tp.selling_price|pesos_colombianos }}</div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </aside>
+
+        <!-- Contenido principal -->
+        <div class="col-12 col-lg-9 order-1 order-lg-2">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-2">
+                <div>
+                    <nav aria-label="breadcrumb" class="small mb-1">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Inicio</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">Tienda</li>
+                        </ol>
+                    </nav>
+                    <h1 class="mb-0" style="color: var(--text-dark); font-size: 1.5rem;">
+                        {% if current_category %}
+                        {% for c in categories %}{% if c.slug == current_category %}{{ c.name }}{% endif %}{% endfor %}
+                        {% else %}
+                        Todos los productos
+                        {% endif %}
+                    </h1>
+                    {% if current_category or search_query %}
+                    <p class="text-muted small mb-0 mt-1">
+                        {% if current_category %}Categoría:
+                            {% for c in categories %}{% if c.slug == current_category %}<strong>{{ c.name }}</strong>{% endif %}{% endfor %}
+                        {% endif %}
+                        {% if current_category and search_query %} · {% endif %}
+                        {% if search_query %}Búsqueda: <strong>"{{ search_query }}"</strong>{% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
+                    <!-- Botón de filtros para móvil -->
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm d-lg-none d-flex align-items-center"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#filtersOffcanvas"
+                            aria-controls="filtersOffcanvas">
+                        <i class="bi bi-funnel me-1"></i> Filtros
+                    </button>
+                    <form method="get" class="d-flex gap-2 align-items-center">
+                        {% if current_category %}
+                        <input type="hidden" name="category" value="{{ current_category }}">
+                        {% endif %}
+                        {% if min_price %}
+                        <input type="hidden" name="min_price" value="{{ min_price }}">
+                        {% endif %}
+                        {% if max_price %}
+                        <input type="hidden" name="max_price" value="{{ max_price }}">
+                        {% endif %}
+                        {% if search_query %}
+                        <input type="hidden" name="q" value="{{ search_query }}">
+                        {% endif %}
+                        <label for="order" class="form-label small mb-0 me-1">Ordenar por</label>
+                        <select name="order" id="order" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">Por defecto</option>
+                            <option value="name_asc" {% if order == 'name_asc' %}selected{% endif %}>Nombre (A-Z)</option>
+                            <option value="name_desc" {% if order == 'name_desc' %}selected{% endif %}>Nombre (Z-A)</option>
+                            <option value="price_asc" {% if order == 'price_asc' %}selected{% endif %}>Precio: menor a mayor</option>
+                            <option value="price_desc" {% if order == 'price_desc' %}selected{% endif %}>Precio: mayor a menor</option>
+                        </select>
+                    </form>
+                </div>
+            </div>
+
+            <div id="products-ajax-container">
+            <div class="text-muted small mb-2 text-md-end">Mostrando {{ products.start_index }}–{{ products.end_index }} de {{ products.paginator.count }}</div>
+            <div class="row g-3 g-md-4">
+        {% for product in products %}
+        <div class="col-6 col-md-6 col-lg-4">
+            <div class="card product-card h-100" style="border: 1px solid var(--gray-200); box-shadow: var(--shadow-lg);">
+                <a href="{% url 'store:product_detail' product.slug %}" style="text-decoration: none; color: inherit;">
+                    {% if product.image %}
+                    <img src="{{ product.image.url }}" class="card-img-top product-card-img-mobile" alt="{{ product.name }}" style="height: 160px; object-fit: contain; object-position: center; background: #f8fafc;">
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center product-card-img-mobile" style="height: 160px;">
+                        <i class="bi bi-image" style="font-size: 2rem; color: var(--gray-400);"></i>
+                    </div>
+                    {% endif %}
+                </a>
+                <div class="card-body d-flex flex-column py-2 py-md-3">
+                    <a href="{% url 'store:product_detail' product.slug %}" style="text-decoration: none; color: inherit;">
+                        <h5 class="card-title mb-1 mb-md-2" style="color: var(--text-dark); font-size: 0.95rem;">{{ product.name }}</h5>
+                    </a>
+                    {% if product.presentation_value %}
+                    <p class="text-muted mb-2 small">Presentación: {{ product.presentation_value }}</p>
+                    {% endif %}
+                    <div class="text-center mb-2 mb-md-3">
+                        {% if product.has_discount %}
+                        <p class="text-dark mb-0 fw-bold" style="font-size: 0.9rem; line-height: 1.2;">
+                            <span class="text-decoration-line-through text-muted small">{{ product.price|pesos_colombianos }}</span>
+                            <span class="text-danger ms-1">{{ product.promotional_price|pesos_colombianos }}</span>
+                            <span class="badge bg-danger ms-1" style="font-size: 0.7rem;">-{{ product.discount_percentage }}%</span>
+                        </p>
+                        {% else %}
+                        <p class="text-dark mb-0 fw-bold" style="font-size: 0.9rem; line-height: 1.2;">{{ product.price|pesos_colombianos }}</p>
+                        {% endif %}
+                        <small class="text-muted d-none d-md-block" style="font-size: 0.7rem;">IVA incluido</small>
+                    </div>
+                    {% if product.stock > 0 %}
+                        {% if product.cart_quantity >= product.stock %}
+                        <div class="text-center mb-2 cart-full-message">
+                            <small class="text-muted d-block mb-2" style="font-size: 0.85rem;">
+                                Las unidades disponibles las tienes en el carrito
+                                <i class="bi bi-info-circle" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-title="Tenerlo en el carrito no garantiza que esté reservado. Realiza el pago ahora para evitar que otros clientes compren las unidades disponibles."
+                                   style="cursor: help;"></i>
+                            </small>
+                        </div>
+                        <div class="d-flex gap-1 gap-md-2">
+                            <button type="button" class="btn btn-primary flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" disabled style="padding: 0.35rem 0.5rem; font-size: 0.8rem; opacity: 0.6; cursor: not-allowed;">
+                                <i class="bi bi-cart-plus"></i><span class="d-none d-sm-inline"> Agregar</span>
+                            </button>
+                            <button type="button" class="btn btn-dark flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" disabled style="padding: 0.35rem 0.5rem; font-size: 0.8rem; opacity: 0.6; cursor: not-allowed;">
+                                Comprar
+                            </button>
+                        </div>
+                        {% else %}
+                        <div class="d-flex gap-1 gap-md-2 mt-auto flex-wrap">
+                            <button type="button" class="btn btn-primary flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" style="padding: 0.35rem 0.5rem; font-size: 0.8rem;">
+                                <i class="bi bi-cart-plus"></i><span class="d-none d-sm-inline"> Agregar</span>
+                            </button>
+                            <button type="button" class="btn btn-dark flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" style="padding: 0.35rem 0.5rem; font-size: 0.8rem;">
+                                Comprar
+                            </button>
+                            {%  if  user.is_authenticated and user.is_staff %}
+                              <a href="{% url 'store:quotation' %}?products={{ product.id }}" class="btn btn-outline-primary w-100" style="padding: 0.4rem 0.75rem; font-size: 0.875rem;">
+                                  <i class="bi bi-file-earmark-text"></i> Cotizar
+                              </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <p class="text-muted small text-center mt-auto mb-0">Agotado</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-center text-muted">No hay productos en esta categoría.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+            {% if products.has_other_pages %}
+            <nav class="mt-4 d-flex justify-content-center">
+                <ul class="pagination">
+                    {% if products.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ products.previous_page_number }}{% if current_category %}&category={{ current_category }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_price %}&min_price={{ min_price }}{% endif %}{% if max_price %}&max_price={{ max_price }}{% endif %}{% if order %}&order={{ order }}{% endif %}">Anterior</a>
+                    </li>
+                    {% endif %}
+                    <li class="page-item disabled"><span class="page-link">Página {{ products.number }} de {{ products.paginator.num_pages }}</span></li>
+                    {% if products.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ products.next_page_number }}{% if current_category %}&category={{ current_category }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_price %}&min_price={{ min_price }}{% endif %}{% if max_price %}&max_price={{ max_price }}{% endif %}{% if order %}&order={{ order }}{% endif %}">Siguiente</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Offcanvas de filtros para móvil -->
+<div class="offcanvas offcanvas-start d-lg-none" tabindex="-1" id="filtersOffcanvas" aria-labelledby="filtersOffcanvasLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="filtersOffcanvasLabel">
+      <i class="bi bi-funnel me-1"></i> Filtros
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body">
+    <!-- Categorías -->
+    <div class="mb-4">
+        <h6 class="text-uppercase small fw-bold mb-2">Categorías del producto</h6>
+        <div class="list-group list-group-flush small">
+            <a href="{% url 'store:product_list' %}{% if min_price or max_price or search_query or order %}?{% if min_price %}min_price={{ min_price }}&{% endif %}{% if max_price %}max_price={{ max_price }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}{% if order %}order={{ order }}{% endif %}{% endif %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if not current_category %}active{% endif %}">
+                <span>Todas las categorías</span>
+                <span class="badge bg-light text-dark border">{{ products.paginator.count }}</span>
+            </a>
+            {% for c in categories %}
+            <a href="{% url 'store:product_list' %}?category={{ c.slug }}{% if min_price %}&min_price={{ min_price }}{% endif %}{% if max_price %}&max_price={{ max_price }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if c.slug == current_category %}active{% endif %}">
+                <span>{{ c.name }}</span>
+                <span class="badge {% if c.slug == current_category %}bg-light text-dark{% else %}bg-light text-dark border{% endif %}">{{ c.product_count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Productos destacados -->
+    {% if top_products %}
+    <div class="mb-4">
+        <h6 class="text-uppercase small fw-bold mb-2">Productos destacados</h6>
+        <div class="list-group list-group-flush small">
+            {% for tp in top_products %}
+            <a href="{% url 'store:product_detail' tp.slug %}" class="list-group-item list-group-item-action d-flex">
+                <div class="me-2" style="width: 48px; height: 48px; flex-shrink: 0;">
+                    {% if tp.image %}
+                    <img src="{{ tp.image.url }}" alt="{{ tp.name }}" class="img-fluid rounded" style="width: 48px; height: 48px; object-fit: cover;">
+                    {% else %}
+                    <div class="bg-light d-flex align-items-center justify-content-center rounded" style="width: 48px; height: 48px;">
+                        <i class="bi bi-image text-muted"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex-grow-1">
+                    <div class="fw-semibold mb-1" style="font-size: 0.8rem;">{{ tp.name }}</div>
+                    <div class="text-primary" style="font-size: 0.8rem;">{{ tp.selling_price|pesos_colombianos }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const rangeInput = document.querySelectorAll(".range-input input");
+  const priceInput = document.querySelectorAll(".price-input input");
+  const range = document.querySelector(".slider .progress");
+  if (!range || rangeInput.length < 2 || priceInput.length < 2) return;
+
+  const minGlobal = parseInt(rangeInput[0].min, 10) || 0;
+  const maxGlobal = parseInt(rangeInput[0].max, 10) || 100000;
+  const rangeTotal = maxGlobal - minGlobal;
+  const priceGap = Math.max(1000, Math.floor(rangeTotal * 0.05));
+
+  function updateProgress() {
+    const minVal = parseInt(rangeInput[0].value, 10) || minGlobal;
+    const maxVal = parseInt(rangeInput[1].value, 10) || maxGlobal;
+    if (rangeTotal <= 0) return;
+    const pctMin = ((minVal - minGlobal) / rangeTotal) * 100;
+    const pctMax = ((maxVal - minGlobal) / rangeTotal) * 100;
+    range.style.left = Math.max(0, pctMin) + "%";
+    range.style.right = Math.max(0, 100 - pctMax) + "%";
+  }
+
+  updateProgress();
+
+  priceInput.forEach((input) => {
+    input.addEventListener("input", (e) => {
+      let minPrice = parseInt(priceInput[0].value, 10) || minGlobal;
+      let maxPrice = parseInt(priceInput[1].value, 10) || maxGlobal;
+      if (minPrice < minGlobal) minPrice = minGlobal;
+      if (maxPrice > maxGlobal) maxPrice = maxGlobal;
+      if (maxPrice - minPrice >= priceGap) {
+        if (e.target.classList.contains("input-min")) {
+          rangeInput[0].value = minPrice;
+        } else {
+          rangeInput[1].value = maxPrice;
+        }
+        updateProgress();
+      }
+    });
+  });
+
+  rangeInput.forEach((input) => {
+    input.addEventListener("input", () => {
+      let minVal = parseInt(rangeInput[0].value, 10) || minGlobal;
+      let maxVal = parseInt(rangeInput[1].value, 10) || maxGlobal;
+      if (maxVal - minVal < priceGap) {
+        if (input.classList.contains("range-min")) {
+          rangeInput[0].value = maxVal - priceGap;
+        } else {
+          rangeInput[1].value = minVal + priceGap;
+        }
+        minVal = parseInt(rangeInput[0].value, 10);
+        maxVal = parseInt(rangeInput[1].value, 10);
+      }
+      priceInput[0].value = minVal;
+      priceInput[1].value = maxVal;
+      updateProgress();
+      checkPriceChanged();
+    });
+  });
+
+  var form = document.getElementById("price-filter-form");
+  var minPriceHidden = form ? form.querySelector('input[name="min_price"]') : null;
+  var maxPriceHidden = form ? form.querySelector('input[name="max_price"]') : null;
+  if (form && !minPriceHidden) {
+    minPriceHidden = document.createElement("input");
+    minPriceHidden.type = "hidden";
+    minPriceHidden.name = "min_price";
+    minPriceHidden.id = "min_price";
+    form.appendChild(minPriceHidden);
+  }
+  if (form && !maxPriceHidden) {
+    maxPriceHidden = form.querySelector('input[name="max_price"]');
+    if (!maxPriceHidden) {
+      maxPriceHidden = document.createElement("input");
+      maxPriceHidden.type = "hidden";
+      maxPriceHidden.name = "max_price";
+      maxPriceHidden.id = "max_price";
+      form.appendChild(maxPriceHidden);
+    }
+  }
+
+  var appliedMin = (minPriceHidden && minPriceHidden.value) || "";
+  var appliedMax = (maxPriceHidden && maxPriceHidden.value) || "";
+
+  var applyBtn = form ? form.querySelector('button[type="submit"]') : null;
+  if (form && !applyBtn) {
+    var wrap = document.createElement("div");
+    wrap.className = "mt-3";
+    applyBtn = document.createElement("button");
+    applyBtn.type = "submit";
+    applyBtn.className = "btn btn-sm w-100";
+    applyBtn.textContent = "Aplicar";
+    applyBtn.style.cssText = "background-color: var(--primary-color); color: var(--text-dark); border-radius: 20px; padding: 0.4rem 1rem; font-weight: 600; text-transform: uppercase; border: none;";
+    wrap.appendChild(applyBtn);
+    form.querySelector(".range-input").parentNode.insertBefore(wrap, form.querySelector(".range-input").nextSibling);
+  }
+  if (applyBtn && applyBtn.parentNode) applyBtn.parentNode.style.display = "none";
+
+  function getCurrentMinMax() {
+    var minVal = parseInt(priceInput[0].value, 10) || minGlobal;
+    var maxVal = parseInt(priceInput[1].value, 10) || maxGlobal;
+    return {
+      min: minVal > minGlobal ? String(minVal) : "",
+      max: maxVal < maxGlobal ? String(maxVal) : ""
+    };
+  }
+
+  function checkPriceChanged() {
+    var cur = getCurrentMinMax();
+    var changed = cur.min !== appliedMin || cur.max !== appliedMax;
+    if (applyBtn && applyBtn.parentNode) applyBtn.parentNode.style.display = changed ? "" : "none";
+  }
+
+  priceInput.forEach(function(inp) {
+    inp.addEventListener("input", checkPriceChanged);
+  });
+
+  if (form) {
+    form.addEventListener("submit", function() {
+      var cur = getCurrentMinMax();
+      minPriceHidden = form.querySelector('input[name="min_price"]');
+      maxPriceHidden = form.querySelector('input[name="max_price"]');
+      if (minPriceHidden) minPriceHidden.value = cur.min;
+      if (maxPriceHidden) maxPriceHidden.value = cur.max;
+    });
+  }
+
+  checkPriceChanged();
+})();
+</script>
+{% endblock %}

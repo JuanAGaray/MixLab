@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% load static store_tags %}
+
+{% block title %}Datos para pago - Invitado{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <h2 class="h5 mb-3 fw-normal text-muted">Tu carrito</h2>
+      {% if cart_items %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead class="small text-muted">
+                <tr>
+                  <th>Producto</th>
+                  <th style="width:120px;">Cantidad</th>
+                  <th class="text-end" style="width:140px;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in cart_items %}
+                <tr>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      {% if item.product.image %}
+                        <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                      {% else %}
+                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                          <i class="bi bi-image text-muted" style="font-size: 0.8rem;"></i>
+                        </div>
+                      {% endif %}
+                      <div>
+                        <div class="fw-medium">{{ item.product.name }}</div>
+                        <div class="text-muted small">
+                          {% if item.product.has_discount %}
+                            <span class="text-decoration-line-through">{{ item.product.price|pesos_colombianos }}</span>
+                            <span class="text-danger fw-bold">{{ item.product.selling_price|pesos_colombianos }}</span>
+                          {% else %}
+                            {{ item.product.selling_price|pesos_colombianos }}
+                          {% endif %}
+                          c/u
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ item.quantity }}</td>
+                  <td class="text-end">{{ item.subtotal|pesos_colombianos }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-warning small">Tu carrito está vacío.</div>
+      {% endif %}
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <ul class="nav nav-tabs small" id="guestCheckoutTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="guest-tab" data-bs-toggle="tab" data-bs-target="#guest-pane" type="button" role="tab" aria-controls="guest-pane" aria-selected="true">
+            Es mi primer pedido
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="login-tab" data-bs-toggle="tab" data-bs-target="#login-pane" type="button" role="tab" aria-controls="login-pane" aria-selected="false">
+            Ya he comprado / Tengo cuenta
+          </button>
+        </li>
+      </ul>
+      <div class="tab-content border border-top-0 rounded-bottom p-3">
+        <div class="tab-pane fade show active" id="guest-pane" role="tabpanel" aria-labelledby="guest-tab">
+          <h2 class="h6 mb-3 fw-normal text-muted">Datos de contacto (invitado)</h2>
+          <form method="post" action="" id="guest-checkout-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="mb-2">
+              <label for="{{ form.full_name.id_for_label }}" class="form-label small text-muted">{{ form.full_name.label }}</label>
+              {{ form.full_name }}
+              {% if form.full_name.errors %}<div class="invalid-feedback d-block small">{{ form.full_name.errors.0 }}</div>{% endif %}
+            </div>
+
+            <div class="mb-2">
+              <label for="{{ form.client_type.id_for_label }}" class="form-label small text-muted">{{ form.client_type.label }}</label>
+              {{ form.client_type }}
+              {% if form.client_type.errors %}<div class="invalid-feedback d-block small">{{ form.client_type.errors.0 }}</div>{% endif %}
+            </div>
+
+            <div class="mb-2">
+              <label for="{{ form.email.id_for_label }}" class="form-label small text-muted">{{ form.email.label }}</label>
+              {{ form.email }}
+              {% if form.email.errors %}<div class="invalid-feedback d-block small">{{ form.email.errors.0 }}</div>{% endif %}
+            </div>
+
+            <div class="row g-2">
+              <div class="col-6">
+                <label for="{{ form.departamento.id_for_label }}" class="form-label small text-muted">{{ form.departamento.label }}</label>
+                {{ form.departamento }}
+                <input type="hidden" id="guest_departamento_initial" value="{{ form.departamento.value|default:'' }}">
+                {% if form.departamento.errors %}<div class="invalid-feedback d-block small">{{ form.departamento.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-6">
+                <label for="{{ form.city.id_for_label }}" class="form-label small text-muted">{{ form.city.label }}</label>
+                {{ form.city }}
+                <input type="hidden" id="guest_city_initial" value="{{ form.city.value|default:'' }}">
+                {% if form.city.errors %}<div class="invalid-feedback d-block small">{{ form.city.errors.0 }}</div>{% endif %}
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label for="{{ form.address.id_for_label }}" class="form-label small text-muted">{{ form.address.label }}</label>
+              {{ form.address }}
+              {% if form.address.errors %}<div class="invalid-feedback d-block small">{{ form.address.errors.0 }}</div>{% endif %}
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label small text-muted mb-1">Ubicación en mapa (arrastra el marcador)</label>
+              <div id="guest-map" style="width: 100%; height: 190px; border-radius: 8px; border: 1px solid #dee2e6; overflow: hidden;"></div>
+              {{ form.map_lat }}{{ form.map_lng }}
+              <div class="form-text small mt-1">
+                Mueve el marcador al lugar de entrega aproximado. Usaremos estas coordenadas para ubicar tu pedido.
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label for="{{ form.punto_referencia.id_for_label }}" class="form-label small text-muted">{{ form.punto_referencia.label }}</label>
+              {{ form.punto_referencia }}
+              {% if form.punto_referencia.errors %}<div class="invalid-feedback d-block small">{{ form.punto_referencia.errors.0 }}</div>{% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.phone.id_for_label }}" class="form-label small text-muted">{{ form.phone.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text">+57</span>
+                {{ form.phone }}
+              </div>
+              {% if form.phone.errors %}<div class="invalid-feedback d-block small">{{ form.phone.errors.0 }}</div>{% endif %}
+              <div class="form-text small">Usaremos este número (WhatsApp) para contactarte y coordinar el pago.</div>
+            </div>
+
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary" id="guest-checkout-submit-btn">
+                Confirmar y registrar pedido
+              </button>
+              <a href="{% url 'store:cart' %}" class="btn btn-outline-secondary btn-sm">Volver al carrito</a>
+            </div>
+          </form>
+        </div>
+
+        <div class="tab-pane fade" id="login-pane" role="tabpanel" aria-labelledby="login-tab">
+          <h2 class="h6 mb-3 fw-normal text-muted">Iniciar sesión</h2>
+          <p class="small text-muted mb-2">
+            Si ya tienes cuenta en MixLab, inicia sesión para usar tus datos guardados y proceder al pago.
+          </p>
+          <form method="post" action="{% url 'store:guest_checkout_login' %}">
+            {% csrf_token %}
+            <div class="mb-2">
+              <label for="guest_login_username" class="form-label small text-muted">Usuario</label>
+              <input type="text" name="username" id="guest_login_username" class="form-control form-control-sm" required>
+            </div>
+            <div class="mb-3">
+              <label for="guest_login_password" class="form-label small text-muted">Contraseña</label>
+              <input type="password" name="password" id="guest_login_password" class="form-control form-control-sm" required>
+            </div>
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+              Entrar y continuar al pago
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="guest-checkout-blocker" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(255,255,255,0.7); z-index: 2000;">
+  <div class="d-flex justify-content-center align-items-center h-100">
+    <div class="text-center">
+      <div class="spinner-border text-primary mb-2" role="status"></div>
+      <div class="text-muted small">Registrando tu pedido, por favor espera...</div>
+    </div>
+  </div>
+</div>
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin=""
+/>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""
+></script>
+
+<script>
+// DPA Colombia (Departamento -> Ciudad) usando JSON
+document.addEventListener('DOMContentLoaded', function() {
+  var selDepto = document.getElementById('guest_departamento');
+  var selCity = document.getElementById('guest_city');
+  if (!selDepto || !selCity) return;
+  var initialDepto = (document.getElementById('guest_departamento_initial') || {}).value || '';
+  var initialCity = (document.getElementById('guest_city_initial') || {}).value || '';
+
+  function normalizar(s) {
+    if (!s) return '';
+    return String(s).trim().toLowerCase().normalize('NFD').replace(/\u0300-\u036f/g, '');
+  }
+
+  fetch("{% static 'data/colombia_dpa.json' %}")
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var deptos = data.departamentos || [];
+      selDepto.innerHTML = '';
+      var opt0d = document.createElement('option');
+      opt0d.value = '';
+      opt0d.textContent = '-- Seleccione departamento --';
+      selDepto.appendChild(opt0d);
+      deptos.forEach(function(d) {
+        var opt = document.createElement('option');
+        opt.value = d.nombre;
+        opt.textContent = d.nombre;
+        selDepto.appendChild(opt);
+      });
+
+      function fillCities(nombre, preselectCity) {
+        selCity.innerHTML = '';
+        var opt0c = document.createElement('option');
+        opt0c.value = '';
+        opt0c.textContent = nombre ? '-- Seleccione ciudad/municipio --' : '-- Primero seleccione departamento --';
+        selCity.appendChild(opt0c);
+        if (!nombre) return;
+        var dep = deptos.find(function(d) {
+          return (d.nombre === nombre) || (normalizar(d.nombre) === normalizar(nombre));
+        });
+        if (dep && Array.isArray(dep.municipios)) {
+          dep.municipios.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            if (preselectCity && normalizar(m) === normalizar(preselectCity)) opt.selected = true;
+            selCity.appendChild(opt);
+          });
+        }
+      }
+
+      selDepto.addEventListener('change', function() {
+        fillCities(this.value);
+      });
+
+      var currentDepto = selDepto.value || initialDepto;
+      if (currentDepto) {
+        selDepto.value = currentDepto;
+        fillCities(currentDepto, selCity.value || initialCity);
+      }
+    });
+});
+
+// Mapa para seleccionar ubicación (Leaflet)
+document.addEventListener('DOMContentLoaded', function() {
+  var mapEl = document.getElementById('guest-map');
+  if (!mapEl || typeof L === 'undefined') return;
+
+  var latInput = document.getElementById('id_map_lat');
+  var lngInput = document.getElementById('id_map_lng');
+
+  // Centro aproximado en Colombia
+  var defaultLat = 4.710989; // Bogotá
+  var defaultLng = -74.072092;
+
+  var lat = latInput && latInput.value ? parseFloat(latInput.value) : defaultLat;
+  var lng = lngInput && lngInput.value ? parseFloat(lngInput.value) : defaultLng;
+
+  var map = L.map('guest-map').setView([lat, lng], 6);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+
+  function updateInputsFromMarker() {
+    var p = marker.getLatLng();
+    if (latInput) latInput.value = p.lat.toFixed(6);
+    if (lngInput) lngInput.value = p.lng.toFixed(6);
+  }
+
+  marker.on('dragend', updateInputsFromMarker);
+  map.on('click', function(e) {
+    marker.setLatLng(e.latlng);
+    updateInputsFromMarker();
+  });
+
+  // Inicializar valores una vez
+  updateInputsFromMarker();
+});
+
+// Bloquear pantalla al confirmar pedido invitado
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.getElementById('guest-checkout-form');
+  var btn = document.getElementById('guest-checkout-submit-btn');
+  var blocker = document.getElementById('guest-checkout-blocker');
+  if (!form || !btn || !blocker) return;
+  form.addEventListener('submit', function() {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Procesando...';
+    blocker.classList.remove('d-none');
+  });
+});
+</script>
+{% endblock %}
+

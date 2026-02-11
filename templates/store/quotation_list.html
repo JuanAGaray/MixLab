@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% load store_tags %}
+
+{% block content %}
+<style>
+  .quotes-table td, .quotes-table th { vertical-align: middle !important; }
+  .quotes-table tbody tr { position: relative; }
+  .quotes-table tbody tr .row-actions {
+      position: absolute;
+      right: 0.5rem;
+      top: 0.4rem;
+      transform: none;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.2rem;
+      opacity: 0;
+      pointer-events: none;
+      background-color: rgba(148, 163, 184, 0.12); /* gris suave */
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+  }
+  .quotes-table tbody tr:hover .row-actions {
+      opacity: 1;
+      pointer-events: auto;
+  }
+  .quotes-table .row-actions .btn {
+      padding: 0.15rem 0.25rem;
+      font-size: 0.75rem;
+      border-radius: 999px;
+  }
+  .quotes-table .form-select.form-select-sm {
+      padding-top: 0.15rem;
+      padding-bottom: 0.15rem;
+      font-size: 0.8rem;
+  }
+  .quotes-table tbody tr.quote-status-generada { background-color: #f3f4f6; }
+  .quotes-table tbody tr.quote-status-enviada { background-color: #e0f2fe; }
+  .quotes-table tbody tr.quote-status-vencida { background-color: #fef3c7; }
+  .quotes-table tbody tr.quote-status-cancelada { background-color: #fee2e2; }
+  .quotation-status-select.status-generada { background-color: #e5e7eb; border-color: #d1d5db; }
+  .quotation-status-select.status-enviada { background-color: #dbeafe; border-color: #93c5fd; }
+  .quotation-status-select.status-vencida { background-color: #fef9c3; border-color: #facc15; }
+  .quotation-status-select.status-cancelada { background-color: #fee2e2; border-color: #f87171; }
+</style>
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h3 class="mb-0">Registro de cotizaciones</h3>
+    <a class="btn btn-outline-primary" href="{% url 'store:quotation' %}">Nueva cotización</a>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <form method="get" action="{% url 'store:quotation_list' %}" class="row g-3 align-items-end flex-wrap">
+        <div class="col-12 col-md-4 col-lg-3">
+          <label for="id_cliente" class="form-label small text-muted mb-1">Cliente</label>
+          <input type="text" name="cliente" id="id_cliente" class="form-control form-control-sm" placeholder="Nombre o correo..." value="{{ filter_cliente|default:'' }}">
+        </div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label for="id_manager" class="form-label small text-muted mb-1">Creado por (manager)</label>
+          <select name="manager" id="id_manager" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for u in managers %}
+              <option value="{{ u.id }}" {% if filter_manager == u.id|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label for="id_estado" class="form-label small text-muted mb-1">Estado cotización</label>
+          <select name="estado" id="id_estado" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for value, label in quotation_status_choices %}
+              <option value="{{ value }}" {% if filter_estado == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-12 col-lg-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-funnel"></i> Filtrar
+          </button>
+          <a href="{% url 'store:quotation_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle quotes-table">
+          <thead>
+            <tr>
+              <th style="min-width:110px;">#</th>
+              <th style="min-width:110px;">Fecha</th>
+              <th>Cliente</th>
+              <th style="min-width:170px;">Hecha por</th>
+              <th style="min-width:140px;">Estado cotización</th>
+              <th style="min-width:150px;">Estado del pedido</th>
+              <th class="text-end" style="min-width:160px;">Total</th>
+              <th style="width:1px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for q in quotes %}
+            <tr data-quotation-id="{{ q.id }}">
+              <td class="fw-semibold">COT-{{ q.id }}</td>
+              <td>{{ q.created_at|date:"Y-m-d" }}</td>
+              <td>
+                <div class="fw-semibold">{{ q.client_name|default:"—" }}</div>
+                <div class="text-muted small">{{ q.get_client_kind_display }}</div>
+              </td>
+              <td>
+                {% if q.created_by %}
+                  {{ q.created_by.username }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <select class="form-select form-select-sm quotation-status-select" style="min-width: 140px;">
+                  {% for value,label in q.QUOTATION_STATUS_CHOICES %}
+                    <option value="{{ value }}" {% if value == q.quotation_status %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select class="form-select form-select-sm order-status-select" style="min-width: 150px;" data-has-payment-proof="{% if q.payment_proof %}1{% else %}0{% endif %}">
+                  {% for value, label in order_status_choices %}
+                    <option value="{{ value }}"
+                            {% if value == q.order_status %}selected{% endif %}
+                            {% if not q.payment_proof and value in 'pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+                        {{ label }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td class="text-end fw-semibold">{{ q.total|pesos_colombianos }}</td>
+              <td class="text-end" style="width:1px; padding: 0;">
+                <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                  {% if q.order_status == 'esperando_pago' %}
+                  <a href="{% url 'store:quotation_detail' quotation_id=q.id %}#payment-proof-section"
+                     class="btn btn-outline-warning btn-sm"
+                     title="Subir comprobante de pago">
+                    <i class="bi bi-upload"></i>
+                  </a>
+                  {% endif %}
+                  <a href="{% url 'store:quotation_detail' quotation_id=q.id %}" class="btn btn-light btn-sm" title="Ver">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'store:quotation_pdf' quotation_id=q.id %}" class="btn btn-light btn-sm" title="Ver PDF" target="_blank" rel="noopener noreferrer">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                  </a>
+                  <a href="{% url 'store:quotation_delete' quotation_id=q.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">Aún no hay cotizaciones registradas.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    function applyRowStatusColor(tr, status, sel) {
+      if (!tr) return;
+      tr.classList.remove('quote-status-generada', 'quote-status-enviada', 'quote-status-vencida', 'quote-status-cancelada');
+      if (status) {
+        tr.classList.add('quote-status-' + status);
+      }
+      if (sel) {
+        sel.classList.remove('status-generada', 'status-enviada', 'status-vencida', 'status-cancelada');
+        if (status) {
+          sel.classList.add('status-' + status);
+        }
+      }
+    }
+
+    document.querySelectorAll('.quotation-status-select').forEach(function (sel) {
+      const tr = sel.closest('tr[data-quotation-id]');
+      applyRowStatusColor(tr, sel.value, sel);
+
+      sel.addEventListener('change', function () {
+        const row = this.closest('tr[data-quotation-id]');
+        const qid = row ? row.getAttribute('data-quotation-id') : '';
+        const val = this.value;
+        applyRowStatusColor(row, val, this);
+
+        fetch("{% url 'store:quotation_ajax_set_status' %}", {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrftoken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ quotation_id: qid, quotation_status: val }),
+        })
+          .then(r => r.json()).then(payload => {
+            if (!payload || payload.error) {
+              applyRowStatusColor(row, sel.value, sel);
+              throw new Error(payload && payload.error ? payload.error : 'Error');
+            }
+          }).catch(() => window.location.reload());
+      });
+    });
+
+    document.querySelectorAll('.order-status-select').forEach(function (sel) {
+      sel.setAttribute('data-prev', sel.value);
+      sel.addEventListener('change', function () {
+        const row = this.closest('tr[data-quotation-id]');
+        const qid = row ? row.getAttribute('data-quotation-id') : '';
+        const val = this.value;
+        const prevVal = sel.getAttribute('data-prev');
+        const hasProof = sel.getAttribute('data-has-payment-proof') === '1';
+
+        const requiresProof = ['pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'];
+
+        if (!hasProof && requiresProof.includes(val)) {
+          sel.value = prevVal;
+          alert('Debe subir una referencia de pago en el detalle de la cotización antes de marcar este estado de pedido.');
+          return;
+        }
+
+        fetch("{% url 'store:quotation_ajax_set_status' %}", {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrftoken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ quotation_id: qid, order_status: val }),
+        })
+          .then(r => r.json()).then(payload => {
+            if (!payload || payload.error) {
+              sel.value = prevVal;
+              alert(payload && payload.error ? payload.error : 'Error al actualizar.');
+              return;
+            }
+            sel.setAttribute('data-prev', payload.order_status);
+            // Si el backend acepta un estado que requiere comprobante, asumimos que ya hay comprobante
+            if (requiresProof.includes(payload.order_status)) {
+              sel.setAttribute('data-has-payment-proof', '1');
+              requiresProof.forEach(function (statusVal) {
+                var opt = sel.querySelector('option[value=\"' + statusVal + '\"]');
+                if (opt) opt.disabled = false;
+              });
+            }
+          }).catch(function () { window.location.reload(); });
+      });
+    });
+  });
+</script>
+{% endblock %}
+

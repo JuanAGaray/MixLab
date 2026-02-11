@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load store_tags %}
+
+{% block title %}Pedido registrado - Frozz{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h5 fw-normal mb-2">¡Tu pedido fue registrado con éxito! 🎉</h2>
+          <p class="text-muted mb-2">
+            Hemos generado correctamente la cotización <strong>COT{{ quote.id }}</strong> con los productos que elegiste.
+          </p>
+          <p class="text-muted small mb-0">
+            En breve uno de nuestros asesores de ventas te escribirá por WhatsApp al número que registraste para coordinar
+            el pago y finalizar tu compra.
+          </p>
+          <p class="text-muted small mb-0 mt-2">
+            Mientras terminamos de integrar la pasarela de pago automática, este es el último paso: cuando el asesor te
+            contacte, podrás confirmar existencias y cerrar el pedido. Si tu pedido incluye productos con poco stock,
+            te recomendamos confirmar y pagar lo antes posible para evitar que se agoten.
+          </p>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title h6 mb-3 text-muted">Resumen de la cotización</h5>
+          <div class="row g-2 small">
+            <div class="col-md-6">
+              <div class="text-muted">Nombre</div>
+              <div class="fw-medium">{{ quote.client_name|default:"—" }}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted">Correo</div>
+              <div class="fw-medium">{{ quote.client_email|default:"—" }}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted">Teléfono (WhatsApp)</div>
+              <div class="fw-medium">{{ quote.client_phone|default:"—" }}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted">Ubicación</div>
+              <div>{{ quote.client_departamento|default:"—" }} - {{ quote.client_city|default:"—" }}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted">Total</div>
+              <div class="fw-medium">{{ quote.total|pesos_colombianos }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <a href="https://wa.me/573045379501" target="_blank" rel="noopener noreferrer" class="btn btn-success btn-sm">
+          <i class="bi bi-whatsapp"></i> Hablar con un asesor
+        </a>
+        <a href="{% url 'store:product_list' %}" class="btn btn-outline-secondary btn-sm">
+          Volver a la tienda
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

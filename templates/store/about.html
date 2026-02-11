@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Quiénes Somos - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+      <div class="text-center mb-4">
+        <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="60">
+      </div>
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body p-4 p-md-5">
+          <h1 class="h4 mb-3">Quiénes somos</h1>
+          <p class="text-muted">
+            MixLab nació en <strong>2025</strong> con una idea clara: acercar los mejores
+            <strong>insumos, maquinaria y desechables</strong> al ecosistema de la
+            <strong>coctelería, comidas rápidas y mixología</strong> en Colombia.
+          </p>
+          <p class="text-muted">
+            Empezamos atendiendo de forma local a bares, restaurantes, food trucks y
+            emprendedores del sector, creando relaciones cercanas y entendiendo muy bien
+            las necesidades reales de quienes están detrás de la barra o de la plancha.
+          </p>
+          <p class="text-muted mb-4">
+            En <strong>2026 lanzamos nuestra página web</strong> para que nuestros clientes
+            puedan cotizar y armar sus pedidos de forma rápida, visual y segura, desde
+            cualquier dispositivo, manteniendo siempre el acompañamiento humano que nos caracteriza.
+          </p>
+
+          <h2 class="h5 mt-4 mb-3">Nuestra misión</h2>
+          <p class="text-muted">
+            Ser el aliado de confianza del sector de coctelería, comidas rápidas y mixología,
+            ofreciendo productos de calidad, entregas confiables y asesoría cercana para que
+            cada negocio pueda enfocarse en lo que mejor sabe hacer: crear experiencias memorables
+            para sus clientes.
+          </p>
+
+          <h2 class="h5 mt-4 mb-3">Qué ofrecemos</h2>
+          <ul class="text-muted mb-0">
+            <li>Insumos y materias primas para bebidas y comidas rápidas.</li>
+            <li>Maquinaria y equipos pensados para operación diaria.</li>
+            <li>Desechables y empaques para servicio en barra, punto de venta o delivery.</li>
+            <li>Acompañamiento por WhatsApp y cotizaciones personalizadas.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

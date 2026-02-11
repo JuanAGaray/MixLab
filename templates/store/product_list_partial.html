@@ -1,0 +1,91 @@
+{% load store_tags %}
+<div id="products-ajax-content">
+    <div class="d-flex flex-column flex-md-row justify-content-end align-items-md-center mb-3 gap-2">
+        <div class="text-muted small ms-md-auto">
+            Mostrando {{ products.start_index }}–{{ products.end_index }} de {{ products.paginator.count }}
+        </div>
+    </div>
+    <div class="row g-3 g-md-4" id="products-grid">
+        {% for product in products %}
+        <div class="col-6 col-md-6 col-lg-4">
+            <div class="card product-card h-100" style="border: 1px solid var(--gray-200); box-shadow: var(--shadow-lg);">
+                <a href="{% url 'store:product_detail' product.slug %}" style="text-decoration: none; color: inherit;">
+                    {% if product.image %}
+                    <img src="{{ product.image.url }}" class="card-img-top product-card-img-mobile" alt="{{ product.name }}" style="height: 160px; object-fit: contain; object-position: center; background: #f8fafc;">
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center product-card-img-mobile" style="height: 160px;">
+                        <i class="bi bi-image" style="font-size: 2rem; color: var(--gray-400);"></i>
+                    </div>
+                    {% endif %}
+                </a>
+                <div class="card-body d-flex flex-column py-2 py-md-3">
+                    <a href="{% url 'store:product_detail' product.slug %}" style="text-decoration: none; color: inherit;">
+                        <h5 class="card-title mb-1 mb-md-2" style="color: var(--text-dark); font-size: 0.95rem;">{{ product.name }}</h5>
+                    </a>
+                    {% if product.presentation_value %}
+                    <p class="text-muted mb-2 small">Presentación: {{ product.presentation_value }}</p>
+                    {% endif %}
+                    <div class="text-center mb-2 mb-md-3">
+                        {% if product.has_discount %}
+                        <p class="text-dark mb-0 fw-bold" style="font-size: 0.9rem; line-height: 1.2;">
+                            <span class="text-decoration-line-through text-muted small">{{ product.price|pesos_colombianos }}</span>
+                            <span class="text-danger ms-1">{{ product.promotional_price|pesos_colombianos }}</span>
+                            <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">-{{ product.discount_percentage }}%</span>
+                        </p>
+                        {% else %}
+                        <p class="text-dark mb-0 fw-bold" style="font-size: 0.9rem; line-height: 1.2;">{{ product.price|pesos_colombianos }}</p>
+                        {% endif %}
+                        <small class="text-muted d-none d-md-block" style="font-size: 0.7rem;">IVA incluido</small>
+                    </div>
+                    {% if product.stock > 0 %}
+                        {% if product.cart_quantity >= product.stock %}
+                        <div class="text-center mb-2 cart-full-message">
+                            <small class="text-muted d-block mb-2" style="font-size: 0.85rem;">
+                                Las unidades disponibles las tienes en el carrito
+                                <i class="bi bi-info-circle" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Tenerlo en el carrito no garantiza que esté reservado. Realiza el pago ahora para evitar que otros clientes compren las unidades disponibles." style="cursor: help;"></i>
+                            </small>
+                        </div>
+                        <div class="d-flex gap-1 gap-md-2">
+                            <button type="button" class="btn btn-primary flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" disabled style="padding: 0.35rem 0.5rem; font-size: 0.8rem; opacity: 0.6; cursor: not-allowed;">
+                                <i class="bi bi-cart-plus"></i><span class="d-none d-sm-inline"> Agregar</span>
+                            </button>
+                            <button type="button" class="btn btn-dark flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" disabled style="padding: 0.35rem 0.5rem; font-size: 0.8rem; opacity: 0.6; cursor: not-allowed;">Comprar</button>
+                        </div>
+                        {% else %}
+                        <div class="d-flex gap-1 gap-md-2 mt-auto">
+                            <button type="button" class="btn btn-primary flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" style="padding: 0.35rem 0.5rem; font-size: 0.8rem;">
+                                <i class="bi bi-cart-plus"></i><span class="d-none d-sm-inline"> Agregar</span>
+                            </button>
+                            <button type="button" class="btn btn-dark flex-fill add-to-cart-btn btn-sm" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" data-product-stock="{{ product.stock }}" data-product-cart-quantity="{{ product.cart_quantity }}" style="padding: 0.35rem 0.5rem; font-size: 0.8rem;">Comprar</button>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <p class="text-muted small text-center mt-auto mb-0">Agotado</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-center text-muted">No hay productos en este rango de precio.</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% if products.has_other_pages %}
+    <nav class="mt-4 d-flex justify-content-center">
+        <ul class="pagination">
+            {% if products.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ products.previous_page_number }}{% if current_category %}&category={{ current_category }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_price %}&min_price={{ min_price }}{% endif %}{% if max_price %}&max_price={{ max_price }}{% endif %}{% if attr_key %}&attr_key={{ attr_key }}{% endif %}{% if attr_value %}&attr_value={{ attr_value }}{% endif %}{% if order %}&order={{ order }}{% endif %}">Anterior</a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">Página {{ products.number }} de {{ products.paginator.num_pages }}</span></li>
+            {% if products.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ products.next_page_number }}{% if current_category %}&category={{ current_category }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_price %}&min_price={{ min_price }}{% endif %}{% if max_price %}&max_price={{ max_price }}{% endif %}{% if attr_key %}&attr_key={{ attr_key }}{% endif %}{% if attr_value %}&attr_value={{ attr_value }}{% endif %}{% if order %}&order={{ order }}{% endif %}">Siguiente</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>

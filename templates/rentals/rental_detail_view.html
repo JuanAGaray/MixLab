@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Alquiler #{{ rental.id }} - Frozz{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Alquiler #{{ rental.id }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Producto:</strong> {{ rental.product.name }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Estado:</strong>
+                            <span class="badge 
+                                {% if rental.status == 'pending' %}bg-warning
+                                {% elif rental.status == 'confirmed' %}bg-info
+                                {% elif rental.status == 'active' %}bg-primary
+                                {% elif rental.status == 'completed' %}bg-success
+                                {% else %}bg-danger{% endif %}">
+                                {{ rental.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Fecha de Inicio:</strong> {{ rental.start_date|date:"d/m/Y" }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Fecha de Fin:</strong> {{ rental.end_date|date:"d/m/Y" }}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Duración:</strong> {{ rental.get_duration_type_display }} ({{ rental.duration_quantity }})
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Precio Diario:</strong> ${{ rental.daily_price|floatformat:0 }}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5>Total:</h5>
+                        <h3 class="text-primary">${{ rental.total_price|floatformat:0 }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Información de Contacto</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Contacto:</strong> {{ rental.contact_name }}</p>
+                    <p><strong>Teléfono:</strong> {{ rental.contact_phone }}</p>
+                    <p><strong>Dirección:</strong><br>{{ rental.delivery_address }}</p>
+                    <p><strong>Ciudad:</strong> {{ rental.delivery_city }}</p>
+                    {% if rental.special_requirements %}
+                    <p><strong>Requisitos Especiales:</strong><br>{{ rental.special_requirements }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <a href="{% url 'rentals:rental_history' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a Mis Alquileres
+    </a>
+</div>
+{% endblock %}
+

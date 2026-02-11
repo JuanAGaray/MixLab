@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load static store_tags %}
+
+{% block title %}Clientes - Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.clients-table td, .clients-table th { vertical-align: middle !important; }
+.clients-table tbody tr { position: relative; }
+.clients-table tbody tr .row-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+.clients-table tbody tr:hover .row-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+.clients-table .row-actions .btn { padding: 0.2rem 0.4rem; font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="h5 mb-0 fw-normal text-muted">Clientes</h2>
+        <a href="{% url 'store:client_create' %}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus"></i> Nuevo cliente
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-3">
+            <form method="get" action="{% url 'store:client_list' %}" class="row g-3 align-items-end flex-wrap">
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label for="id_q" class="form-label small text-muted mb-1">Buscar</label>
+                    <input type="text" name="q" id="id_q" class="form-control form-control-sm" placeholder="Usuario, nombre..." value="{{ filter_q|default:'' }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label for="id_correo" class="form-label small text-muted mb-1">Correo</label>
+                    <input type="text" name="correo" id="id_correo" class="form-control form-control-sm" placeholder="Correo..." value="{{ filter_correo|default:'' }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label for="id_telefono" class="form-label small text-muted mb-1">Teléfono</label>
+                    <input type="text" name="telefono" id="id_telefono" class="form-control form-control-sm" placeholder="Teléfono..." value="{{ filter_telefono|default:'' }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label for="id_tipo" class="form-label small text-muted mb-1">Tipo</label>
+                    <select name="tipo" id="id_tipo" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        {% for value, label in client_type_choices %}
+                        <option value="{{ value }}" {% if filter_tipo == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-12 col-lg-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                    <a href="{% url 'store:client_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 clients-table">
+                    <thead class="small text-muted">
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Correo</th>
+                            <th>Teléfono</th>
+                            <th>Tipo</th>
+                            <th>Dirección</th>
+                            <th>Antigüedad</th>
+                            <th style="width: 1px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in page_obj %}
+                        <tr>
+                            <td class="fw-medium">{{ client.username }}</td>
+                            <td>{{ client.get_full_name|default:"—" }}</td>
+                            <td class="small">{{ client.email|default:"—" }}</td>
+                            <td class="small">
+                                {% with phone=client|profile_phone wa=client|whatsapp_url %}
+                                {% if phone %}
+                                <span class="text-muted">{{ phone }}</span>
+                                {% if wa %}
+                                <a href="{{ wa }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-success ms-1 py-0 px-1" title="Abrir en WhatsApp" aria-label="WhatsApp">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                                {% endif %}
+                                {% else %}—{% endif %}
+                                {% endwith %}
+                            </td>
+                            <td class="small">{{ client|client_type_display }}</td>
+                            <td class="small text-muted" style="max-width:200px;">{{ client|profile_address }}</td>
+                            <td class="small text-muted" title="{{ client.date_joined|date:'d/m/Y H:i' }}">{{ client.date_joined|days_ago }}</td>
+                            <td class="text-end" style="min-width: 100px;">
+                                <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                                    <a href="{% url 'store:client_detail' client.id %}" class="btn btn-light btn-sm" title="Ver">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'store:client_edit' client.id %}" class="btn btn-light btn-sm" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'store:client_delete' client.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                No hay clientes. <a href="{% url 'store:client_create' %}">Crear cliente</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if page_obj.has_other_pages %}
+            <nav class="p-3 border-top">
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filter_q %}&q={{ filter_q|urlencode }}{% endif %}{% if filter_correo %}&correo={{ filter_correo|urlencode }}{% endif %}{% if filter_telefono %}&telefono={{ filter_telefono|urlencode }}{% endif %}{% if filter_tipo %}&tipo={{ filter_tipo }}{% endif %}">Anterior</a>
+                    </li>
+                    {% endif %}
+                    <li class="page-item disabled">
+                        <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filter_q %}&q={{ filter_q|urlencode }}{% endif %}{% if filter_correo %}&correo={{ filter_correo|urlencode }}{% endif %}{% if filter_telefono %}&telefono={{ filter_telefono|urlencode }}{% endif %}{% if filter_tipo %}&tipo={{ filter_tipo }}{% endif %}">Siguiente</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

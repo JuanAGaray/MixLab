@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+{% load static store_tags %}
+
+{% block title %}Checkout - Frozz{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="mb-4"><i class="bi bi-credit-card"></i> Finalizar Compra</h2>
+
+    <div class="row">
+        <div class="col-md-8 mb-3 mb-md-0">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Información de Envío (DPA Colombia)</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="checkout-form">
+                        {% csrf_token %}
+                        {% if addresses %}
+                        <div class="mb-3">
+                            <label for="saved_address" class="form-label small text-muted">Direcciones guardadas</label>
+                            <select id="saved_address" name="saved_address" class="form-select form-select-sm">
+                                <option value="">🆕 Nueva ubicación</option>
+                                {% for addr in addresses %}
+                                <option
+                                  value="{{ addr.id }}"
+                                  data-depto="{{ addr.departamento|escapejs }}"
+                                  data-city="{{ addr.city|escapejs }}"
+                                  data-address="{{ addr.address|escapejs }}"
+                                  data-ref="{{ addr.punto_referencia|default_if_none:''|escapejs }}"
+                                  data-maps="{{ addr.google_maps_ubicacion|default_if_none:''|escapejs }}"
+                                  data-phone="{{ addr.phone|default_if_none:''|escapejs }}"
+                                  {% if default_address and default_address.id == addr.id %}selected{% endif %}
+                                >
+                                  {{ addr.as_text }}
+                                  {% if default_address and default_address.id == addr.id %} (Predeterminada){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text small">
+                                Selecciona una dirección guardada o elige <strong>Nueva ubicación</strong> para escribir una distinta.
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info small">
+                            Aún no tienes direcciones guardadas. Completa los campos para usar esta ubicación en tu pedido.
+                            Puedes gestionarlas luego en <a href="{% url 'accounts:profile' %}#direcciones">Mi Perfil</a>.
+                        </div>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label for="shipping_departamento" class="form-label">Departamento *</label>
+                            <select class="form-control" id="shipping_departamento" name="shipping_departamento" required>
+                                <option value="">-- Seleccione departamento --</option>
+                                {% for value, label in departamentos %}
+                                <option value="{{ value }}" {% if default_address and default_address.departamento == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_city" class="form-label">Ciudad *</label>
+                            <select class="form-control" id="shipping_city" name="shipping_city" required>
+                                <option value="">-- Primero seleccione departamento --</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_address" class="form-label">Dirección exacta *</label>
+                            <textarea class="form-control" id="shipping_address" name="shipping_address" rows="3" placeholder="Calle, carrera, número, barrio" required>{% if default_address %}{{ default_address.address }}{% endif %}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_punto_referencia" class="form-label">Punto de referencia (opcional)</label>
+                            <input type="text" class="form-control" id="shipping_punto_referencia" name="shipping_punto_referencia" placeholder="Ej: Frente al parque, diagonal a la panadería" value="{% if default_address %}{{ default_address.punto_referencia }}{% endif %}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_google_maps" class="form-label">Ubicación en Google Maps (opcional)</label>
+                            <input type="url" class="form-control" id="shipping_google_maps" name="shipping_google_maps" placeholder="Pega el enlace o marca en el mapa debajo" value="{% if default_address %}{{ default_address.google_maps_ubicacion }}{% endif %}">
+                        </div>
+                        <div class="mb-3" id="map-container">
+                            <label class="form-label">O marca tu ubicación en el mapa</label>
+                            <p class="form-text small mb-2">Haz clic en el mapa (OpenStreetMap) para colocar el marcador. Se generará un enlace para Google Maps.</p>
+                            <div id="map-ubicacion-checkout" class="border rounded" style="height: 280px; width: 100%;"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_phone" class="form-label">Teléfono *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">+57</span>
+                                <input type="tel" class="form-control" id="shipping_phone" name="shipping_phone" value="{% if default_address %}{{ default_address.phone }}{% endif %}" required>
+                            </div>
+                            <small class="text-muted">Puedes cambiar el indicativo manualmente si lo necesitas.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_notes" class="form-label">Notas de Envío (opcional)</label>
+                            <textarea class="form-control" id="shipping_notes" name="shipping_notes" rows="2"></textarea>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            ¿Quieres gestionar tus direcciones para próximas compras?
+                            <a href="{% url 'accounts:profile' %}#direcciones">Hazlo desde Mi Perfil</a>.
+                        </p>
+                        <button type="submit" class="btn btn-primary btn-lg w-100" id="checkout-submit-btn">
+                            <i class="bi bi-check-circle"></i> Confirmar Pedido
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Resumen del Pedido</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if cart_items %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle quotes-table">
+                            <thead class="small text-muted">
+                                <tr>
+                                    <th>Producto</th>
+                                    <th class="text-center" style="width:90px;">Cant.</th>
+                                    <th class="text-end" style="width:120px;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in cart_items %}
+                                <tr>
+                                    <td class="small">
+                                        <div class="fw-medium">{{ item.product.name }}</div>
+                                    </td>
+                                    <td class="text-center small">{{ item.quantity }}</td>
+                                    <td class="text-end small">
+                                        {{ item.subtotal|pesos_colombianos }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between px-3 pb-2">
+                        <strong>Total:</strong>
+                        <strong class="h5 text-primary mb-0">{{ cart_total|pesos_colombianos }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="checkout-blocker" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(255,255,255,0.7); z-index: 2000;">
+    <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-2" role="status"></div>
+            <div class="text-muted small">Procesando tu pedido, por favor espera...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var selDepto = document.getElementById('shipping_departamento');
+    var selCity = document.getElementById('shipping_city');
+    var cityValue = '{{ default_address.city|default_if_none:""|escapejs }}';
+    if (!selDepto || !selCity) return;
+    fetch("{% static 'data/colombia_dpa.json' %}")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var deptos = data.departamentos || [];
+            function normalizar(s) {
+                if (!s) return '';
+                return String(s).trim().toLowerCase().normalize('NFD').replace(/\u0300-\u036f/g, '');
+            }
+            selDepto.addEventListener('change', function() {
+                var nombre = this.value;
+                selCity.innerHTML = '';
+                var opt0 = document.createElement('option');
+                opt0.value = '';
+                opt0.textContent = nombre ? '-- Seleccione ciudad/municipio --' : '-- Primero seleccione departamento --';
+                selCity.appendChild(opt0);
+                if (!nombre) return;
+                var dep = deptos.find(function(d) {
+                    return (d.nombre === nombre) || (normalizar(d.nombre) === normalizar(nombre));
+                });
+                if (dep && dep.municipios && Array.isArray(dep.municipios)) {
+                    var targetCity = window.checkoutCityValue || cityValue || '';
+                    dep.municipios.forEach(function(m) {
+                        var opt = document.createElement('option');
+                        opt.value = m;
+                        opt.textContent = m;
+                        if (targetCity && m === targetCity) opt.selected = true;
+                        selCity.appendChild(opt);
+                    });
+                }
+            });
+            if (selDepto.value) selDepto.dispatchEvent(new Event('change'));
+        })
+        .catch(function() { console.warn('No se pudo cargar municipios'); });
+});
+
+// Rellenar formulario desde direcciones guardadas
+document.addEventListener('DOMContentLoaded', function() {
+    var selector = document.getElementById('saved_address');
+    if (!selector) return;
+    var selDepto = document.getElementById('shipping_departamento');
+    var selCity = document.getElementById('shipping_city');
+    var addrInput = document.getElementById('shipping_address');
+    var refInput = document.getElementById('shipping_punto_referencia');
+    var mapsInput = document.getElementById('shipping_google_maps');
+    var phoneInput = document.getElementById('shipping_phone');
+    var mapContainer = document.getElementById('map-container');
+
+    function setAddressMode(isNew) {
+        var disable = !isNew;
+
+        if (selDepto) selDepto.disabled = disable;
+        if (selCity) selCity.disabled = disable;
+        if (addrInput) {
+            addrInput.disabled = disable;
+            addrInput.readOnly = disable;
+        }
+        if (refInput) {
+            refInput.disabled = disable;
+            refInput.readOnly = disable;
+        }
+        if (mapsInput) {
+            mapsInput.disabled = disable;
+            mapsInput.readOnly = disable;
+        }
+        if (phoneInput) {
+            phoneInput.disabled = disable;
+        }
+
+        if (mapContainer) {
+            if (isNew) {
+                mapContainer.classList.remove('d-none');
+            } else {
+                mapContainer.classList.add('d-none');
+            }
+        }
+    }
+
+    function applyAddressFromOption(opt) {
+        if (!opt) return;
+        var depto = opt.getAttribute('data-depto') || '';
+        var city = opt.getAttribute('data-city') || '';
+        var address = opt.getAttribute('data-address') || '';
+        var ref = opt.getAttribute('data-ref') || '';
+        var maps = opt.getAttribute('data-maps') || '';
+        var phone = opt.getAttribute('data-phone') || '';
+
+        if (selDepto) {
+            selDepto.value = depto;
+            window.checkoutCityValue = city;
+            selDepto.dispatchEvent(new Event('change'));
+        }
+        if (addrInput) addrInput.value = address;
+        if (refInput) refInput.value = ref;
+        if (mapsInput) mapsInput.value = maps;
+        if (phoneInput) phoneInput.value = phone;
+    }
+
+    selector.addEventListener('change', function() {
+        var val = this.value;
+        if (!val) {
+            // Nueva ubicación: limpiar campos y habilitar edición / mostrar mapa
+            if (addrInput) addrInput.value = '';
+            if (refInput) refInput.value = '';
+            if (mapsInput) mapsInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+            window.checkoutCityValue = '';
+            setAddressMode(true);
+            return;
+        }
+        var opt = this.options[this.selectedIndex];
+        applyAddressFromOption(opt);
+        setAddressMode(false);
+    });
+
+    // Si hay una dirección seleccionada por defecto, aplicarla al cargar
+    if (selector.value) {
+        var opt = selector.options[selector.selectedIndex];
+        applyAddressFromOption(opt);
+        setAddressMode(false);
+    } else {
+        // Nueva ubicación por defecto
+        setAddressMode(true);
+    }
+});
+// Bloquear pantalla al confirmar pedido
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('checkout-form');
+    var btn = document.getElementById('checkout-submit-btn');
+    var blocker = document.getElementById('checkout-blocker');
+    if (!form || !btn || !blocker) return;
+
+    form.addEventListener('submit', function() {
+        // Evitar doble envío
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Procesando...';
+        blocker.classList.remove('d-none');
+    });
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function() {
+    function initMap() {
+        var mapEl = document.getElementById('map-ubicacion-checkout');
+        var inputMaps = document.getElementById('shipping_google_maps');
+        if (!mapEl || !inputMaps || typeof L === 'undefined') return;
+        var map = L.map('map-ubicacion-checkout').setView([10.3997, -75.5144], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+        var marker = null;
+        map.on('click', function(e) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
+            inputMaps.value = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMap);
+    } else {
+        initMap();
+    }
+})();
+</script>
+{% endblock %}

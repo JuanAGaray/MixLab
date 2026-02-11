@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Reservar {{ product.name }} - Frozz{% endblock %}
+
+{% block extra_css %}
+<style>
+    .unavailable-date {
+        background-color: #dc3545 !important;
+        color: white !important;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-6">
+            {% if product.image %}
+            <img src="{{ product.image.url }}" class="img-fluid rounded shadow" alt="{{ product.name }}">
+            {% else %}
+            <div class="bg-light d-flex align-items-center justify-content-center rounded shadow" style="height: 400px;">
+                <i class="bi bi-calendar3" style="font-size: 128px; color: #0d6efd;"></i>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-6">
+            <h1 class="mb-3">{{ product.name }}</h1>
+            <p class="text-muted mb-4">{{ product.description }}</p>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Precios de Alquiler</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Diario:</strong> ${{ product.price|floatformat:0 }}/día</p>
+                    <p><strong>Semanal:</strong> ${{ product.price|floatformat:0 }} x 7 días = ${{ product.price|multiply:7|floatformat:0 }} (15% descuento)</p>
+                    <p><strong>Mensual:</strong> ${{ product.price|floatformat:0 }} x 30 días = ${{ product.price|multiply:30|floatformat:0 }} (25% descuento)</p>
+                </div>
+            </div>
+            
+            {% if user.is_authenticated %}
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Reservar Alquiler</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'rentals:create_rental' product.id %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="start_date" class="form-label">Fecha de Inicio *</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" min="{{ today }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="end_date" class="form-label">Fecha de Fin *</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" min="{{ today }}" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="contact_name" class="form-label">Nombre de Contacto *</label>
+                            <input type="text" class="form-control" id="contact_name" name="contact_name" value="{{ user.get_full_name|default:user.username }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="contact_phone" class="form-label">Teléfono de Contacto *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">+57</span>
+                                <input type="tel" class="form-control" id="contact_phone" name="contact_phone" value="{% if user.profile %}{{ user.profile.phone }}{% endif %}" required>
+                            </div>
+                            <small class="text-muted">Puedes cambiar el indicativo manualmente si lo necesitas.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="delivery_address" class="form-label">Dirección de Entrega *</label>
+                            <textarea class="form-control" id="delivery_address" name="delivery_address" rows="2" required>{% if user.profile %}{{ user.profile.address }}{% endif %}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="delivery_city" class="form-label">Ciudad de Entrega *</label>
+                            <input type="text" class="form-control" id="delivery_city" name="delivery_city" value="{% if user.profile %}{{ user.profile.city }}{% endif %}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="special_requirements" class="form-label">Requisitos Especiales</label>
+                            <textarea class="form-control" id="special_requirements" name="special_requirements" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-calendar-check"></i> Reservar Alquiler
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Debes <a href="{% url 'accounts:login' %}">iniciar sesión</a> para reservar un alquiler.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var startDateEl = document.getElementById('start_date');
+        if (startDateEl) {
+            startDateEl.addEventListener('change', function() {
+                var startDate = this.value;
+                var endDateInput = document.getElementById('end_date');
+                if (endDateInput) {
+                    endDateInput.min = startDate;
+                    if (endDateInput.value && endDateInput.value < startDate) endDateInput.value = startDate;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}
+

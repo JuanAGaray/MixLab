@@ -1,0 +1,605 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Cotización - Frozz{% endblock %}
+
+{% block content %}
+<style>
+  /* Evitar que moneda se corte en tablas */
+  .quotation-nowrap { white-space: nowrap; }
+  /* Asegurar ancho para subtotal/total */
+  .quotation-money-col { min-width: 160px; }
+</style>
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h4 mb-0">Cotización</h2>
+        <a href="{% url 'store:product_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Volver a productos
+        </a>
+    </div>
+
+    {% if not client_name %}
+    <!-- Cotización (misma hoja siempre) -->
+    <div class="row">
+        <div class="col-lg-8">
+            <form method="post" id="quotation-form">
+                {% csrf_token %}
+
+                <!-- Datos del cliente (arriba) -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Datos del cliente</h5>
+                    </div>
+                    <div class="card-body">
+                        {% for item in quotation_items %}
+                        <input type="hidden" name="products" value="{{ item.product.id }}">
+                        {% endfor %}
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="d-flex flex-wrap gap-3 align-items-center">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="client_mode" id="client_mode_existing" value="existing" checked>
+                                        <label class="form-check-label" for="client_mode_existing">Cliente existente</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="client_mode" id="client_mode_unregistered" value="unregistered">
+                                        <label class="form-check-label" for="client_mode_unregistered">Cliente no registrado</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12" id="existing-client-wrap">
+                                <label class="form-label mb-1">{{ form.existing_client.label }}</label>
+                                {{ form.existing_client }}
+                                <div style="display:none;">
+                                  {{ form.unregistered_client }}
+                                </div>
+                                <div class="form-text">Puedes crear clientes en `Manager → Clientes`.</div>
+                            </div>
+
+                            <div class="col-12" id="unregistered-client-wrap" style="display:none;">
+                              <div class="row g-3">
+                                <div class="col-12">
+                                  <label class="form-label mb-1">{{ form.client_kind.label }} *</label>
+                                  <div class="d-flex flex-wrap gap-3">
+                                    {% for radio in form.client_kind %}
+                                      <div class="form-check">
+                                        {{ radio.tag }}
+                                        <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                                      </div>
+                                    {% endfor %}
+                                  </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.client_name.id_for_label }}" class="form-label">{{ form.client_name.label }} *</label>
+                                    {{ form.client_name }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.client_email.id_for_label }}" class="form-label">{{ form.client_email.label }} *</label>
+                                    {{ form.client_email }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.client_phone.id_for_label }}" class="form-label">{{ form.client_phone.label }} *</label>
+                                    {{ form.client_phone }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="quotation_departamento" class="form-label">{{ form.client_departamento.label }} *</label>
+                                    {{ form.client_departamento }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="quotation_city" class="form-label">{{ form.client_city.label }} *</label>
+                                    {{ form.client_city }}
+                                </div>
+                              </div>
+                            </div>
+                            <div class="col-12">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">{{ form.notes.label }}</label>
+                                {{ form.notes }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Productos seleccionados -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Hoja de cotización</h5>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addProductsCollapse" aria-expanded="false">
+                            <i class="bi bi-plus-circle me-1"></i> Agregar más productos
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th style="width: 120px;">Cantidad</th>
+                                        <th style="width: 170px;" class="text-end quotation-money-col">Precio unitario</th>
+                                        <th style="width: 190px;" class="text-end quotation-money-col">Subtotal</th>
+                                        <th style="width: 60px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in quotation_items %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if item.product.image %}
+                                                <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                                                {% else %}
+                                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                    <i class="bi bi-image text-muted"></i>
+                                                </div>
+                                                {% endif %}
+                                                <div>
+                                                    <strong>{{ item.product.name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">{{ item.product.category.name }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="number" name="quantity_{{ item.product.id }}" value="{{ item.quantity }}" min="1" class="form-control form-control-sm quantity-input" data-product-id="{{ item.product.id }}" style="width: 90px;">
+                                        </td>
+                                        <td class="text-end quotation-nowrap quotation-money-col">{{ item.unit_price|pesos_colombianos }}</td>
+                                        <td class="text-end quotation-nowrap quotation-money-col"><strong>{{ item.subtotal|pesos_colombianos }}</strong></td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-product-id="{{ item.product.id }}" title="Quitar">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">
+                                            Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="3" class="text-end"><strong>Total (IVA incluido):</strong></td>
+                                        <td class="text-end quotation-nowrap quotation-money-col"><strong class="h5 mb-0">{{ total|pesos_colombianos }}</strong></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-file-earmark-text me-1"></i> Generar cotización
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Panel colapsable para agregar más productos -->
+            <div class="collapse mb-4{% if not quotation_items %} show{% endif %}" id="addProductsCollapse">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0">Agregar productos</h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- Búsqueda -->
+                        <div class="mb-3">
+                            <input type="text" id="product-search-existing" class="form-control" placeholder="Escribe para buscar productos...">
+                        </div>
+                        
+                        {% if products_by_category %}
+                        <form method="get" id="add-products-form">
+                            {% for item in quotation_items %}
+                            <input type="hidden" name="products" value="{{ item.product.id }}">
+                            {% endfor %}
+                            <div class="accordion" id="addProductsAccordion">
+                                {% for category_name, products in products_by_category.items %}
+                                <div class="accordion-item category-section-add" data-category="{{ category_name|lower }}">
+                                    <h2 class="accordion-header" id="addHeading{{ forloop.counter }}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#addCollapse{{ forloop.counter }}" aria-expanded="false">
+                                            {{ category_name }} <span class="badge bg-secondary ms-2">{{ products|length }}</span>
+                                        </button>
+                                    </h2>
+                                    <div id="addCollapse{{ forloop.counter }}" class="accordion-collapse collapse" data-bs-parent="#addProductsAccordion">
+                                        <div class="accordion-body">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover table-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            <th style="width: 40px;"></th>
+                                                            <th>Producto</th>
+                                                            <th class="text-end" style="width: 120px;">Precio</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for product in products %}
+                                                        <tr class="product-row-add" data-product-id="{{ product.id }}" data-product-name="{{ product.name|lower }}" data-product-category="{{ category_name|lower }}">
+                                                            <td>
+                                                                <input type="checkbox" name="products" value="{{ product.id }}" id="add_product_{{ product.id }}" class="form-check-input product-checkbox-add">
+                                                            </td>
+                                                            <td>
+                                                                <label for="add_product_{{ product.id }}" class="d-flex align-items-center mb-0" style="cursor: pointer;">
+                                                                    {% if product.image %}
+                                                                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                    {% else %}
+                                                                    <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                                        <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
+                                                                    </div>
+                                                                    {% endif %}
+                                                                    <div>
+                                                                        <strong>{{ product.name }}</strong>
+                                                                        {% if product.description %}
+                                                                        <br>
+                                                                        <small class="text-muted">{{ product.description|truncatewords:10 }}</small>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                </label>
+                                                            </td>
+                                                            <td class="text-end">
+                                                                {% if product.has_discount %}
+                                                                <span class="text-decoration-line-through text-muted small d-block">{{ product.price|pesos_colombianos }}</span>
+                                                                <span class="text-primary fw-bold">{{ product.promotional_price|pesos_colombianos }}</span>
+                                                                {% else %}
+                                                                <span class="text-primary fw-bold">{{ product.price|pesos_colombianos }}</span>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="mt-3 d-flex gap-2 justify-content-end">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelectorAll('.product-checkbox-add').forEach(cb => cb.checked = false);">
+                                    Deseleccionar todo
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" id="btn-quote-add-selected">
+                                    <i class="bi bi-plus-circle me-1"></i> Agregar seleccionados
+                                </button>
+                            </div>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {# formulario de cliente movido arriba; se elimina bloque duplicado #}
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Resumen lateral -->
+            <div class="card border-0 shadow-sm sticky-top" style="top: 20px;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Resumen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Productos:</span>
+                        <strong>{{ quotation_items|length }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>Total:</span>
+                        <strong class="h5 mb-0">{{ total|pesos_colombianos }}</strong>
+                    </div>
+                    <hr>
+                    <p class="small text-muted mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Todos los precios incluyen IVA.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Vista de cotización generada -->
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Cotización Generada</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>Cliente:</h6>
+                            <p class="mb-1"><strong>{{ client_name }}</strong></p>
+                            <p class="mb-1">{{ client_email }}</p>
+                            {% if client_phone %}
+                            <p class="mb-0">{{ client_phone }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <h6>Fecha:</h6>
+                            <p class="mb-0">{{ "now"|date:"d/m/Y" }}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th class="text-center">Cantidad</th>
+                                    <th class="text-end">Precio unitario</th>
+                                    <th class="text-end">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in quotation_items %}
+                                <tr>
+                                    <td>{{ item.product.name }}</td>
+                                    <td class="text-center">{{ item.quantity }}</td>
+                                    <td class="text-end">{{ item.unit_price|pesos_colombianos }}</td>
+                                    <td class="text-end">{{ item.subtotal|pesos_colombianos }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Total (IVA incluido):</strong></td>
+                                    <td class="text-end"><strong class="h4">{{ total|pesos_colombianos }}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    {% if notes %}
+                    <div class="mt-4">
+                        <h6>Notas:</h6>
+                        <p class="text-muted">{{ notes }}</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4 d-flex gap-2">
+                        <a href="{% url 'store:quotation' %}" class="btn btn-outline-secondary">
+                            Nueva cotización
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Toggle cliente existente / no registrado
+document.addEventListener('DOMContentLoaded', function() {
+  const existingRadio = document.getElementById('client_mode_existing');
+  const unregisteredRadio = document.getElementById('client_mode_unregistered');
+  const existingWrap = document.getElementById('existing-client-wrap');
+  const unregisteredWrap = document.getElementById('unregistered-client-wrap');
+  const existingSelect = document.getElementById('{{ form.existing_client.id_for_label }}');
+  const unregisteredCheckbox = document.getElementById('{{ form.unregistered_client.id_for_label }}');
+
+  function syncClientMode() {
+    const mode = unregisteredRadio && unregisteredRadio.checked ? 'unregistered' : 'existing';
+    if (existingWrap) existingWrap.style.display = mode === 'existing' ? '' : 'none';
+    if (unregisteredWrap) unregisteredWrap.style.display = mode === 'unregistered' ? '' : 'none';
+    // Escribir flags reales del formulario
+    if (unregisteredCheckbox) unregisteredCheckbox.checked = (mode === 'unregistered');
+    if (existingSelect && mode === 'unregistered') existingSelect.value = '';
+  }
+  if (existingRadio) existingRadio.addEventListener('change', syncClientMode);
+  if (unregisteredRadio) unregisteredRadio.addEventListener('change', syncClientMode);
+  syncClientMode();
+});
+
+// DPA Colombia (Departamento -> Ciudad) para cliente no registrado
+document.addEventListener('DOMContentLoaded', function() {
+  var selDepto = document.getElementById('quotation_departamento');
+  var selCity = document.getElementById('quotation_city');
+  if (!selDepto || !selCity) return;
+
+  fetch("{% static 'data/colombia_dpa.json' %}")
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var deptos = data.departamentos || [];
+      function normalizar(s) {
+        if (!s) return '';
+        return String(s).trim().toLowerCase().normalize('NFD').replace(/\\u0300-\\u036f/g, '');
+      }
+
+      // Cargar departamentos en select
+      selDepto.innerHTML = '';
+      var opt0d = document.createElement('option');
+      opt0d.value = '';
+      opt0d.textContent = '-- Seleccione departamento --';
+      selDepto.appendChild(opt0d);
+      deptos.forEach(function(d) {
+        var opt = document.createElement('option');
+        opt.value = d.nombre;
+        opt.textContent = d.nombre;
+        selDepto.appendChild(opt);
+      });
+
+      function fillCitiesForDepartamento(nombre, preselectCity) {
+        selCity.innerHTML = '';
+        var opt0c = document.createElement('option');
+        opt0c.value = '';
+        opt0c.textContent = nombre ? '-- Seleccione ciudad/municipio --' : '-- Primero seleccione departamento --';
+        selCity.appendChild(opt0c);
+        if (!nombre) return;
+        var dep = deptos.find(function(d) {
+          return (d.nombre === nombre) || (normalizar(d.nombre) === normalizar(nombre));
+        });
+        if (dep && dep.municipios && Array.isArray(dep.municipios)) {
+          dep.municipios.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            if (preselectCity && normalizar(m) === normalizar(preselectCity)) opt.selected = true;
+            selCity.appendChild(opt);
+          });
+        }
+      }
+
+      selDepto.addEventListener('change', function() {
+        fillCitiesForDepartamento(this.value);
+      });
+
+      // Inicial ciudad vacía
+      fillCitiesForDepartamento('');
+    })
+    .catch(function(err) { console.warn('No se pudo cargar municipios:', err); });
+});
+
+// Actualizar totales cuando cambia la cantidad
+document.addEventListener('DOMContentLoaded', function() {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    function fmtCOP(value) {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            minimumFractionDigits: 0
+        }).format(value || 0);
+    }
+
+    function renderQuote(payload) {
+        // Actualiza tabla hoja de cotización
+        const tbody = document.querySelector('table.table-hover tbody');
+        const tfootTotal = document.querySelector('table.table-hover tfoot td.quotation-money-col strong');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!payload.items || payload.items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.</td></tr>';
+        } else {
+            payload.items.forEach(item => {
+                const img = item.image_url
+                    ? '<img src="' + item.image_url + '" class="rounded me-2" style="width:50px;height:50px;object-fit:cover;" />'
+                    : '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-image text-muted"></i></div>';
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td><div class="d-flex align-items-center">' + img +
+                    '<div><strong>' + item.name + '</strong><br><small class="text-muted">' + item.category + '</small></div></div></td>' +
+                    '<td><input type="number" name="quantity_' + item.id + '" value="' + item.qty + '" min="1" class="form-control form-control-sm quantity-input" data-product-id="' + item.id + '" style="width:90px;"></td>' +
+                    '<td class="text-end quotation-nowrap quotation-money-col">' + fmtCOP(item.unit_price) + '</td>' +
+                    '<td class="text-end quotation-nowrap quotation-money-col"><strong>' + fmtCOP(item.subtotal) + '</strong></td>' +
+                    '<td><button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-product-id="' + item.id + '"><i class="bi bi-trash"></i></button></td>';
+                tbody.appendChild(tr);
+            });
+        }
+        if (tfootTotal) tfootTotal.textContent = fmtCOP(payload.total);
+
+        // Ocultar/mostrar productos en el panel "Agregar productos"
+        const selectedIds = new Set((payload.items || []).map(it => String(it.id)));
+        document.querySelectorAll('.product-row-add').forEach(row => {
+            const pid = row.getAttribute('data-product-id');
+            const checkbox = row.querySelector('.product-checkbox-add');
+            const hide = pid && selectedIds.has(String(pid));
+            row.style.display = hide ? 'none' : '';
+            if (hide && checkbox) checkbox.checked = false;
+        });
+    }
+
+    const quantityInputs = document.querySelectorAll('.quantity-input');
+    quantityInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            // AJAX: actualizar qty en sesión (el servidor retorna totales correctos)
+            const pid = this.dataset.productId;
+            const quantity = Math.max(1, parseInt(this.value) || 1);
+            this.value = String(quantity);
+            fetch("{% url 'store:quotation_ajax_update_qty' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ product_id: pid, qty: String(quantity) }),
+            }).then(r => r.json()).then(renderQuote).catch(() => {});
+        });
+    });
+
+    // Búsqueda de productos en el panel "Agregar productos"
+    const searchInputAdd = document.getElementById('product-search-existing');
+    if (searchInputAdd) {
+        searchInputAdd.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            const productRows = document.querySelectorAll('.product-row-add');
+            const categorySections = document.querySelectorAll('.category-section-add');
+            let visibleCategories = new Set();
+
+            productRows.forEach(row => {
+                const productName = row.getAttribute('data-product-name') || '';
+                const productCategory = row.getAttribute('data-product-category') || '';
+                const matches = !query || productName.includes(query) || productCategory.includes(query);
+
+                row.style.display = matches ? '' : 'none';
+                if (matches) visibleCategories.add(productCategory);
+            });
+
+            categorySections.forEach(section => {
+                const categoryName = section.getAttribute('data-category') || '';
+                section.style.display = visibleCategories.has(categoryName) ? '' : 'none';
+            });
+        });
+    }
+
+    // AJAX: agregar seleccionados
+    const addBtn = document.getElementById('btn-quote-add-selected');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            const checked = Array.from(document.querySelectorAll('.product-checkbox-add:checked')).map(cb => cb.value);
+            if (!checked.length) return;
+            const body = new URLSearchParams();
+            checked.forEach(id => body.append('products[]', id));
+            fetch("{% url 'store:quotation_ajax_add' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body,
+            }).then(r => r.json()).then(payload => {
+                // limpiar checks
+                document.querySelectorAll('.product-checkbox-add').forEach(cb => cb.checked = false);
+                renderQuote(payload);
+            }).catch(() => {});
+        });
+    }
+
+    // AJAX: quitar producto (delegación)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-quote-remove');
+        if (!btn) return;
+        const pid = btn.getAttribute('data-product-id');
+        fetch("{% url 'store:quotation_ajax_remove' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ product_id: pid }),
+        }).then(r => r.json()).then(renderQuote).catch(() => {});
+    });
+});
+</script>
+{% endblock %}

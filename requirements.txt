@@ -1,0 +1,6 @@
+
+# PDF generation for cotizaciones
+xhtml2pdf
+
+# PostgreSQL database adapter
+psycopg2-binary

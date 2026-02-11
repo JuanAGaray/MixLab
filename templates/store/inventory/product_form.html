@@ -1,0 +1,778 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}{% if product %}Editar Producto{% else %}Nuevo Producto{% endif %} - Frozz{% endblock %}
+
+{% block extra_css %}
+<!-- Quill.js CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
+<style>
+/* Remove all animations for formal inventory interface */
+* {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+}
+
+.card, .btn, .form-control, .form-select {
+    transition: none !important;
+}
+
+.btn:hover {
+    transform: none !important;
+}
+
+/* Evitar que las cards se extiendan infinitamente - sobrescribir height: 100% */
+.inventory-form .card {
+    height: auto !important;
+    overflow: hidden;
+}
+.inventory-form .card-body {
+    min-height: 0;
+}
+
+/* Editor descripción: caja grande y funcional */
+#description-editor {
+    min-height: 420px;
+    height: 420px;
+    background: white;
+}
+#description-editor .ql-container {
+    min-height: 360px;
+    height: 360px;
+    border: none;
+    font-size: 14px;
+}
+#description-editor .ql-editor {
+    min-height: 358px;
+    overflow-y: auto;
+}
+#description-editor .ql-toolbar {
+    border: 1px solid #dee2e6;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+}
+#description-editor .ql-container {
+    border: 1px solid #dee2e6;
+    border-radius: 0 0 4px 4px;
+}
+.ql-container {
+    font-size: 14px;
+}
+/* Modo HTML (columnas, etc.) */
+#description-html-wrap {
+    min-height: 420px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fff;
+}
+#product-description-html {
+    width: 100%;
+    min-height: 418px;
+    padding: 0.75rem;
+    font-family: monospace;
+    font-size: 13px;
+    border: none;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+.attribute-item {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: #f8f9fa;
+}
+
+.attribute-item.existing {
+    background: #fff;
+}
+
+#attributes-container {
+    max-height: 250px;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.related-product-item {
+    display: inline-block;
+    margin: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+.related-product-chip {
+    padding: 0.25rem 0.5rem;
+    background: #e9ecef;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    border: 1px solid #dee2e6;
+}
+.related-products-dropdown .list-group-item {
+    font-size: 0.875rem;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+}
+.related-products-dropdown .list-group-item:hover {
+    background-color: #e9ecef;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-1">{% if product %}Editar Producto{% else %}Nuevo Producto{% endif %}</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0" style="background: transparent; padding: 0;">
+                    <li class="breadcrumb-item"><a href="{% url 'store:inventory_dashboard' %}">Inventario</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'store:inventory_list' %}">Productos</a></li>
+                    <li class="breadcrumb-item active">{% if product %}{{ product.name }}{% else %}Nuevo{% endif %}</li>
+                </ol>
+            </nav>
+        </div>
+        <a href="{% if product %}{% url 'store:inventory_detail' product.id %}{% else %}{% url 'store:inventory_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>
+            Volver
+        </a>
+    </div>
+
+    {% if product %}
+    <div class="row g-4 inventory-form">
+        <div class="col-lg-8">
+            <!-- Basic Information -->
+            <form method="post" action="{% url 'store:inventory_edit' product.id %}" id="form-basic" class="card border-0 shadow-sm mb-4">
+                {% csrf_token %}
+                <input type="hidden" name="save_section" value="basic">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Información Básica</h5>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
+                            {{ form.name }}
+                        </div>
+                        {% if form.slug %}
+                        <div class="col-md-12">
+                            <label for="{{ form.slug.id_for_label }}" class="form-label">{{ form.slug.label }}</label>
+                            {{ form.slug }}
+                            <small class="form-text text-muted">URL amigable del producto</small>
+                        </div>
+                        {% endif %}
+                        <div class="col-md-6">
+                            {{ form.category.label_tag }}
+                            <div class="d-flex align-items-center gap-2">
+                                {{ form.category }}
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        id="btn-open-category-modal"
+                                        title="Crear nueva categoría">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">{{ form.product_type.label_tag }}{{ form.product_type }}</div>
+                        <div class="col-md-12">
+                            <label for="description-editor" class="form-label">{{ form.description.label }}</label>
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                                <span class="text-muted small">Editor visual o HTML para columnas</span>
+                                <div class="d-flex gap-1 flex-wrap">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="description-insert-2cols" title="Insertar bloque de 2 columnas">2 columnas</button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="description-insert-3cols" title="Insertar bloque de 3 columnas">3 columnas</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="description-toggle-mode" title="Cambiar entre editor visual y código HTML">Modo HTML</button>
+                                </div>
+                            </div>
+                            <div id="description-visual-wrap">
+                                <div id="description-editor"></div>
+                            </div>
+                            <div id="description-html-wrap" style="display: none;">
+                                <textarea id="product-description-html" placeholder="Pega o escribe HTML aquí (ej. columnas con &lt;div style='display:flex'&gt;...)"></textarea>
+                            </div>
+                            <textarea name="description" id="product-description" style="display: none;">{{ form.description.value|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-12">{{ form.keywords.label_tag }}{{ form.keywords }}</div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Pricing & Stock -->
+            <form method="post" action="{% url 'store:inventory_edit' product.id %}" id="form-pricing" class="card border-0 shadow-sm mb-4">
+                {% csrf_token %}
+                <input type="hidden" name="save_section" value="pricing">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Precio y Stock</h5>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">{{ form.purchase_cost.label_tag }}{{ form.purchase_cost }}</div>
+                        <div class="col-md-4">{{ form.price.label_tag }}{{ form.price }}</div>
+                        <div class="col-md-4">{{ form.promotional_price.label_tag }}{{ form.promotional_price }}</div>
+                        <div class="col-md-6">{{ form.stock.label_tag }}{{ form.stock }}</div>
+                        <div class="col-md-12">
+                            <div class="form-check">{{ form.available }}<label class="form-check-label" for="{{ form.available.id_for_label }}">{{ form.available.label }}</label></div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Product Attributes -->
+            <form method="post" id="form-attributes" class="card border-0 shadow-sm mb-4">
+                {% csrf_token %}
+                <input type="hidden" name="save_section" value="attributes">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Atributos del Producto</h5>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-attribute-btn">
+                            <i class="bi bi-plus-circle me-1"></i> Agregar
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-primary" id="save-attributes-btn">Guardar atributos</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">Garantía, tamaño, peso, dimensiones, etc.</p>
+                    <div id="attributes-container">
+                            {% if product %}
+                                {% for attribute in product.attributes.all %}
+                                <div class="attribute-item existing" data-attribute-id="{{ attribute.id }}">
+                                    <div class="row g-2">
+                                        <div class="col-md-4">
+                                            <input type="text" name="attribute_{{ attribute.id }}_key" class="form-control form-control-sm" value="{{ attribute.key }}" placeholder="Ej: Garantía">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="text" name="attribute_{{ attribute.id }}_value" class="form-control form-control-sm" value="{{ attribute.value }}" placeholder="Ej: 12 meses">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <input type="number" name="attribute_{{ attribute.id }}_order" class="form-control form-control-sm" value="{{ attribute.order }}" min="0">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-attribute-btn" data-attribute-id="{{ attribute.id }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Related Products -->
+                {% if product %}
+                <form method="post" action="{% url 'store:inventory_edit' product.id %}" id="form-related-products" class="card border-0 shadow-sm mb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="save_section" value="related">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Productos Relacionados</h5>
+                        <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Agrega o quita productos relacionados (recomendado 3 a 5).</p>
+                        <!-- Lista de productos seleccionados (con botón eliminar) -->
+                        <div id="related-products-list" class="mb-3">
+                            {% for related in product.related_products.all %}
+                            <div class="related-product-chip d-inline-flex align-items-center me-2 mb-2" data-product-id="{{ related.id }}">
+                                <input type="hidden" name="related_products" value="{{ related.id }}">
+                                <span class="me-2">{{ related.name }}</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 related-remove-btn" title="Quitar"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <!-- Agregar: búsqueda + lista filtrable -->
+                        {% if products_for_related %}
+                        <div class="related-products-search-wrap position-relative d-flex gap-2 flex-wrap align-items-center">
+                            <div class="position-relative flex-grow-1" style="max-width: 320px;">
+                                <input type="text" id="related-products-search" class="form-control form-control-sm" placeholder="Escribe para buscar producto..." autocomplete="off">
+                                <div id="related-products-dropdown" class="related-products-dropdown list-group position-absolute w-100 shadow-sm" style="display: none; max-height: 220px; overflow-y: auto; z-index: 100; top: 100%; left: 0; margin-top: 2px;">
+                                    {% for p in products_for_related %}
+                                    <button type="button" class="list-group-item list-group-item-action related-option text-start" data-id="{{ p.id }}" data-name="{{ p.name }}" data-search="{{ p.name|lower }} {{ p.category.name|lower }}">
+                                        {{ p.name }} <small class="text-muted">({{ p.category.name }})</small>
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <button type="button" id="related-products-add-btn" class="btn btn-sm btn-outline-primary" title="Agregar">
+                                <i class="bi bi-plus-lg"></i> Agregar
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">Escribe para filtrar la lista, elige un producto y pulsa Agregar. Para quitar, usa <i class="bi bi-x-lg"></i> en cada chip.</small>
+                        {% else %}
+                        <p class="text-muted small mb-0">No hay otros productos en el inventario para relacionar.</p>
+                        {% endif %}
+                    </div>
+                </form>
+                <script>
+                (function() {
+                    var form = document.getElementById('form-related-products');
+                    if (!form) return;
+                    var list = document.getElementById('related-products-list');
+                    var searchInput = document.getElementById('related-products-search');
+                    var dropdown = document.getElementById('related-products-dropdown');
+                    var addBtn = document.getElementById('related-products-add-btn');
+                    if (!searchInput || !dropdown) return;
+                    var options = dropdown.querySelectorAll('.related-option');
+                    var addedIds = new Set();
+                    form.querySelectorAll('input[name="related_products"]').forEach(function(inp) { addedIds.add(inp.value); });
+
+                    function addProduct(id, name) {
+                        if (addedIds.has(String(id))) return;
+                        addedIds.add(String(id));
+                        var chip = document.createElement('div');
+                        chip.className = 'related-product-chip d-inline-flex align-items-center me-2 mb-2';
+                        chip.setAttribute('data-product-id', id);
+                        chip.innerHTML = '<input type="hidden" name="related_products" value="' + id + '">' +
+                            '<span class="me-2">' + (name || '').replace(/</g, '&lt;') + '</span>' +
+                            '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 related-remove-btn" title="Quitar"><i class="bi bi-x-lg"></i></button>';
+                        list.appendChild(chip);
+                        chip.querySelector('.related-remove-btn').addEventListener('click', function() { removeProduct(chip); });
+                        searchInput.value = '';
+                        dropdown.style.display = 'none';
+                    }
+                    function removeProduct(chip) {
+                        var id = chip.getAttribute('data-product-id');
+                        addedIds.delete(String(id));
+                        chip.remove();
+                    }
+                    function filterOptions() {
+                        var q = (searchInput.value || '').toLowerCase().trim();
+                        var visible = 0;
+                        options.forEach(function(opt) {
+                            var id = opt.getAttribute('data-id');
+                            var show = !addedIds.has(id) && (!q || (opt.getAttribute('data-search') || '').indexOf(q) !== -1);
+                            opt.style.display = show ? '' : 'none';
+                            if (show) visible++;
+                        });
+                        dropdown.style.display = visible ? 'block' : 'none';
+                    }
+                    function getFirstVisibleOption() {
+                        for (var i = 0; i < options.length; i++) {
+                            if (options[i].style.display !== 'none' && !addedIds.has(options[i].getAttribute('data-id')))
+                                return options[i];
+                        }
+                        return null;
+                    }
+                    searchInput.addEventListener('input', filterOptions);
+                    searchInput.addEventListener('focus', function() { filterOptions(); });
+                    searchInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            var first = getFirstVisibleOption();
+                            if (first) addProduct(first.getAttribute('data-id'), first.getAttribute('data-name'));
+                        }
+                    });
+                    options.forEach(function(opt) {
+                        opt.addEventListener('click', function() {
+                            addProduct(opt.getAttribute('data-id'), opt.getAttribute('data-name'));
+                        });
+                    });
+                    document.addEventListener('click', function(e) {
+                        if (!searchInput.contains(e.target) && !dropdown.contains(e.target))
+                            dropdown.style.display = 'none';
+                    });
+                    if (addBtn) addBtn.addEventListener('click', function() {
+                        var first = getFirstVisibleOption();
+                        if (first) addProduct(first.getAttribute('data-id'), first.getAttribute('data-name'));
+                    });
+                    list.addEventListener('click', function(e) {
+                        var btn = e.target.closest('.related-remove-btn');
+                        if (btn) removeProduct(btn.closest('.related-product-chip'));
+                    });
+                })();
+                </script>
+                {% endif %}
+            </div>
+
+            <!-- Right Column: Image & Actions -->
+            <div class="col-lg-4">
+                <!-- Product Image -->
+                <form method="post" action="{% url 'store:inventory_edit' product.id %}" enctype="multipart/form-data" id="form-image" class="card border-0 shadow-sm mb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="save_section" value="image">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ form.image.label }}</h5>
+                        <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                    </div>
+                    <div class="card-body">
+                        {% if product and product.image %}
+                        <div class="mb-3">
+                            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid rounded" style="max-height: 200px;">
+                            <small class="text-muted d-block mt-2">Imagen actual</small>
+                        </div>
+                        {% endif %}
+                        <input type="file" name="image" class="form-control" accept="image/*">
+                    </div>
+                </form>
+
+                <!-- Imágenes secundarias -->
+                {% if product %}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Imágenes secundarias</h5>
+                        {% if product.images.count < 4 %}
+                        <a href="{% url 'store:inventory_add_image' product.id %}?next=edit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i> Agregar
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        {% if product.images.all %}
+                        <div class="row g-2">
+                            {% for img in product.images.all %}
+                            <div class="col-6">
+                                <div class="position-relative">
+                                    <img src="{{ img.image.url }}" alt="{{ img.alt_text|default:product.name }}" class="img-fluid rounded" style="height: 80px; object-fit: cover; width: 100%;">
+                                    {% if img.is_primary %}
+                                    <span class="badge bg-primary position-absolute top-0 start-0 m-1" style="font-size: 0.65rem;">Principal</span>
+                                    {% endif %}
+                                    <form action="{% url 'store:inventory_delete_image' product.id img.id %}" method="post" class="d-inline position-absolute top-0 end-0 m-1">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="edit">
+                                        <button type="submit" class="btn btn-sm btn-danger py-0 px-1" title="Eliminar" onclick="return confirm('¿Eliminar esta imagen?');">
+                                            <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted d-block mt-2">Máximo 4 imágenes. Gestiona desde la <a href="{% url 'store:inventory_detail' product.id %}">página de detalle</a> para marcar principal.</small>
+                        {% else %}
+                        <p class="text-muted small mb-0">Sin imágenes secundarias.</p>
+                        <a href="{% url 'store:inventory_add_image' product.id %}?next=edit" class="btn btn-sm btn-outline-primary mt-2">
+                            <i class="bi bi-plus-circle me-1"></i> Agregar imagen
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <a href="{% if product %}{% url 'store:inventory_detail' product.id %}{% else %}{% url 'store:inventory_list' %}{% endif %}" class="btn btn-outline-secondary w-100">
+                            <i class="bi bi-arrow-left me-1"></i> Volver
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+    <!-- Create mode: full form -->
+    <form method="post" enctype="multipart/form-data" id="product-form-create" class="inventory-form">
+        {% csrf_token %}
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white"><h5 class="mb-0">Información Básica</h5></div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">{{ form.name.label_tag }}{{ form.name }}</div>
+                            <div class="col-md-6">
+                                {{ form.category.label_tag }}
+                                <div class="d-flex align-items-center gap-2">
+                                    {{ form.category }}
+                                    <button type="button"
+                                            class="btn btn-outline-secondary btn-sm"
+                                            id="btn-open-category-modal"
+                                            title="Crear nueva categoría">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">{{ form.product_type.label_tag }}{{ form.product_type }}</div>
+                            <div class="col-12">{{ form.description.label_tag }}{{ form.description }}</div>
+                            <div class="col-12">{{ form.keywords.label_tag }}{{ form.keywords }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white"><h5 class="mb-0">Precio y Stock</h5></div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">{{ form.purchase_cost.label_tag }}{{ form.purchase_cost }}</div>
+                            <div class="col-md-4">{{ form.price.label_tag }}{{ form.price }}</div>
+                            <div class="col-md-4">{{ form.promotional_price.label_tag }}{{ form.promotional_price }}</div>
+                            <div class="col-md-6">{{ form.stock.label_tag }}{{ form.stock }}</div>
+                            <div class="col-12"><div class="form-check">{{ form.available }}<label class="form-check-label">{{ form.available.label }}</label></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white"><h5 class="mb-0">{{ form.image.label }}</h5></div>
+                    <div class="card-body">{{ form.image }}</div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Crear Producto</button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    <!-- Modal: Crear nueva categoría -->
+    <div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="createCategoryModalLabel">Nueva categoría</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <form id="create-category-form">
+              <div class="mb-3">
+                <label for="new-category-name" class="form-label small">Nombre</label>
+                <input type="text" id="new-category-name" name="name" class="form-control form-control-sm" required>
+              </div>
+              <div class="mb-3">
+                <label for="new-category-description" class="form-label small">Descripción (opcional)</label>
+                <textarea id="new-category-description" name="description" class="form-control form-control-sm" rows="2"></textarea>
+              </div>
+              <div class="mb-3">
+                <label for="new-category-image" class="form-label small">Imagen (opcional)</label>
+                <input type="file" id="new-category-image" name="image" class="form-control form-control-sm" accept="image/*">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-category">Guardar categoría</button>
+          </div>
+        </div>
+      </div>
+    </div>
+</div>
+
+<!-- Quill.js -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+<script>
+// Initialize Quill editor (solo en modo edición)
+const descEditorEl = document.getElementById('description-editor');
+if (descEditorEl) {
+    const quill = new Quill('#description-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'align': [] }],
+                ['blockquote', 'code-block'],
+                [{ 'color': [] }, { 'background': [] }],
+                ['link'],
+                ['clean']
+            ]
+        }
+    });
+    const descriptionTextarea = document.getElementById('product-description');
+    const descriptionHtml = document.getElementById('product-description-html');
+    const visualWrap = document.getElementById('description-visual-wrap');
+    const htmlWrap = document.getElementById('description-html-wrap');
+    const toggleBtn = document.getElementById('description-toggle-mode');
+    var isHtmlMode = false;
+
+    if (descriptionTextarea && descriptionTextarea.value) quill.root.innerHTML = descriptionTextarea.value;
+
+    function setDescriptionFromEditor() {
+        descriptionTextarea.value = quill.root.innerHTML;
+    }
+    function setDescriptionFromHtml() {
+        descriptionTextarea.value = descriptionHtml.value;
+    }
+
+    function ensureHtmlMode() {
+        if (!isHtmlMode) {
+            descriptionHtml.value = quill.root.innerHTML;
+            visualWrap.style.display = 'none';
+            htmlWrap.style.display = 'block';
+            isHtmlMode = true;
+            toggleBtn.textContent = 'Modo visual';
+        }
+    }
+    function insertAtCursor(ta, text) {
+        var start = ta.selectionStart, end = ta.selectionEnd;
+        var val = ta.value;
+        ta.value = val.slice(0, start) + text + val.slice(end);
+        ta.selectionStart = ta.selectionEnd = start + text.length;
+        ta.focus();
+    }
+    var col2Html = '<div style="display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">\n  <div style="flex: 1; min-width: 200px;">Columna 1</div>\n  <div style="flex: 1; min-width: 200px;">Columna 2</div>\n</div>\n';
+    var col3Html = '<div style="display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">\n  <div style="flex: 1; min-width: 180px;">Columna 1</div>\n  <div style="flex: 1; min-width: 180px;">Columna 2</div>\n  <div style="flex: 1; min-width: 180px;">Columna 3</div>\n</div>\n';
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            isHtmlMode = !isHtmlMode;
+            if (isHtmlMode) {
+                descriptionHtml.value = quill.root.innerHTML;
+                visualWrap.style.display = 'none';
+                htmlWrap.style.display = 'block';
+                toggleBtn.textContent = 'Modo visual';
+            } else {
+                quill.root.innerHTML = descriptionHtml.value;
+                descriptionTextarea.value = descriptionHtml.value;
+                visualWrap.style.display = 'block';
+                htmlWrap.style.display = 'none';
+                toggleBtn.textContent = 'Modo HTML';
+            }
+        });
+    }
+    var btn2 = document.getElementById('description-insert-2cols');
+    var btn3 = document.getElementById('description-insert-3cols');
+    if (btn2) btn2.addEventListener('click', function() { ensureHtmlMode(); insertAtCursor(descriptionHtml, col2Html); });
+    if (btn3) btn3.addEventListener('click', function() { ensureHtmlMode(); insertAtCursor(descriptionHtml, col3Html); });
+
+    const formBasic = document.getElementById('form-basic');
+    if (formBasic) formBasic.addEventListener('submit', function() {
+        if (isHtmlMode) setDescriptionFromHtml();
+        else setDescriptionFromEditor();
+    });
+}
+
+// Attributes management (edit mode only)
+let newAttributeIndex = 0;
+const addAttrBtn = document.getElementById('add-attribute-btn');
+if (addAttrBtn) addAttrBtn.addEventListener('click', function() {
+    const container = document.getElementById('attributes-container');
+    const attributeItem = document.createElement('div');
+    attributeItem.className = 'attribute-item';
+    attributeItem.innerHTML = `
+        <div class="row g-2">
+            <div class="col-md-4">
+                <input type="text" name="new_attribute_key_${newAttributeIndex}" class="form-control form-control-sm" placeholder="Ej: Garantía" required>
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="new_attribute_value_${newAttributeIndex}" class="form-control form-control-sm" placeholder="Ej: 12 meses" required>
+            </div>
+            <div class="col-md-2">
+                <input type="number" name="new_attribute_order_${newAttributeIndex}" class="form-control form-control-sm" value="0" min="0">
+            </div>
+            <div class="col-md-12 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-danger remove-new-attribute-btn">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
+            </div>
+        </div>
+    `;
+    container.appendChild(attributeItem);
+    newAttributeIndex++;
+    
+    // Add remove event listener
+    attributeItem.querySelector('.remove-new-attribute-btn').addEventListener('click', function() {
+        attributeItem.remove();
+    });
+});
+
+// Remove existing attributes
+document.querySelectorAll('.remove-attribute-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const attributeId = this.dataset.attributeId;
+        const attributeItem = this.closest('.attribute-item');
+        
+        // Add hidden input to mark for deletion
+        const deleteInput = document.createElement('input');
+        deleteInput.type = 'hidden';
+        deleteInput.name = 'delete_attribute';
+        deleteInput.value = attributeId;
+        attributeItem.appendChild(deleteInput);
+        
+        // Disable inputs so they're not submitted and don't block validation
+        attributeItem.querySelectorAll('input').forEach(inp => {
+            inp.disabled = true;
+        });
+        
+        // Hide the item
+        attributeItem.style.display = 'none';
+        showSaveAttributesBtn();
+    });
+});
+
+// Before attributes form submission, remove empty new attribute rows
+const formAttributes = document.getElementById('form-attributes');
+if (formAttributes) formAttributes.addEventListener('submit', function() {
+    document.querySelectorAll('.attribute-item').forEach(item => {
+        const keyInput = item.querySelector('input[name^="new_attribute_key"]');
+        const valueInput = item.querySelector('input[name^="new_attribute_value"]');
+        if (keyInput && valueInput && (!keyInput.value.trim() || !valueInput.value.trim())) {
+            item.remove();
+        }
+    });
+});
+
+// Crear categoría desde modal (create y edit)
+(function() {
+    const openBtn = document.getElementById('btn-open-category-modal');
+    const modalEl = document.getElementById('createCategoryModal');
+    const saveBtn = document.getElementById('btn-save-category');
+    const form = document.getElementById('create-category-form');
+    const categorySelect = document.getElementById('id_category');
+    if (!openBtn || !modalEl || !saveBtn || !form || !categorySelect) return;
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    let bsModal = null;
+    openBtn.addEventListener('click', function() {
+        if (!bsModal) {
+            bsModal = new bootstrap.Modal(modalEl);
+        }
+        form.reset();
+        bsModal.show();
+    });
+
+    saveBtn.addEventListener('click', function() {
+        const nameInput = document.getElementById('new-category-name');
+        if (!nameInput.value.trim()) {
+            nameInput.focus();
+            return;
+        }
+        const formData = new FormData(form);
+        fetch("{% url 'store:inventory_create_category' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+            },
+            body: formData,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.success) {
+                alert('Error al crear la categoría. Revisa los datos e inténtalo de nuevo.');
+                return;
+            }
+            const opt = document.createElement('option');
+            opt.value = data.category_id;
+            opt.textContent = data.category_name;
+            opt.selected = true;
+            categorySelect.appendChild(opt);
+            if (!bsModal) {
+                bsModal = new bootstrap.Modal(modalEl);
+            }
+            bsModal.hide();
+        })
+        .catch(() => {
+            alert('Error al crear la categoría.');
+        });
+    });
+})();
+</script>
+{% endblock %}

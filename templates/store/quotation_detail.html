@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% load store_tags %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <a href="{% url 'store:quotation_list' %}" class="btn btn-link btn-sm text-muted text-decoration-none d-inline-flex align-items-center mb-2 p-0">
+        <i class="bi bi-chevron-left me-1"></i> Volver al registro
+      </a>
+      <h3 class="mb-1">
+        COT{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.client_name|default:"Sin cliente" }}
+      </h3>
+      <div class="text-muted small">
+        Creada: {{ quote.created_at|date:"Y-m-d H:i" }}
+        · Vence: {{ expires_at|date:"Y-m-d H:i" }}
+        {% if quote.created_by %} · Por: {{ quote.created_by.username }}{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-dark" href="{% url 'store:quotation_pdf' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-file-earmark-pdf me-1"></i> Ver PDF
+      </a>
+    </div>
+  </div>
+
+  <div class="card mb-3" id="payment-proof-section">
+    <div class="card-body">
+      <h5 class="mb-3">Datos del cliente</h5>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="small text-muted">Tipo</div>
+          <div class="fw-semibold">{{ quote.get_client_kind_display }}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Nombre</div>
+          <div class="fw-semibold">{{ quote.client_name|default:"—" }}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Correo</div>
+          <div>{{ quote.client_email|default:"—" }}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Teléfono</div>
+          <div>{{ quote.client_phone|default:"—" }}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Departamento</div>
+          <div>{{ quote.client_departamento|default:"—" }}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Ciudad</div>
+          <div>{{ quote.client_city|default:"—" }}</div>
+        </div>
+        {% if quote.notes %}
+        <div class="col-12">
+          <div class="small text-muted">Notas</div>
+          <div>{{ quote.notes|linebreaksbr }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if request.user.is_staff %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="mb-3">Referencia de pago</h5>
+      {% if quote.payment_proof %}
+        <div class="mb-3">
+          <a href="{{ quote.payment_proof.url }}" target="_blank" rel="noopener noreferrer" class="d-inline-block">
+            <img src="{{ quote.payment_proof.url }}" alt="Referencia de pago" class="img-thumbnail" style="max-height: 200px;">
+          </a>
+          <div class="small text-muted mt-1">Comprobante subido. Puedes subir otro para reemplazar.</div>
+        </div>
+      {% else %}
+        <p class="text-muted small mb-2">Para marcar esta cotización como &quot;Pago recibido&quot; debe subir una referencia de pago (comprobante).</p>
+      {% endif %}
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-auto">
+          <input type="file" name="payment_proof" class="form-control form-control-sm" accept="image/*,.pdf" required>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-outline-primary btn-sm">Subir referencia de pago</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="mb-3">Estado</h5>
+      <form method="post" class="row g-3 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-6">
+          <label class="form-label">Estado de la cotización</label>
+          <select name="quotation_status" class="form-select">
+            {% for value,label in quote.QUOTATION_STATUS_CHOICES %}
+              <option value="{{ value }}" {% if value == quote.quotation_status %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Estado del pedido</label>
+          <select name="order_status" class="form-select">
+            {% for value,label in quote.ORDER_STATUS_CHOICES %}
+              <option value="{{ value }}"
+                      {% if value == quote.order_status %}selected{% endif %}
+                      {% if not quote.payment_proof and value in 'pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+                  {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+          {% if not quote.payment_proof %}
+            <div class="form-text small">
+              Sube una referencia de pago arriba para poder marcar estados como &quot;Pago recibido&quot;, &quot;Enviado&quot; o &quot;Recibido&quot;.
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-12 d-flex justify-content-end">
+          <button type="submit" class="btn btn-outline-primary">Guardar estados</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body">
+      <h5 class="mb-3">Productos</h5>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th class="text-end" style="min-width:90px;">Cant.</th>
+              <th class="text-end" style="min-width:160px;">Base</th>
+              <th class="text-end" style="min-width:160px;">IVA</th>
+              <th class="text-end" style="min-width:180px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in items %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center">
+                  {% if it.product.image %}
+                  <img src="{{ it.product.image.url }}" alt="{{ it.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                  {% else %}
+                  <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                    <i class="bi bi-image text-muted"></i>
+                  </div>
+                  {% endif %}
+                  <div>
+                    <div class="fw-semibold">{{ it.product.name }}</div>
+                    <div class="text-muted small">{{ it.product.category.name }}</div>
+                    {% if it.discount_unit and it.discount_unit > 0 %}
+                      <div class="small text-muted">
+                        Precio original: <span class="text-decoration-line-through">{{ it.original_unit_price|pesos_colombianos }}</span>
+                        · Descuento: <strong>{{ it.discount_unit|pesos_colombianos }}</strong>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td class="text-end">{{ it.quantity }}</td>
+              <td class="text-end">{{ it.base_subtotal|pesos_colombianos }}</td>
+              <td class="text-end">{{ it.iva_subtotal|pesos_colombianos }}</td>
+              <td class="text-end fw-semibold">{{ it.subtotal|pesos_colombianos }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-light">
+              <td colspan="2" class="text-end"><strong>Totales</strong></td>
+              <td class="text-end"><strong>{{ total_base|pesos_colombianos }}</strong></td>
+              <td class="text-end"><strong>{{ total_iva|pesos_colombianos }}</strong></td>
+              <td class="text-end"><strong>{{ quote.total|pesos_colombianos }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="small text-muted">
+        Nota: todos nuestros productos ya incluyen IVA. Cotización válida por 1 día.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

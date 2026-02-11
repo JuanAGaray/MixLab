@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Nuevo cliente - Manager{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a href="{% url 'store:client_list' %}">Clientes</a></li>
+            <li class="breadcrumb-item active">Nuevo</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-5">
+            <h2 class="h6 mb-4 text-muted fw-normal">Nuevo cliente</h2>
+            <form method="post" action="" class="border-0">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label for="{{ form.username.id_for_label }}" class="form-label small text-muted">{{ form.username.label }}</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}<div class="invalid-feedback d-block small">{{ form.username.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.email.id_for_label }}" class="form-label small text-muted">{{ form.email.label }}</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}<div class="invalid-feedback d-block small">{{ form.email.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label for="{{ form.first_name.id_for_label }}" class="form-label small text-muted">{{ form.first_name.label }}</label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}<div class="invalid-feedback d-block small">{{ form.first_name.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="col-6">
+                        <label for="{{ form.last_name.id_for_label }}" class="form-label small text-muted">{{ form.last_name.label }}</label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}<div class="invalid-feedback d-block small">{{ form.last_name.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.phone.id_for_label }}" class="form-label small text-muted">{{ form.phone.label }}</label>
+                    <div class="input-group">
+                        <span class="input-group-text">+57</span>
+                        {{ form.phone }}
+                    </div>
+                    {% if form.phone.errors %}<div class="invalid-feedback d-block small">{{ form.phone.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.client_type.id_for_label }}" class="form-label small text-muted">{{ form.client_type.label }}</label>
+                    {{ form.client_type }}
+                    {% if form.client_type.errors %}<div class="invalid-feedback d-block small">{{ form.client_type.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label for="{{ form.departamento.id_for_label }}" class="form-label small text-muted">{{ form.departamento.label }}</label>
+                        {{ form.departamento }}
+                        <input type="hidden" id="client_departamento_initial" value="{{ form.departamento.value|default:'' }}">
+                        {% if form.departamento.errors %}<div class="invalid-feedback d-block small">{{ form.departamento.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="col-6">
+                        <label for="{{ form.city.id_for_label }}" class="form-label small text-muted">{{ form.city.label }}</label>
+                        {{ form.city }}
+                        <input type="hidden" id="client_city_initial" value="{{ form.city.value|default:'' }}">
+                        {% if form.city.errors %}<div class="invalid-feedback d-block small">{{ form.city.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.address.id_for_label }}" class="form-label small text-muted">{{ form.address.label }}</label>
+                    {{ form.address }}
+                    {% if form.address.errors %}<div class="invalid-feedback d-block small">{{ form.address.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="{{ form.password1.id_for_label }}" class="form-label small text-muted mb-0">{{ form.password1.label }}</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" id="btn-generar-password" title="Generar contraseña aleatoria">
+                            <i class="bi bi-shuffle"></i> Generar
+                        </button>
+                    </div>
+                    <div class="input-group">
+                        {{ form.password1 }}
+                        <button type="button" class="btn btn-outline-secondary btn-sm toggle-password" data-target="{{ form.password1.id_for_label }}" title="Mostrar contraseña" aria-label="Mostrar contraseña">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    {% if form.password1.help_text %}<div class="form-text small">{{ form.password1.help_text }}</div>{% endif %}
+                    {% if form.password1.errors %}<div class="invalid-feedback d-block small">{{ form.password1.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="mb-4">
+                    <label for="{{ form.password2.id_for_label }}" class="form-label small text-muted">{{ form.password2.label }}</label>
+                    <div class="input-group">
+                        {{ form.password2 }}
+                        <button type="button" class="btn btn-outline-secondary btn-sm toggle-password" data-target="{{ form.password2.id_for_label }}" title="Mostrar contraseña" aria-label="Mostrar contraseña">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    {% if form.password2.errors %}<div class="invalid-feedback d-block small">{{ form.password2.errors.0 }}</div>{% endif %}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">Crear cliente</button>
+                    <a href="{% url 'store:client_list' %}" class="btn btn-outline-secondary btn-sm">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+  var id1 = '{{ form.password1.id_for_label }}';
+  var id2 = '{{ form.password2.id_for_label }}';
+
+  // DPA Colombia (Departamento -> Ciudad) usando JSON
+  (function() {
+    var selDepto = document.getElementById('client_departamento');
+    var selCity = document.getElementById('client_city');
+    if (!selDepto || !selCity) return;
+    var initialDepto = (document.getElementById('client_departamento_initial') || {}).value || '';
+    var initialCity = (document.getElementById('client_city_initial') || {}).value || '';
+
+    function normalizar(s) {
+      if (!s) return '';
+      return String(s).trim().toLowerCase().normalize('NFD').replace(/\u0300-\u036f/g, '');
+    }
+
+    fetch("{% static 'data/colombia_dpa.json' %}")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var deptos = data.departamentos || [];
+        // cargar departamentos
+        selDepto.innerHTML = '';
+        var opt0d = document.createElement('option');
+        opt0d.value = '';
+        opt0d.textContent = '-- Seleccione departamento --';
+        selDepto.appendChild(opt0d);
+        deptos.forEach(function(d) {
+          var opt = document.createElement('option');
+          opt.value = d.nombre;
+          opt.textContent = d.nombre;
+          selDepto.appendChild(opt);
+        });
+
+        function fillCities(nombre, preselectCity) {
+          selCity.innerHTML = '';
+          var opt0c = document.createElement('option');
+          opt0c.value = '';
+          opt0c.textContent = nombre ? '-- Seleccione ciudad/municipio --' : '-- Primero seleccione departamento --';
+          selCity.appendChild(opt0c);
+          if (!nombre) return;
+          var dep = deptos.find(function(d) {
+            return (d.nombre === nombre) || (normalizar(d.nombre) === normalizar(nombre));
+          });
+          if (dep && Array.isArray(dep.municipios)) {
+            dep.municipios.forEach(function(m) {
+              var opt = document.createElement('option');
+              opt.value = m;
+              opt.textContent = m;
+              if (preselectCity && normalizar(m) === normalizar(preselectCity)) opt.selected = true;
+              selCity.appendChild(opt);
+            });
+          }
+        }
+
+        selDepto.addEventListener('change', function() {
+          fillCities(this.value);
+        });
+
+        // preselect (edición o si venía POST con error)
+        var currentDepto = selDepto.value || initialDepto;
+        if (currentDepto) {
+          selDepto.value = currentDepto;
+          fillCities(currentDepto, selCity.value || initialCity);
+        }
+      });
+  })();
+
+  // Generar contraseña
+  var btnGen = document.getElementById('btn-generar-password');
+  if (btnGen) {
+    function randomPassword(length) {
+      var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+      var pass = '';
+      for (var i = 0; i < length; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return pass;
+    }
+    btnGen.addEventListener('click', function() {
+      var p = randomPassword(12);
+      var input1 = document.getElementById(id1);
+      var input2 = document.getElementById(id2);
+      if (input1) input1.value = p;
+      if (input2) input2.value = p;
+    });
+  }
+
+  // Mostrar / Ocultar contraseña
+  document.querySelectorAll('.toggle-password').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.getAttribute('data-target');
+      var input = document.getElementById(id);
+      var icon = this.querySelector('i');
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+        this.setAttribute('title', 'Ocultar contraseña');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+        this.setAttribute('title', 'Mostrar contraseña');
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

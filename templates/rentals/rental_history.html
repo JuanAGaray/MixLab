@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mis Alquileres - Frozz{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="mb-4"><i class="bi bi-calendar-check"></i> Mis Alquileres</h2>
+    
+    {% if rentals %}
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-primary">
+                <tr>
+                    <th>Alquiler #</th>
+                    <th>Producto</th>
+                    <th>Fechas</th>
+                    <th>Estado</th>
+                    <th>Total</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rental in rentals %}
+                <tr>
+                    <td>#{{ rental.id }}</td>
+                    <td>{{ rental.product.name }}</td>
+                    <td>
+                        <small>{{ rental.start_date|date:"d/m/Y" }} - {{ rental.end_date|date:"d/m/Y" }}</small>
+                    </td>
+                    <td>
+                        <span class="badge 
+                            {% if rental.status == 'pending' %}bg-warning
+                            {% elif rental.status == 'confirmed' %}bg-info
+                            {% elif rental.status == 'active' %}bg-primary
+                            {% elif rental.status == 'completed' %}bg-success
+                            {% else %}bg-danger{% endif %}">
+                            {{ rental.get_status_display }}
+                        </span>
+                    </td>
+                    <td>${{ rental.total_price|floatformat:0 }}</td>
+                    <td>
+                        <a href="{% url 'rentals:rental_detail_view' rental.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> Ver Detalles
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center">
+        <i class="bi bi-calendar-x" style="font-size: 64px;"></i>
+        <h4 class="mt-3">No tienes alquileres aún</h4>
+        <p>Cuando reserves tu primera máquina, aparecerá aquí.</p>
+        <a href="{% url 'rentals:rental_list' %}" class="btn btn-primary">Ver Máquinas Disponibles</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

@@ -1,0 +1,147 @@
+{% load store_tags %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>COT{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.client_name|default:"Sin cliente" }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
+    .header { margin-bottom: 12px; }
+    .title { font-size: 18px; font-weight: 700; margin: 0; }
+    .muted { color: #666; }
+    .box { border: 1px solid #ddd; padding: 10px; border-radius: 6px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px; vertical-align: top; }
+    th { text-align: left; background: #fafafa; }
+    .right { text-align: right; }
+    .total-row td { border-top: 2px solid #111; font-weight: 700; }
+    .top-row { width: 100%; }
+    .logo { width: 140px; }
+    .fineprint { font-size: 10px; color: #555; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <table class="top-row" style="border:0;">
+      <tr>
+        <td style="border:0; padding:0;">
+          <img class="logo" src="/static/img/TotalLogo.png" alt="Logo">
+        </td>
+        <td style="border:0; padding:0;" class="right">
+          <p class="title">COT{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.client_name|default:"Sin cliente" }}</p>
+          <p class="muted" style="margin:0;">Fecha: {{ quote.created_at|date:"H:i" }}</p>
+          <p class="muted" style="margin:0;">Vence: {{ expires_at|date:"Y-m-d H:i" }} (válida 1 día)</p>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="box">
+    <p><strong>Cliente:</strong> {{ quote.client_name|default:"—" }}</p>
+    <p><strong>Tipo:</strong> {{ quote.get_client_kind_display }}</p>
+    <p><strong>Correo:</strong> {{ quote.client_email|default:"—" }} &nbsp; <strong>Teléfono:</strong> {{ quote.client_phone|default:"—" }}</p>
+    <p><strong>Ubicación:</strong> {{ quote.client_departamento|default:"—" }} - {{ quote.client_city|default:"—" }}</p>
+    {% if quote.notes %}<p><strong>Notas:</strong> {{ quote.notes }}</p>{% endif %}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:55%;">Producto</th>
+        <th class="right" style="width:10%;">Cant.</th>
+        <th class="right" style="width:12%;">Base</th>
+        <th class="right" style="width:12%;">IVA</th>
+        <th class="right" style="width:11%;">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>
+          <table style="border:0; width:100%; border-collapse:collapse;">
+            <tr>
+              <td style="border:0; width:55px; padding:0; padding-right:6px; vertical-align:top;">
+                {% if it.product.image %}
+                <img src="{{ it.product.image.url }}" alt="{{ it.product.name }}" style="width:50px; height:50px; object-fit:cover;">
+                {% else %}
+                <div style="width:50px; height:50px; border:1px solid #ddd; border-radius:4px; text-align:center; font-size:10px; line-height:50px; color:#888;">
+                  IMG
+                </div>
+                {% endif %}
+              </td>
+              <td style="border:0; padding:0; vertical-align:top;">
+                <strong>{{ it.product.name }}</strong><br>
+                <span class="muted">{{ it.product.category.name }}</span>
+                {% if it.discount_unit and it.discount_unit > 0 %}
+                  <br><span class="muted">Precio original: <span style="text-decoration: line-through;">{{ it.original_unit_price|pesos_colombianos }}</span> · Descuento: <strong>{{ it.discount_unit|pesos_colombianos }}</strong></span>
+                {% endif %}
+              </td>
+            </tr>
+          </table>
+        </td>
+        <td class="right">{{ it.quantity }}</td>
+        <td class="right">{{ it.base_subtotal|pesos_colombianos }}</td>
+        <td class="right">{{ it.iva_subtotal|pesos_colombianos }}</td>
+        <td class="right"><strong>{{ it.subtotal|pesos_colombianos }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2" class="right">TOTALES</td>
+        <td class="right">{{ total_base|pesos_colombianos }}</td>
+        <td class="right">{{ total_iva|pesos_colombianos }}</td>
+        <td class="right">{{ quote.total|pesos_colombianos }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <p class="muted" style="margin-top: 10px;">Nota: todos nuestros productos ya incluyen IVA.</p>
+
+  <div class="box">
+    <p class="fineprint" style="margin:0;">
+      <strong>Información normativa:</strong> Esta cotización es un documento informativo y no constituye factura.
+      Los precios incluyen IVA y están sujetos a disponibilidad de inventario. La validez de esta cotización es de 1 día.
+      La emisión de la factura se realizará conforme a la normatividad vigente aplicable en Colombia.
+    </p>
+  </div>
+
+  <div style="margin-top: 20px; page-break-inside: avoid;">
+    <div class="box" style="background: #f8f9fa; border: 2px solid #0d6efd;">
+      <table style="border:0; width:100%; border-collapse:collapse;">
+        <tr>
+          <td style="border:0; padding:0; vertical-align:middle; width:120px;">
+            <img src="/static/img/TotalLogo.png" alt="MixLab" style="width:100px; height:auto;">
+          </td>
+          <td style="border:0; padding:0; padding-left:15px; vertical-align:middle;">
+            <p style="margin:0; font-size:14px; font-weight:700; color:#0d6efd; margin-bottom:8px;">Métodos de Pago</p>
+            <table style="border:0; width:100%; border-collapse:collapse; font-size:11px;">
+              <tr>
+                <td style="border:0; padding:2px 8px 2px 0;"><strong>Tipo de cuenta:</strong></td>
+                <td style="border:0; padding:2px 0;">Ahorros</td>
+              </tr>
+              <tr>
+                <td style="border:0; padding:2px 8px 2px 0;"><strong>Número de cuenta:</strong></td>
+                <td style="border:0; padding:2px 0;">912-097121-60</td>
+              </tr>
+              <tr>
+                <td style="border:0; padding:2px 8px 2px 0;"><strong>Banco receptor:</strong></td>
+                <td style="border:0; padding:2px 0;">Bancolombia S.A.</td>
+              </tr>
+              <tr>
+                <td style="border:0; padding:2px 8px 2px 0;"><strong>Número de identificación:</strong></td>
+                <td style="border:0; padding:2px 0;">1143397396</td>
+              </tr>
+              <tr>
+                <td style="border:0; padding:2px 8px 2px 0;"><strong>O llave BREB:</strong></td>
+                <td style="border:0; padding:2px 0;"><strong style="color:#0d6efd;">1143397396</strong></td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
+

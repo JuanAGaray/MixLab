@@ -1,167 +1,721 @@
-{% load store_tags %}
+{% load store_tags static %}
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>COT{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.client_name|default:"Sin cliente" }}</title>
+  <title>{% if is_factura %}FAC{% else %}COT{% endif %}{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.display_client_name|default:"Sin cliente" }}</title>
   <style>
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
-    .header { margin-bottom: 12px; }
-    .title { font-size: 18px; font-weight: 700; margin: 0; }
-    .muted { color: #666; }
-    .box { border: 1px solid #ddd; padding: 10px; border-radius: 6px; margin-bottom: 12px; }
+    @page {
+      size: A4;
+      margin: 12mm 11mm 12mm 11mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      line-height: 1.35;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+
+    .page {
+      position: relative;
+    }
+
+    .watermark-paid {
+      position: fixed;
+      top: 36%;
+      left: 10%;
+      width: 80%;
+      text-align: center;
+      font-size: 58px;
+      font-weight: 900;
+      letter-spacing: 0.2em;
+      color: #16a34a;
+      opacity: 0.15;
+      z-index: 0;
+      border: 5px solid #16a34a;
+      padding: 16px 8px;
+      text-transform: uppercase;
+    }
+
+    .page-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .no-print {
+      margin: 0 0 10px;
+      text-align: right;
+    }
+
+    .btn-print {
+      display: inline-block;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: #0f172a;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
     table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #eee; padding: 8px; vertical-align: top; }
-    th { text-align: left; background: #fafafa; }
+    td, th { vertical-align: top; }
+
+    /* Letterhead compacto y formal */
+    .letterhead {
+      width: 100%;
+      margin-bottom: 8px;
+      border-bottom: 2px solid #0f172a;
+    }
+
+    .letterhead td {
+      padding: 0 0 8px 0;
+      border: 0;
+      vertical-align: middle;
+    }
+
+    .logo {
+      width: 78px;
+      height: auto;
+      display: block;
+    }
+
+    .brand-line {
+      margin: 2px 0 0;
+      font-size: 9px;
+      color: #475569;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .doc-block {
+      text-align: right;
+    }
+
+    .doc-kicker {
+      margin: 0;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+      font-weight: 700;
+    }
+
+    .doc-title {
+      margin: 1px 0 0;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      color: #0f172a;
+      line-height: 1.15;
+    }
+
+    .doc-validity {
+      margin: 3px 0 0;
+      font-size: 9px;
+      color: #334155;
+      font-weight: 700;
+    }
+
+    /* Meta strip compacta */
+    .meta {
+      width: 100%;
+      margin-bottom: 10px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+    }
+
+    .meta td {
+      padding: 6px 9px;
+      border: 0;
+      width: 33.33%;
+    }
+
+    .meta-label {
+      display: block;
+      font-size: 8px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      font-weight: 700;
+      margin-bottom: 1px;
+    }
+
+    .meta-value {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .section-title {
+      margin: 0 0 5px;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    .card {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+
+    .card-head {
+      background: #0f172a;
+      padding: 5px 9px;
+      border-bottom: 0;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .card-body { padding: 8px 9px; }
+
+    .client-grid td {
+      width: 50%;
+      padding: 2px 10px 2px 0;
+      border: 0;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 8px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+      margin-bottom: 1px;
+    }
+
+    .field-value {
+      display: block;
+      font-size: 11px;
+      color: #0f172a;
+      font-weight: 700;
+    }
+
+    .notes {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 10px;
+      color: #334155;
+    }
+
+    /* Products */
+    .items thead th {
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 8.5px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+      padding: 6px 7px;
+      border: 0;
+      text-align: left;
+    }
+
+    .items thead th.right { text-align: right; }
+
+    .items tbody td {
+      padding: 6px 7px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: middle;
+      color: #0f172a;
+    }
+
+    .thumb {
+      width: 34px;
+      height: 34px;
+      object-fit: cover;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      display: block;
+    }
+
+    .thumb-empty {
+      width: 34px;
+      height: 34px;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      background: #f1f5f9;
+      color: #64748b;
+      font-size: 8px;
+      text-align: center;
+      line-height: 34px;
+      font-weight: 700;
+    }
+
+    .product-name {
+      font-size: 12px;
+      font-weight: 800;
+      color: #0b1220;
+      margin: 0;
+    }
+
+    .product-meta {
+      margin: 2px 0 0;
+      font-size: 10px;
+      color: #334155;
+      font-weight: 600;
+    }
+
+    .discount-tag {
+      display: inline-block;
+      margin-top: 3px;
+      padding: 2px 7px;
+      background: #fef3c7;
+      color: #78350f;
+      border: 1px solid #f59e0b;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .muted { color: #334155; }
     .right { text-align: right; }
-    .total-row td { border-top: 2px solid #111; font-weight: 700; }
-    .top-row { width: 100%; }
-    .logo { width: 140px; }
-    .fineprint { font-size: 10px; color: #555; line-height: 1.4; }
+    .nowrap { white-space: nowrap; }
+    .strike { text-decoration: line-through; color: #64748b; font-size: 10px; }
+
+    .totals-wrap {
+      width: 100%;
+      margin-top: 8px;
+      margin-bottom: 12px;
+    }
+
+    .totals-box {
+      width: 280px;
+      border: 1px solid #64748b;
+      background: #f8fafc;
+    }
+
+    .totals-box td {
+      padding: 7px 12px;
+      border: 0;
+      font-size: 11px;
+    }
+
+    .totals-box .label {
+      color: #1e293b;
+      font-weight: 700;
+    }
+    .totals-box .value {
+      text-align: right;
+      font-weight: 800;
+      color: #0b1220;
+    }
+
+    .totals-box .grand td {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .totals-box .grand .value {
+      color: #ffffff;
+      font-size: 15px;
+    }
+
+    .iva-note {
+      margin: 0 0 10px;
+      font-size: 10px;
+      color: #1e293b;
+      font-weight: 600;
+    }
+
+    .legal {
+      border: 1px solid #94a3b8;
+      background: #f1f5f9;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 10px;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+
+    .legal strong {
+      color: #0b1220;
+      display: block;
+      margin-bottom: 3px;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .pay {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      page-break-inside: avoid;
+      margin-top: 4px;
+      border-collapse: collapse;
+    }
+
+    .pay-head {
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+      padding: 4px 8px;
+    }
+
+    .pay-col {
+      width: 50%;
+      padding: 6px 8px;
+      border: 0;
+      border-right: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+
+    .pay-col-last {
+      border-right: 0;
+    }
+
+    .pay-inner {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .pay-logo-cell {
+      width: 52px;
+      padding: 0 6px 0 0;
+      border: 0;
+      vertical-align: middle;
+      text-align: center;
+    }
+
+    .pay-text-cell {
+      padding: 0;
+      border: 0;
+      vertical-align: middle;
+    }
+
+    /* No forzar width+height juntos: evita deformar logos en xhtml2pdf */
+    .bank-logo {
+      max-width: 48px;
+      max-height: 48px;
+      width: auto;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      padding: 2px;
+    }
+
+    .bank-logo-empty {
+      width: 48px;
+      height: 48px;
+      background: #e2e8f0;
+      color: #475569;
+      font-size: 7px;
+      font-weight: 800;
+      text-align: center;
+      line-height: 48px;
+      border: 1px solid #cbd5e1;
+      margin: 0 auto;
+    }
+
+    .pay-lines {
+      margin: 0;
+      padding: 0;
+      font-size: 8.5px;
+      line-height: 11px;
+      color: #0f172a;
+    }
+
+    .pay-lines b {
+      color: #475569;
+      font-weight: 700;
+    }
+
+    .footer-tiny {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 9px;
+      color: #334155;
+      font-weight: 600;
+    }
 
     @media print {
-      .no-print {
-        display: none !important;
-      }
+      .no-print { display: none !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
   <script>
-    // Al abrir esta vista en una pestaña nueva, dispara el diálogo de impresión
+    {% if not for_pdf_engine %}
     window.addEventListener('load', function() {
-      // Pequeño delay para asegurar que todo está renderizado
-      setTimeout(function() {
-        window.print();
-      }, 500);
+      setTimeout(function() { window.print(); }, 450);
     });
+    {% endif %}
   </script>
 </head>
 <body>
-  <div class="no-print" style="margin-bottom: 8px; text-align: right;">
-    <button onclick="window.print()" style="padding: 6px 10px; font-size: 12px; cursor: pointer;">
-      Imprimir / Guardar como PDF
-    </button>
-  </div>
-  <div class="header">
-    <table class="top-row" style="border:0;">
+  <div class="page">
+    {% if show_paid_watermark %}
+    <div class="watermark-paid">PAGADO</div>
+    {% endif %}
+    <div class="page-content">
+    {% if not for_pdf_engine %}
+    <div class="no-print">
+      <button type="button" class="btn-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+    </div>
+    {% endif %}
+
+    <table class="letterhead">
       <tr>
-        <td style="border:0; padding:0;">
-          <img class="logo" src="/static/img/TotalLogo.png" alt="Logo">
+        <td style="width: 40%;">
+          <img class="logo" src="{% static 'img/TotalLogo.png' %}" alt="MixLab">
+          <p class="brand-line">{% if is_factura %}Factura / comprobante de pago{% else %}Cotización comercial{% endif %}</p>
         </td>
-        <td style="border:0; padding:0;" class="right">
-          <p class="title">COT{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.client_name|default:"Sin cliente" }}</p>
-          <p class="muted" style="margin:0;">Fecha: {{ quote.created_at|date:"H:i" }}</p>
-          <p class="muted" style="margin:0;">Vence: {{ expires_at|date:"Y-m-d H:i" }} (válida 1 día)</p>
+        <td style="width: 60%;" class="doc-block">
+          <p class="doc-kicker">{% if is_factura %}Factura{% else %}Documento{% endif %}</p>
+          <p class="doc-title">{% if is_factura %}FAC-{{ quote.id }}{% else %}COT-{{ quote.id }}{% endif %}</p>
+          {% if is_factura %}
+          <p class="doc-validity">Documento de pago · Ref. COT-{{ quote.id }}</p>
+          {% else %}
+          <p class="doc-validity">Válida por 1 día desde la emisión</p>
+          {% endif %}
         </td>
       </tr>
     </table>
-  </div>
 
-  <div class="box">
-    <p><strong>Cliente:</strong> {{ quote.client_name|default:"—" }}</p>
-    <p><strong>Tipo:</strong> {{ quote.get_client_kind_display }}</p>
-    <p><strong>Correo:</strong> {{ quote.client_email|default:"—" }} &nbsp; <strong>Teléfono:</strong> {{ quote.client_phone|default:"—" }}</p>
-    <p><strong>Ubicación:</strong> {{ quote.client_departamento|default:"—" }} - {{ quote.client_city|default:"—" }}</p>
-    {% if quote.notes %}<p><strong>Notas:</strong> {{ quote.notes }}</p>{% endif %}
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th style="width:55%;">Producto</th>
-        <th class="right" style="width:10%;">Cant.</th>
-        <th class="right" style="width:12%;">Base</th>
-        <th class="right" style="width:12%;">IVA</th>
-        <th class="right" style="width:11%;">Subtotal</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for it in items %}
+    <table class="meta">
       <tr>
         <td>
-          <table style="border:0; width:100%; border-collapse:collapse;">
-            <tr>
-              <td style="border:0; width:55px; padding:0; padding-right:6px; vertical-align:top;">
-                {% if it.product.image %}
-                <img src="{{ it.product.image.url }}" alt="{{ it.product.name }}" style="width:50px; height:50px; object-fit:cover;">
-                {% else %}
-                <div style="width:50px; height:50px; border:1px solid #ddd; border-radius:4px; text-align:center; font-size:10px; line-height:50px; color:#888;">
-                  IMG
-                </div>
-                {% endif %}
-              </td>
-              <td style="border:0; padding:0; vertical-align:top;">
-                <strong>{{ it.product.name }}</strong><br>
-                <span class="muted">{{ it.product.category.name }}</span>
-                {% if it.discount_unit and it.discount_unit > 0 %}
-                  <br><span class="muted">Precio original: <span style="text-decoration: line-through;">{{ it.original_unit_price|pesos_colombianos }}</span> · Descuento: <strong>{{ it.discount_unit|pesos_colombianos }}</strong></span>
-                {% endif %}
-              </td>
-            </tr>
-          </table>
+          <span class="meta-label">Fecha de emisión</span>
+          <span class="meta-value">{{ quote.created_at|date:"d/m/Y" }} · {{ quote.created_at|date:"H:i" }}</span>
         </td>
-        <td class="right">{{ it.quantity }}</td>
-        <td class="right">{{ it.base_subtotal|pesos_colombianos }}</td>
-        <td class="right">{{ it.iva_subtotal|pesos_colombianos }}</td>
-        <td class="right"><strong>{{ it.subtotal|pesos_colombianos }}</strong></td>
+        <td>
+          <span class="meta-label">Vigencia hasta</span>
+          <span class="meta-value">{{ expires_at|date:"d/m/Y" }} · {{ expires_at|date:"H:i" }}</span>
+        </td>
+        <td>
+          <span class="meta-label">Elaborada por</span>
+          <span class="meta-value">
+            {% if quote.created_by %}
+              {{ quote.created_by.get_full_name|default:quote.created_by.username }}
+            {% else %}
+              MixLab
+            {% endif %}
+          </span>
+        </td>
       </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr class="total-row">
-        <td colspan="2" class="right">TOTALES</td>
-        <td class="right">{{ total_base|pesos_colombianos }}</td>
-        <td class="right">{{ total_iva|pesos_colombianos }}</td>
-        <td class="right">{{ quote.total|pesos_colombianos }}</td>
-      </tr>
-    </tfoot>
-  </table>
+    </table>
 
-  <p class="muted" style="margin-top: 10px;">Nota: todos nuestros productos ya incluyen IVA.</p>
+    <div class="card">
+      <div class="card-head">Datos del cliente</div>
+      <div class="card-body">
+        <table class="client-grid">
+          <tr>
+            <td>
+              <span class="field-label">Cliente</span>
+              <span class="field-value">{{ quote.display_client_name|default:"—" }}</span>
+            </td>
+            <td>
+              <span class="field-label">Teléfono</span>
+              <span class="field-value">{{ quote.display_client_phone|default:"—" }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="field-label">Correo</span>
+              <span class="field-value">{{ quote.display_client_email|default:"—" }}</span>
+            </td>
+            <td>
+              <span class="field-label">Ubicación</span>
+              <span class="field-value">
+                {% if quote.display_client_departamento or quote.display_client_city %}
+                  {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %} · {% endif %}{{ quote.display_client_city|default:"" }}
+                {% else %}
+                  —
+                {% endif %}
+              </span>
+            </td>
+          </tr>
+        </table>
+        {% if quote.notes %}
+        <div class="notes"><strong>Notas:</strong> {{ quote.notes }}</div>
+        {% endif %}
+      </div>
+    </div>
 
-  <div class="box">
-    <p class="fineprint" style="margin:0;">
-      <strong>Información normativa:</strong> Esta cotización es un documento informativo y no constituye factura.
-      Los precios incluyen IVA y están sujetos a disponibilidad de inventario. La validez de esta cotización es de 1 día.
-      La emisión de la factura se realizará conforme a la normatividad vigente aplicable en Colombia.
-    </p>
-  </div>
-
-  <div style="margin-top: 20px; page-break-inside: avoid;">
-    <div class="box" style="background: #f8f9fa; border: 2px solid #0d6efd;">
-      <table style="border:0; width:100%; border-collapse:collapse;">
+    <p class="section-title">Detalle de productos{% if show_iva %} (con IVA){% else %} (sin desglose de IVA){% endif %}</p>
+    <table class="items">
+      <thead>
         <tr>
-          <td style="border:0; padding:0; vertical-align:middle; width:120px;">
-            <img src="/static/img/TotalLogo.png" alt="MixLab" style="width:100px; height:auto;">
-          </td>
-          <td style="border:0; padding:0; padding-left:15px; vertical-align:middle;">
-            <p style="margin:0; font-size:14px; font-weight:700; color:#0d6efd; margin-bottom:8px;">Métodos de Pago</p>
-            <table style="border:0; width:100%; border-collapse:collapse; font-size:11px;">
+          {% if show_iva %}
+          <th style="width: 48%;">Producto</th>
+          <th class="right" style="width: 10%;">Cant.</th>
+          <th class="right" style="width: 14%;">Base</th>
+          <th class="right" style="width: 14%;">IVA</th>
+          <th class="right" style="width: 14%;">Subtotal</th>
+          {% else %}
+          <th style="width: 58%;">Producto</th>
+          <th class="right" style="width: 12%;">Cant.</th>
+          <th class="right" style="width: 15%;">P. unitario</th>
+          <th class="right" style="width: 15%;">Subtotal</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>
+            <table style="width:100%; border-collapse:collapse;">
               <tr>
-                <td style="border:0; padding:2px 8px 2px 0;"><strong>Tipo de cuenta:</strong></td>
-                <td style="border:0; padding:2px 0;">Ahorros</td>
-              </tr>
-              <tr>
-                <td style="border:0; padding:2px 8px 2px 0;"><strong>Número de cuenta:</strong></td>
-                <td style="border:0; padding:2px 0;">912-097121-60</td>
-              </tr>
-              <tr>
-                <td style="border:0; padding:2px 8px 2px 0;"><strong>Banco receptor:</strong></td>
-                <td style="border:0; padding:2px 0;">Bancolombia S.A.</td>
-              </tr>
-              <tr>
-                <td style="border:0; padding:2px 8px 2px 0;"><strong>Número de identificación:</strong></td>
-                <td style="border:0; padding:2px 0;">1143397396</td>
-              </tr>
-              <tr>
-                <td style="border:0; padding:2px 8px 2px 0;"><strong>O llave BREB:</strong></td>
-                <td style="border:0; padding:2px 0;"><strong style="color:#0d6efd;">1143397396</strong></td>
+                <td style="width:48px; padding:0 8px 0 0; border:0; vertical-align:middle;">
+                  {% if it.product.image %}
+                  <img class="thumb" src="{{ it.product.image.url }}" alt="{{ it.product.name }}">
+                  {% else %}
+                  <div class="thumb-empty">N/A</div>
+                  {% endif %}
+                </td>
+                <td style="padding:0; border:0; vertical-align:middle;">
+                  <p class="product-name">{{ it.product.name }}</p>
+                  <p class="product-meta">{{ it.product.category.name }}</p>
+                  {% if it.discount_unit and it.discount_unit > 0 %}
+                  <span class="discount-tag">
+                    Desc. {{ it.discount_unit|pesos_colombianos }}
+                    · <span class="strike">{{ it.original_unit_price|pesos_colombianos }}</span>
+                  </span>
+                  {% endif %}
+                </td>
               </tr>
             </table>
           </td>
+          <td class="right nowrap">{{ it.quantity }}</td>
+          {% if show_iva %}
+          <td class="right nowrap">{{ it.base_subtotal|pesos_colombianos }}</td>
+          <td class="right nowrap">{{ it.iva_subtotal|pesos_colombianos }}</td>
+          <td class="right nowrap"><strong>{{ it.subtotal|pesos_colombianos }}</strong></td>
+          {% else %}
+          <td class="right nowrap">{{ it.unit_price|pesos_colombianos }}</td>
+          <td class="right nowrap"><strong>{{ it.subtotal|pesos_colombianos }}</strong></td>
+          {% endif %}
         </tr>
-      </table>
+        {% empty %}
+        <tr>
+          <td colspan="{% if show_iva %}5{% else %}4{% endif %}" class="muted" style="text-align:center; padding:18px;">Sin productos en esta cotización.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <table class="totals-wrap">
+      <tr>
+        <td style="border:0; padding:0; width:55%; vertical-align:bottom;">
+          {% if show_iva %}
+          <p class="iva-note">Precios desglosados con base e IVA. El total ya incluye IVA. Documento informativo.</p>
+          {% else %}
+          <p class="iva-note">Detalle sin desglose de IVA. El total puede incluir impuestos según la factura final.</p>
+          {% endif %}
+        </td>
+        <td style="border:0; padding:0; width:45%;" align="right">
+          <table class="totals-box" align="right">
+            {% if show_iva %}
+            <tr>
+              <td class="label">Base imponible</td>
+              <td class="value">{{ total_base|pesos_colombianos }}</td>
+            </tr>
+            <tr>
+              <td class="label">IVA</td>
+              <td class="value">{{ total_iva|pesos_colombianos }}</td>
+            </tr>
+            {% endif %}
+            <tr class="grand">
+              <td>Total</td>
+              <td class="value">{{ quote.total|pesos_colombianos }}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="legal">
+      <strong>Información normativa</strong>
+      Esta cotización es un documento informativo y no constituye factura.
+      {% if show_iva %}
+      Los valores muestran base e IVA de forma detallada; el total ya incluye IVA.
+      {% else %}
+      Este formato no desglosa IVA por línea; la factura se emitirá conforme a la normatividad vigente.
+      {% endif %}
+      La validez de esta cotización es de 1 día desde su emisión.
+      Los precios están sujetos a disponibilidad de inventario.
+    </div>
+
+    <table class="pay">
+      <tr>
+        <td class="pay-head" colspan="2">Métodos de pago</td>
+      </tr>
+      {% if payment_methods %}
+        {% for pm in payment_methods %}
+          {% if forloop.counter0|divisibleby:2 %}<tr>{% endif %}
+          <td class="pay-col{% if not forloop.counter0|divisibleby:2 %} pay-col-last{% endif %}">
+            <table class="pay-inner">
+              <tr>
+                <td class="pay-logo-cell">
+                  {% if pm.bank_logo %}
+                  <img class="bank-logo" src="{{ pm.bank_logo.url }}" alt="">
+                  {% else %}
+                  <div class="bank-logo-empty">BANCO</div>
+                  {% endif %}
+                </td>
+                <td class="pay-text-cell">
+                  <p class="pay-lines">
+                    <b>Tipo de cuenta:</b> {{ pm.get_account_type_display }}<br/>
+                    <b>Banco:</b> {{ pm.bank_name|default:"—" }}<br/>
+                    <b>A nombre de:</b> {{ pm.holder_name }}<br/>
+                    <b>{{ pm.get_document_type_display }}:</b> {{ pm.document_number }}<br/>
+                    <b>Número de cuenta:</b> {{ pm.account_number }}{% if pm.breb_key %}<br/>
+                    <b>Llave BREB:</b> {{ pm.breb_key }}{% endif %}
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+          {% if forloop.counter|divisibleby:2 %}
+          </tr>
+          {% elif forloop.last %}
+          <td class="pay-col pay-col-last">&nbsp;</td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+      <tr>
+        <td class="pay-col pay-col-last" colspan="2">
+          <p class="pay-lines" style="color:#475569;">
+            Configura los métodos de pago en Inventario → Configuración del sitio.
+          </p>
+        </td>
+      </tr>
+      {% endif %}
+    </table>
+
+    <p class="footer-tiny">
+      MixLab · {% if is_factura %}Factura FAC-{{ quote.id }} (ref. COT-{{ quote.id }}){% else %}Cotización COT-{{ quote.id }}{% endif %}
+      · {{ quote.created_at|date:"d/m/Y H:i" }}
+      {% if show_paid_watermark %} · PAGADO{% endif %}
+    </p>
     </div>
   </div>
 </body>
 </html>
-

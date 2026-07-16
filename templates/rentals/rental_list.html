@@ -27,8 +27,16 @@
                     <h5 class="card-title">{{ product.name }}</h5>
                     <p class="card-text text-muted">{{ product.description|truncatewords:20 }}</p>
                     <div class="mt-auto">
-                        <p class="h5 text-primary mb-2">Desde ${{ product.price|floatformat:0 }}/día</p>
-                        <a href="{% url 'rentals:rental_detail' product.id %}" class="btn btn-primary w-100">
+                        <p class="h5 text-primary mb-1">Desde ${{ product.price|floatformat:0 }}/día</p>
+                        <p class="small mb-2 {% if product.effective_stock > 0 %}text-success{% else %}text-danger{% endif %}">
+                          <i class="bi bi-box-seam"></i>
+                          {% if product.effective_stock > 0 %}
+                            Quedan {{ product.effective_stock }} disponibles
+                          {% else %}
+                            Sin unidades disponibles
+                          {% endif %}
+                        </p>
+                        <a href="{% url 'rentals:rental_detail' product.id %}" class="btn btn-primary w-100 {% if product.effective_stock <= 0 %}disabled{% endif %}">
                             <i class="bi bi-calendar-check"></i> Reservar Ahora
                         </a>
                     </div>

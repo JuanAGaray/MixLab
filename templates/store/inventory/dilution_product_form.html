@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <a href="{% url 'store:dilution_product_list' %}" class="btn btn-link btn-sm text-muted text-decoration-none p-0 mb-2">
+        <i class="bi bi-chevron-left"></i> Volver al listado
+      </a>
+      <h2 class="h4 mb-4">{{ title }}</h2>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="mb-3">
+              {% if field.field.widget.input_type == 'checkbox' %}
+              <div class="form-check">
+                {{ field }}
+                <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              </div>
+              {% else %}
+              <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+              {{ field }}
+              {% endif %}
+              {% if field.help_text %}
+              <div class="form-text">{{ field.help_text }}</div>
+              {% endif %}
+              {% for error in field.errors %}
+              <div class="text-danger small">{{ error }}</div>
+              {% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="alert alert-light border small mb-4">
+              <strong>Ejemplo:</strong> si la mezcla es 1 parte de base y 4 de agua, ingresa <code>4</code> en
+              «ML de agua por 1 ML de base». Con 100 ML de base → 400 ML de agua → 500 ML total.
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Guardar</button>
+              <a href="{% url 'store:dilution_product_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

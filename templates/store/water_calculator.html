@@ -1,0 +1,732 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load l10n %}
+
+{% block title %}Calculadoras - MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .calc-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .calc-header h1 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0.25rem;
+  }
+  .calc-header p {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0;
+  }
+  .calc-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .calc-tab {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    cursor: pointer;
+    width: 100%;
+  }
+  .calc-tab:hover {
+    border-color: #93c5fd;
+    transform: translateY(-1px);
+  }
+  .calc-tab.is-active {
+    border-color: var(--primary-dark, #38bdf8);
+    box-shadow: 0 10px 28px rgba(56, 189, 248, 0.18);
+    background: linear-gradient(180deg, #f0f9ff 0%, #fff 100%);
+  }
+  .calc-tab-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+  .calc-tab-icon.dilution { background: #dbeafe; color: #2563eb; }
+  .calc-tab-icon.costs { background: #dcfce7; color: #16a34a; }
+  .calc-tab-title {
+    display: block;
+    font-weight: 700;
+    color: var(--text-dark);
+    font-size: 0.95rem;
+    margin-bottom: 0.15rem;
+  }
+  .calc-tab-desc {
+    display: block;
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.35;
+  }
+  .calc-panel { display: none; }
+  .calc-panel.is-active { display: block; }
+  .calc-result {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fcff 100%);
+    border: 2px solid var(--primary-dark, #38bdf8);
+    border-radius: 20px;
+    padding: 1.75rem 1.5rem;
+    box-shadow: 0 12px 40px rgba(127, 212, 255, 0.2);
+  }
+  .calc-result.costs {
+    border-color: #86efac;
+    background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+    box-shadow: 0 12px 40px rgba(34, 197, 94, 0.14);
+  }
+  .calc-result-header {
+    border-bottom: 1px solid rgba(127, 212, 255, 0.35);
+    padding-bottom: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .calc-result.costs .calc-result-header {
+    border-bottom-color: rgba(34, 197, 94, 0.25);
+  }
+  .ratio-badge {
+    background: linear-gradient(135deg, #a9e8ff 0%, #d4f3ff 100%);
+    border-radius: 999px;
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #0f172a;
+    border: 1px solid rgba(127, 212, 255, 0.6);
+  }
+  .calc-stat {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.25rem 1rem;
+    height: 100%;
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .calc-stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  }
+  .calc-stat-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .calc-stat-icon.base { background: #f1f5f9; color: #475569; }
+  .calc-stat-icon.water { background: #dbeafe; color: #2563eb; }
+  .calc-stat-icon.total { background: #dcfce7; color: #16a34a; }
+  .calc-stat-icon.money { background: #fef3c7; color: #d97706; }
+  .calc-stat-icon.profit { background: #dcfce7; color: #16a34a; }
+  .calc-stat-icon.margin { background: #ede9fe; color: #7c3aed; }
+  .calc-stat .value-xl {
+    font-size: 1.55rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--text-dark);
+  }
+  .calc-stat.water-highlight {
+    border-color: #93c5fd;
+    background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+  }
+  .calc-stat.water-highlight .value-xl { color: #2563eb; }
+  .calc-stat.profit-highlight {
+    border-color: #86efac;
+    background: linear-gradient(180deg, #f0fdf4 0%, #fff 100%);
+  }
+  .calc-stat.profit-highlight .value-xl { color: #16a34a; }
+  .calc-stat .value-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+  .calc-stat .unit { font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
+  #calc-result-wrap,
+  #cost-result-wrap { display: none; }
+  #calc-result-wrap.is-visible,
+  #cost-result-wrap.is-visible { display: block; }
+  .calc-inputs-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+  .calc-inputs-row .calc-field-product {
+    flex: 1 1 280px;
+    min-width: 0;
+  }
+  .calc-inputs-row .calc-field-amount {
+    flex: 0 0 200px;
+    max-width: 100%;
+  }
+  @media (max-width: 575.98px) {
+    .calc-tabs { grid-template-columns: 1fr; }
+    .calc-inputs-row .calc-field-amount { flex: 1 1 100%; }
+    .calc-stat .value-xl { font-size: 1.35rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+      <header class="calc-header">
+        <h1>Calculadoras MixLab</h1>
+        <p>Elige la herramienta que necesitas: dilución con agua o análisis de costos.</p>
+      </header>
+
+      <div class="calc-tabs" role="tablist" aria-label="Tipo de calculadora">
+        <button type="button" class="calc-tab is-active" id="tab-dilucion" data-calc="dilucion" role="tab" aria-selected="true">
+          <span class="calc-tab-icon dilution"><i class="bi bi-droplet-half"></i></span>
+          <span>
+            <span class="calc-tab-title">Calculadora de dilución</span>
+            <span class="calc-tab-desc">Agua en ML según la proporción de tu producto base.</span>
+          </span>
+        </button>
+        <button type="button" class="calc-tab" id="tab-costos" data-calc="costos" role="tab" aria-selected="false">
+          <span class="calc-tab-icon costs"><i class="bi bi-calculator"></i></span>
+          <span>
+            <span class="calc-tab-title">Calculadora de costos</span>
+            <span class="calc-tab-desc">Costo por porción, precio sugerido, ganancia y margen.</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- Dilución -->
+      <section id="panel-dilucion" class="calc-panel is-active" role="tabpanel" aria-labelledby="tab-dilucion">
+        {% if not products %}
+        <div class="alert alert-info">
+          Aún no hay productos base configurados. Si eres administrador, agrégalos en
+          <a href="{% url 'store:dilution_product_list' %}">Inventario → Calculadora</a>.
+        </div>
+        {% else %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4">
+            <div id="water-calc-form" class="calc-inputs-row">
+              <div class="calc-field-product">
+                <label for="product_id" class="form-label fw-semibold">Producto base</label>
+                <select id="product_id" class="form-select form-select-lg">
+                  <option value="">— Selecciona un producto —</option>
+                  {% for p in products %}
+                  <option value="{{ p.id }}"
+                          data-slug="{{ p.slug }}"
+                          data-name="{{ p.name|escape }}"
+                          data-ratio="{% localize off %}{{ p.water_ml_per_base_ml }}{% endlocalize %}"
+                          data-ratio-display="{{ p.ratio_display }}"
+                          data-description="{{ p.description|escape }}">
+                    {{ p.name }} (proporción {{ p.ratio_display }})
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="calc-field-amount">
+                <label for="base_ml" class="form-label fw-semibold">Cantidad (ML)</label>
+                <div class="input-group input-group-lg">
+                  <input type="number" id="base_ml" class="form-control"
+                         min="0.01" step="0.01" placeholder="Ej: 100">
+                  <span class="input-group-text">ML</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="calc-error" class="alert alert-danger d-none mb-3"></div>
+
+        <div id="calc-result-wrap" class="calc-result">
+          <div class="calc-result-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div>
+              <div class="text-muted small mb-1"><i class="bi bi-stars me-1"></i>Resultado para</div>
+              <div class="fw-bold fs-5" id="result-product-name">—</div>
+            </div>
+            <span class="ratio-badge" id="result-ratio-badge"><i class="bi bi-sliders me-1"></i>—</span>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon base"><i class="bi bi-flask"></i></div>
+                <div class="value-label">Producto base</div>
+                <div class="value-xl" id="result-base-ml">0</div>
+                <div class="unit">ML</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="calc-stat water-highlight text-center">
+                <div class="calc-stat-icon water"><i class="bi bi-droplet-fill"></i></div>
+                <div class="value-label">Agua a agregar</div>
+                <div class="value-xl" id="result-water-ml">0</div>
+                <div class="unit">ML</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon total"><i class="bi bi-cup-straw"></i></div>
+                <div class="value-label">Total preparado</div>
+                <div class="value-xl" id="result-total-ml">0</div>
+                <div class="unit">ML</div>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-3" id="result-desc-sep" style="display:none;">
+          <p class="mb-0 small text-muted" id="result-description" style="display:none;">
+            <i class="bi bi-info-circle me-1"></i><span></span>
+          </p>
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- Costos -->
+      <section id="panel-costos" class="calc-panel" role="tabpanel" aria-labelledby="tab-costos" hidden>
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+              Calcula el costo de cada porción a partir del costo de la base, la dilución y el tamaño del vaso.
+            </p>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="cost_product_id" class="form-label fw-semibold">Producto base <span class="text-muted fw-normal">(opcional)</span></label>
+                <select id="cost_product_id" class="form-select">
+                  <option value="" data-ratio="">— Manual / sin catálogo —</option>
+                  {% for p in products %}
+                  <option value="{{ p.id }}"
+                          data-ratio="{% localize off %}{{ p.water_ml_per_base_ml }}{% endlocalize %}"
+                          data-ratio-display="{{ p.ratio_display }}">
+                    {{ p.name }} ({{ p.ratio_display }})
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_ratio" class="form-label fw-semibold">ML agua por 1 ML base</label>
+                <input type="number" id="cost_ratio" class="form-control" min="0" step="0.001" placeholder="Ej: 4" value="4">
+                <div class="form-text">Proporción 1:4 → escribe 4.</div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_base_price" class="form-label fw-semibold">Costo del producto base</label>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <input type="number" id="cost_base_price" class="form-control" min="0" step="0.01" placeholder="Ej: 45000">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_base_volume" class="form-label fw-semibold">Volumen comprado de base</label>
+                <div class="input-group">
+                  <input type="number" id="cost_base_volume" class="form-control" min="0.01" step="0.01" placeholder="Ej: 1000">
+                  <span class="input-group-text">ML</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_base_used" class="form-label fw-semibold">Base a usar en el lote</label>
+                <div class="input-group">
+                  <input type="number" id="cost_base_used" class="form-control" min="0.01" step="0.01" placeholder="Ej: 100">
+                  <span class="input-group-text">ML</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_portion_ml" class="form-label fw-semibold">Tamaño de porción / vaso</label>
+                <div class="input-group">
+                  <input type="number" id="cost_portion_ml" class="form-control" min="0.01" step="0.01" placeholder="Ej: 250" value="250">
+                  <span class="input-group-text">ML</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_extra" class="form-label fw-semibold">Costos extras del lote</label>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <input type="number" id="cost_extra" class="form-control" min="0" step="0.01" placeholder="Envases, vasos, etc." value="0">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_sale_price" class="form-label fw-semibold">Precio de venta por porción</label>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <input type="number" id="cost_sale_price" class="form-control" min="0" step="0.01" placeholder="Ej: 5000">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="cost_margin_target" class="form-label fw-semibold">Margen deseado</label>
+                <div class="input-group">
+                  <input type="number" id="cost_margin_target" class="form-control" min="0" max="99" step="0.1" placeholder="Ej: 40" value="40">
+                  <span class="input-group-text">%</span>
+                </div>
+                <div class="form-text">Sirve para sugerir un precio de venta.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="cost-error" class="alert alert-danger d-none mb-3"></div>
+
+        <div id="cost-result-wrap" class="calc-result costs">
+          <div class="calc-result-header">
+            <div class="text-muted small mb-1"><i class="bi bi-cash-coin me-1"></i>Análisis de costos</div>
+            <div class="fw-bold fs-5">Lote preparado</div>
+            <div class="small text-muted mt-1" id="cost-batch-summary">—</div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-6 col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon total"><i class="bi bi-cup-straw"></i></div>
+                <div class="value-label">Total preparado</div>
+                <div class="value-xl" id="cost-total-ml">0</div>
+                <div class="unit">ML</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon base"><i class="bi bi-ui-checks-grid"></i></div>
+                <div class="value-label">Porciones</div>
+                <div class="value-xl" id="cost-portions">0</div>
+                <div class="unit">unidades</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon money"><i class="bi bi-tag"></i></div>
+                <div class="value-label">Costo por porción</div>
+                <div class="value-xl" id="cost-per-portion">$0</div>
+                <div class="unit">COP</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon margin"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="value-label">Precio sugerido</div>
+                <div class="value-xl" id="cost-suggested-price">$0</div>
+                <div class="unit">según margen</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-4">
+              <div class="calc-stat profit-highlight text-center">
+                <div class="calc-stat-icon profit"><i class="bi bi-piggy-bank"></i></div>
+                <div class="value-label">Ganancia / porción</div>
+                <div class="value-xl" id="cost-profit-portion">$0</div>
+                <div class="unit">con tu precio</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-4">
+              <div class="calc-stat text-center">
+                <div class="calc-stat-icon money"><i class="bi bi-percent"></i></div>
+                <div class="value-label">Margen real</div>
+                <div class="value-xl" id="cost-real-margin">0%</div>
+                <div class="unit">sobre venta</div>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-3">
+          <div class="row g-2 small">
+            <div class="col-sm-6"><span class="text-muted">Costo total del lote:</span> <strong id="cost-batch-total">$0</strong></div>
+            <div class="col-sm-6"><span class="text-muted">Ingreso total:</span> <strong id="cost-batch-revenue">$0</strong></div>
+            <div class="col-sm-6"><span class="text-muted">Ganancia total:</span> <strong id="cost-batch-profit">$0</strong></div>
+            <div class="col-sm-6"><span class="text-muted">Costo por ML preparado:</span> <strong id="cost-per-ml">$0</strong></div>
+          </div>
+        </div>
+      </section>
+
+      {% if user.is_staff %}
+      <div class="text-center mt-4">
+        <a href="{% url 'store:dilution_product_list' %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-gear me-1"></i> Administrar productos base
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const tabDilucion = document.getElementById('tab-dilucion');
+  const tabCostos = document.getElementById('tab-costos');
+  const panelDilucion = document.getElementById('panel-dilucion');
+  const panelCostos = document.getElementById('panel-costos');
+  const productSlugs = new Set(
+    Array.from(document.querySelectorAll('#product_id option[data-slug]'))
+      .map(function (o) { return o.getAttribute('data-slug'); })
+      .filter(Boolean)
+  );
+
+  function setActiveCalculator(name, updateHash) {
+    const isDilution = name !== 'costos';
+    tabDilucion.classList.toggle('is-active', isDilution);
+    tabCostos.classList.toggle('is-active', !isDilution);
+    tabDilucion.setAttribute('aria-selected', isDilution ? 'true' : 'false');
+    tabCostos.setAttribute('aria-selected', isDilution ? 'false' : 'true');
+    panelDilucion.classList.toggle('is-active', isDilution);
+    panelCostos.classList.toggle('is-active', !isDilution);
+    panelDilucion.hidden = !isDilution;
+    panelCostos.hidden = isDilution;
+
+    if (updateHash) {
+      const base = window.location.pathname + window.location.search;
+      if (!isDilution) {
+        history.replaceState(null, '', base + '#costos');
+      } else {
+        const opt = document.getElementById('product_id');
+        const selected = opt && opt.options[opt.selectedIndex];
+        const slug = selected && selected.value ? (selected.getAttribute('data-slug') || '') : '';
+        history.replaceState(null, '', slug ? (base + '#' + encodeURIComponent(slug)) : (base + '#dilucion'));
+      }
+    }
+  }
+
+  tabDilucion.addEventListener('click', function () { setActiveCalculator('dilucion', true); });
+  tabCostos.addEventListener('click', function () { setActiveCalculator('costos', true); });
+
+  function parseDecimal(str) {
+    if (str === null || str === undefined) return NaN;
+    const normalized = String(str).trim().replace(/\s/g, '').replace(',', '.');
+    if (!normalized) return NaN;
+    return parseFloat(normalized);
+  }
+
+  function formatMl(n) {
+    return Number(n).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatMoney(n) {
+    return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO');
+  }
+
+  function formatPercent(n) {
+    return Number(n).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+  }
+
+  // --- Dilución ---
+  const select = document.getElementById('product_id');
+  const baseInput = document.getElementById('base_ml');
+  const resultWrap = document.getElementById('calc-result-wrap');
+  const errorEl = document.getElementById('calc-error');
+
+  function getSelectedOption() {
+    return select ? select.options[select.selectedIndex] : null;
+  }
+
+  function updateHashFromSelection() {
+    if (!select) return;
+    const opt = getSelectedOption();
+    const slug = opt && opt.value ? (opt.getAttribute('data-slug') || '') : '';
+    const base = window.location.pathname + window.location.search;
+    if (slug) {
+      history.replaceState(null, '', base + '#' + encodeURIComponent(slug));
+    } else {
+      history.replaceState(null, '', base + '#dilucion');
+    }
+  }
+
+  function applyHashToSelection(hash) {
+    if (!select || !hash) return false;
+    for (let i = 0; i < select.options.length; i++) {
+      if (select.options[i].getAttribute('data-slug') === hash) {
+        select.selectedIndex = i;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function calculateDilution() {
+    if (!select || !baseInput || !resultWrap || !errorEl) return;
+    const opt = getSelectedOption();
+    const baseRaw = (baseInput.value || '').trim();
+    const baseMl = parseDecimal(baseRaw);
+
+    errorEl.classList.add('d-none');
+    resultWrap.classList.remove('is-visible');
+
+    if (!opt || !opt.value) return;
+    updateHashFromSelection();
+
+    if (!baseRaw || isNaN(baseMl) || baseMl <= 0) return;
+
+    const ratio = parseDecimal(opt.getAttribute('data-ratio'));
+    if (isNaN(ratio) || ratio < 0) {
+      errorEl.textContent = 'Proporción del producto no válida.';
+      errorEl.classList.remove('d-none');
+      return;
+    }
+
+    const waterMl = Math.round(baseMl * ratio * 100) / 100;
+    const totalMl = Math.round((baseMl + waterMl) * 100) / 100;
+
+    document.getElementById('result-product-name').textContent = opt.getAttribute('data-name') || opt.textContent;
+    document.getElementById('result-ratio-badge').innerHTML =
+      '<i class="bi bi-sliders me-1"></i>Proporción ' + (opt.getAttribute('data-ratio-display') || '');
+    document.getElementById('result-base-ml').textContent = formatMl(baseMl);
+    document.getElementById('result-water-ml').textContent = formatMl(waterMl);
+    document.getElementById('result-total-ml').textContent = formatMl(totalMl);
+
+    const desc = opt.getAttribute('data-description') || '';
+    const descSep = document.getElementById('result-desc-sep');
+    const descEl = document.getElementById('result-description');
+    if (desc) {
+      descEl.querySelector('span').textContent = desc;
+      descEl.style.display = '';
+      descSep.style.display = '';
+    } else {
+      descEl.style.display = 'none';
+      descSep.style.display = 'none';
+    }
+
+    resultWrap.classList.add('is-visible');
+  }
+
+  if (select && baseInput) {
+    select.addEventListener('change', calculateDilution);
+    baseInput.addEventListener('input', calculateDilution);
+    baseInput.addEventListener('change', calculateDilution);
+  }
+
+  // --- Costos ---
+  const costProduct = document.getElementById('cost_product_id');
+  const costRatio = document.getElementById('cost_ratio');
+  const costBasePrice = document.getElementById('cost_base_price');
+  const costBaseVolume = document.getElementById('cost_base_volume');
+  const costBaseUsed = document.getElementById('cost_base_used');
+  const costPortionMl = document.getElementById('cost_portion_ml');
+  const costExtra = document.getElementById('cost_extra');
+  const costSalePrice = document.getElementById('cost_sale_price');
+  const costMarginTarget = document.getElementById('cost_margin_target');
+  const costResultWrap = document.getElementById('cost-result-wrap');
+  const costError = document.getElementById('cost-error');
+
+  function syncCostRatioFromProduct() {
+    if (!costProduct || !costRatio) return;
+    const opt = costProduct.options[costProduct.selectedIndex];
+    const ratio = opt && opt.getAttribute('data-ratio');
+    if (ratio) costRatio.value = ratio;
+  }
+
+  function calculateCosts() {
+    if (!costResultWrap || !costError) return;
+    costError.classList.add('d-none');
+    costResultWrap.classList.remove('is-visible');
+
+    const ratio = parseDecimal(costRatio.value);
+    const basePrice = parseDecimal(costBasePrice.value);
+    const baseVolume = parseDecimal(costBaseVolume.value);
+    const baseUsed = parseDecimal(costBaseUsed.value);
+    const portionMl = parseDecimal(costPortionMl.value);
+    const extra = parseDecimal(costExtra.value) || 0;
+    const salePrice = parseDecimal(costSalePrice.value);
+    const marginTarget = parseDecimal(costMarginTarget.value);
+
+    if ([ratio, basePrice, baseVolume, baseUsed, portionMl].some(function (v) { return isNaN(v); })) return;
+    if (ratio < 0 || basePrice < 0 || baseVolume <= 0 || baseUsed <= 0 || portionMl <= 0) {
+      costError.textContent = 'Revisa los valores: volúmenes y costos deben ser mayores a cero.';
+      costError.classList.remove('d-none');
+      return;
+    }
+    if (baseUsed > baseVolume) {
+      costError.textContent = 'La base a usar no puede ser mayor al volumen comprado.';
+      costError.classList.remove('d-none');
+      return;
+    }
+
+    const waterMl = baseUsed * ratio;
+    const totalMl = baseUsed + waterMl;
+    const portions = totalMl / portionMl;
+    const baseCostUsed = (basePrice / baseVolume) * baseUsed;
+    const batchCost = baseCostUsed + extra;
+    const costPerPortion = batchCost / portions;
+    const costPerMl = batchCost / totalMl;
+
+    let suggested = 0;
+    if (!isNaN(marginTarget) && marginTarget >= 0 && marginTarget < 100) {
+      suggested = costPerPortion / (1 - (marginTarget / 100));
+    }
+
+    let profitPortion = 0;
+    let realMargin = 0;
+    let revenue = 0;
+    let profitTotal = 0;
+    if (!isNaN(salePrice) && salePrice > 0) {
+      profitPortion = salePrice - costPerPortion;
+      realMargin = (profitPortion / salePrice) * 100;
+      revenue = salePrice * portions;
+      profitTotal = revenue - batchCost;
+    }
+
+    document.getElementById('cost-batch-summary').textContent =
+      formatMl(baseUsed) + ' ML base + ' + formatMl(waterMl) + ' ML agua · proporción 1:' +
+      (Number.isInteger(ratio) ? String(ratio) : String(ratio));
+    document.getElementById('cost-total-ml').textContent = formatMl(totalMl);
+    document.getElementById('cost-portions').textContent = formatMl(portions);
+    document.getElementById('cost-per-portion').textContent = formatMoney(costPerPortion);
+    document.getElementById('cost-suggested-price').textContent = suggested > 0 ? formatMoney(suggested) : '—';
+    document.getElementById('cost-profit-portion').textContent = (!isNaN(salePrice) && salePrice > 0) ? formatMoney(profitPortion) : '—';
+    document.getElementById('cost-real-margin').textContent = (!isNaN(salePrice) && salePrice > 0) ? formatPercent(realMargin) : '—';
+    document.getElementById('cost-batch-total').textContent = formatMoney(batchCost);
+    document.getElementById('cost-batch-revenue').textContent = (!isNaN(salePrice) && salePrice > 0) ? formatMoney(revenue) : '—';
+    document.getElementById('cost-batch-profit').textContent = (!isNaN(salePrice) && salePrice > 0) ? formatMoney(profitTotal) : '—';
+    document.getElementById('cost-per-ml').textContent = formatMoney(costPerMl);
+
+    costResultWrap.classList.add('is-visible');
+  }
+
+  if (costProduct) {
+    costProduct.addEventListener('change', function () {
+      syncCostRatioFromProduct();
+      calculateCosts();
+    });
+  }
+  [
+    costRatio, costBasePrice, costBaseVolume, costBaseUsed,
+    costPortionMl, costExtra, costSalePrice, costMarginTarget
+  ].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('input', calculateCosts);
+    el.addEventListener('change', calculateCosts);
+  });
+
+  function applyRouteFromHash() {
+    const hash = decodeURIComponent((window.location.hash || '').replace(/^#/, '')).trim();
+    if (hash === 'costos') {
+      setActiveCalculator('costos', false);
+      return;
+    }
+    if (hash === 'dilucion' || !hash) {
+      setActiveCalculator('dilucion', false);
+      calculateDilution();
+      return;
+    }
+    if (productSlugs.has(hash)) {
+      setActiveCalculator('dilucion', false);
+      applyHashToSelection(hash);
+      calculateDilution();
+      return;
+    }
+    setActiveCalculator('dilucion', false);
+  }
+
+  window.addEventListener('hashchange', applyRouteFromHash);
+  applyRouteFromHash();
+  calculateCosts();
+});
+</script>
+{% endblock %}

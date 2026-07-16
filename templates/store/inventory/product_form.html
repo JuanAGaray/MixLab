@@ -179,6 +179,23 @@
                             </div>
                         </div>
                         <div class="col-md-6">{{ form.product_type.label_tag }}{{ form.product_type }}</div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.accent_color.label }} <span class="text-muted fw-normal">(opcional)</span></label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color"
+                                       name="accent_color"
+                                       id="id_accent_color"
+                                       class="form-control form-control-color"
+                                       value="{{ product.accent_color|default:'#0F6FFF' }}"
+                                       title="Elige un color de diseño">
+                                <span class="small text-muted" id="accent-color-hex">{{ product.accent_color|default:'Sin color' }}</span>
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="accent_color_clear" id="accent_color_clear" {% if not product.accent_color %}checked{% endif %}>
+                                <label class="form-check-label small" for="accent_color_clear">Sin color (usar diseño por defecto)</label>
+                            </div>
+                            <small class="form-text text-muted">Se usa como fondo o acento en la vitrina y ficha del producto.</small>
+                        </div>
                         <div class="col-md-12">
                             <label for="description-editor" class="form-label">{{ form.description.label }}</label>
                             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -198,6 +215,41 @@
                             <textarea name="description" id="product-description" style="display: none;">{{ form.description.value|default:'' }}</textarea>
                         </div>
                         <div class="col-md-12">{{ form.keywords.label_tag }}{{ form.keywords }}</div>
+                        <div class="col-12">
+                            <div class="border rounded-3 p-3 bg-light-subtle">
+                                <div class="form-check form-switch mb-2">
+                                    {{ form.unit_price_enabled }}
+                                    <label class="form-check-label fw-semibold" for="{{ form.unit_price_enabled.id_for_label }}">
+                                        Precio unitario
+                                    </label>
+                                </div>
+                                <p class="small text-muted mb-3 mb-md-2">
+                                    Indica cuántas unidades tiene el producto; el valor por medida se calcula solo
+                                    (precio de venta u oferta ÷ unidades totales).
+                                </p>
+                                <div id="unit-price-fields" class="row g-2 {% if not product.unit_price_enabled %}opacity-50{% endif %}">
+                                    <div class="col-md-6">
+                                        <label class="form-label small" for="{{ form.unit_quantity.id_for_label }}">Unidades totales</label>
+                                        {{ form.unit_quantity }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small" for="{{ form.unit_measure.id_for_label }}">Medida</label>
+                                        {{ form.unit_measure }}
+                                    </div>
+                                    {% if product.has_unit_price %}
+                                    <div class="col-12">
+                                        <div class="alert alert-light border small mb-0 py-2">
+                                            Vista previa:
+                                            <strong>{{ product.unit_quantity_display }}</strong>
+                                            ·
+                                            <strong>{{ product.price_per_unit|pesos_colombianos }}{{ product.unit_price_display_suffix }}</strong>
+                                            {% if product.has_discount %}<span class="text-muted">(con oferta)</span>{% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -207,14 +259,91 @@
                 {% csrf_token %}
                 <input type="hidden" name="save_section" value="pricing">
                 <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Precio y Stock</h5>
+                    <h5 class="mb-0" id="pricing-section-title">Precio y Stock</h5>
                     <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-4">{{ form.purchase_cost.label_tag }}{{ form.purchase_cost }}</div>
-                        <div class="col-md-4">{{ form.price.label_tag }}{{ form.price }}</div>
-                        <div class="col-md-4">{{ form.promotional_price.label_tag }}{{ form.promotional_price }}</div>
+                    <div id="sale-pricing-fields">
+                        <div class="row g-3">
+                            <div class="col-md-4">{{ form.purchase_cost.label_tag }}{{ form.purchase_cost }}</div>
+                            <div class="col-md-4">{{ form.price.label_tag }}{{ form.price }}</div>
+                            <div class="col-md-4">{{ form.promotional_price.label_tag }}{{ form.promotional_price }}</div>
+                        </div>
+                    </div>
+                    <div id="rental-pricing-fields" style="display: none;">
+                        <p class="text-muted small mb-3">Define las tarifas según el tiempo de uso. Los productos de alquiler no tienen costo de compra ni precio promocional.</p>
+                        <div id="rental-prices-container">
+                            {% for rp in product.rental_prices.all %}
+                            <div class="rental-price-item row g-2 align-items-center mb-2" data-rental-price-id="{{ rp.id }}">
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Periodo</label>
+                                    <select name="rental_price_{{ rp.id }}_period" class="form-select form-select-sm rental-period-select">
+                                        {% for value, label in rental_period_choices %}
+                                        <option value="{{ value }}" {% if rp.period_type == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Precio</label>
+                                    <input type="number" step="0.01" min="0.01" name="rental_price_{{ rp.id }}_price" class="form-control form-control-sm" value="{{ rp.price }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small mb-1 d-block">Estado</label>
+                                    <div class="form-check mt-1">
+                                        <input type="checkbox" class="form-check-input" name="rental_price_{{ rp.id }}_active" id="rental_active_{{ rp.id }}" {% if rp.is_active %}checked{% endif %}>
+                                        <label class="form-check-label small" for="rental_active_{{ rp.id }}">Activo</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small mb-1 d-block">&nbsp;</label>
+                                    <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-rental-price-btn" title="Eliminar tarifa">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                <input type="hidden" name="rental_price_{{ rp.id }}_order" value="{{ rp.order }}">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-rental-price-btn">
+                            <i class="bi bi-plus-circle me-1"></i> Agregar tarifa
+                        </button>
+
+                        <hr class="my-3">
+                        <h6 class="small text-uppercase text-muted mb-2">Datos para contrato de alquiler</h6>
+                        <p class="text-muted small mb-3">Se usan al generar el contrato PDF cuando un cliente cotiza esta máquina.</p>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Marca</label>
+                                <input type="text" name="rental_brand" class="form-control form-control-sm" value="{{ product.rental_brand }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Modelo</label>
+                                <input type="text" name="rental_model" class="form-control form-control-sm" value="{{ product.rental_model }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Número de serie</label>
+                                <input type="text" name="rental_serial" class="form-control form-control-sm" value="{{ product.rental_serial }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Valor comercial (COP)</label>
+                                <input type="number" step="0.01" min="0" name="rental_commercial_value" class="form-control form-control-sm" value="{{ product.rental_commercial_value|default_if_none:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Depósito / garantía (opcional)</label>
+                                <input type="number" step="0.01" min="0" name="rental_deposit" class="form-control form-control-sm" value="{{ product.rental_deposit|default_if_none:'' }}" placeholder="En contrato: 8% del valor comercial">
+                                <div class="form-text">Opcional. Si se exige, el contrato usa el 8% del valor comercial.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Estado del equipo</label>
+                                <input type="text" name="rental_condition" class="form-control form-control-sm" value="{{ product.rental_condition }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Accesorios incluidos</label>
+                                <textarea name="rental_accessories" class="form-control form-control-sm" rows="2" placeholder="Cables, tapas, bandejas, manuales...">{{ product.rental_accessories }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-1">
                         <div class="col-md-6">{{ form.stock.label_tag }}{{ form.stock }}</div>
                         <div class="col-md-12">
                             <div class="form-check">{{ form.available }}<label class="form-check-label" for="{{ form.available.id_for_label }}">{{ form.available.label }}</label></div>
@@ -465,8 +594,20 @@
         </div>
     {% else %}
     <!-- Create mode: full form -->
-    <form method="post" enctype="multipart/form-data" id="product-form-create" class="inventory-form">
+    <form method="post" enctype="multipart/form-data" id="product-form-create" class="inventory-form" novalidate>
         {% csrf_token %}
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <strong>No se pudo guardar el producto.</strong>
+            <ul class="mb-0 mt-2 small">
+              {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{% if field != '__all__' %}<strong>{{ field }}:</strong> {% endif %}{{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
         <div class="row g-4">
             <div class="col-lg-8">
                 <div class="card border-0 shadow-sm mb-4">
@@ -487,18 +628,70 @@
                                 </div>
                             </div>
                             <div class="col-md-6">{{ form.product_type.label_tag }}{{ form.product_type }}</div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.accent_color.label }} <span class="text-muted fw-normal">(opcional)</span></label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color"
+                                           name="accent_color"
+                                           id="id_accent_color_create"
+                                           class="form-control form-control-color"
+                                           value="{{ form.accent_color.value|default:'#0F6FFF' }}"
+                                           title="Elige un color de diseño">
+                                    <span class="small text-muted" id="accent-color-hex-create">Opcional</span>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="accent_color_clear" id="accent_color_clear_create" checked>
+                                    <label class="form-check-label small" for="accent_color_clear_create">Sin color (usar diseño por defecto)</label>
+                                </div>
+                                <small class="form-text text-muted">Se usa como fondo o acento en la vitrina y ficha del producto.</small>
+                            </div>
                             <div class="col-12">{{ form.description.label_tag }}{{ form.description }}</div>
                             <div class="col-12">{{ form.keywords.label_tag }}{{ form.keywords }}</div>
+                            <div class="col-12">
+                                <div class="border rounded-3 p-3 bg-light-subtle">
+                                    <div class="form-check form-switch mb-2">
+                                        {{ form.unit_price_enabled }}
+                                        <label class="form-check-label fw-semibold" for="{{ form.unit_price_enabled.id_for_label }}">
+                                            Precio unitario
+                                        </label>
+                                    </div>
+                                    <p class="small text-muted mb-3 mb-md-2">
+                                        Indica cuántas unidades tiene el producto; el valor por medida se calcula solo
+                                        (precio de venta u oferta ÷ unidades totales).
+                                    </p>
+                                    <div id="unit-price-fields-create" class="row g-2 opacity-50">
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="{{ form.unit_quantity.id_for_label }}">Unidades totales</label>
+                                            {{ form.unit_quantity }}
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="{{ form.unit_measure.id_for_label }}">Medida</label>
+                                            {{ form.unit_measure }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-white"><h5 class="mb-0">Precio y Stock</h5></div>
+                    <div class="card-header bg-white"><h5 class="mb-0" id="pricing-section-title-create">Precio y Stock</h5></div>
                     <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-4">{{ form.purchase_cost.label_tag }}{{ form.purchase_cost }}</div>
-                            <div class="col-md-4">{{ form.price.label_tag }}{{ form.price }}</div>
-                            <div class="col-md-4">{{ form.promotional_price.label_tag }}{{ form.promotional_price }}</div>
+                        <div id="sale-pricing-fields-create">
+                            <div class="row g-3">
+                                <div class="col-md-4">{{ form.purchase_cost.label_tag }}{{ form.purchase_cost }}</div>
+                                <div class="col-md-4">{{ form.price.label_tag }}{{ form.price }}</div>
+                                <div class="col-md-4">{{ form.promotional_price.label_tag }}{{ form.promotional_price }}</div>
+                            </div>
+                        </div>
+                        <div id="rental-pricing-fields-create" style="display: none;">
+                            <p class="text-muted small mb-3">Define las tarifas según el tiempo de uso. Los productos de alquiler no tienen costo de compra.</p>
+                            <div id="rental-prices-container-create"></div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-rental-price-btn-create">
+                                <i class="bi bi-plus-circle me-1"></i> Agregar tarifa
+                            </button>
+                        </div>
+                        <div class="row g-3 mt-1">
                             <div class="col-md-6">{{ form.stock.label_tag }}{{ form.stock }}</div>
                             <div class="col-12"><div class="form-check">{{ form.available }}<label class="form-check-label">{{ form.available.label }}</label></div></div>
                         </div>
@@ -773,6 +966,192 @@ if (formAttributes) formAttributes.addEventListener('submit', function() {
             alert('Error al crear la categoría.');
         });
     });
+})();
+
+// Tarifas de alquiler — mostrar/ocultar según tipo de producto
+(function() {
+    const RENTAL_PERIOD_CHOICES = [
+        {% for value, label in rental_period_choices %}
+        { value: "{{ value }}", label: "{{ label }}" },
+        {% endfor %}
+    ];
+
+    let newRentalPriceIndex = 0;
+
+    function buildPeriodOptions(selected) {
+        return RENTAL_PERIOD_CHOICES.map(function(choice) {
+            const sel = choice.value === selected ? ' selected' : '';
+            return '<option value="' + choice.value + '"' + sel + '>' + choice.label + '</option>';
+        }).join('');
+    }
+
+    function buildNewRentalRow(containerId, prefix) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const row = document.createElement('div');
+        row.className = 'rental-price-item row g-2 align-items-center mb-2';
+        row.innerHTML =
+            '<div class="col-md-4">' +
+                '<label class="form-label small mb-1">Periodo</label>' +
+                '<select name="' + prefix + 'period_' + newRentalPriceIndex + '" class="form-select form-select-sm rental-period-select">' +
+                    buildPeriodOptions('daily') +
+                '</select>' +
+            '</div>' +
+            '<div class="col-md-4">' +
+                '<label class="form-label small mb-1">Precio</label>' +
+                '<input type="number" step="0.01" min="0.01" name="' + prefix + 'price_' + newRentalPriceIndex + '" class="form-control form-control-sm" placeholder="0.00">' +
+            '</div>' +
+            '<div class="col-md-2">' +
+                '<label class="form-label small mb-1 d-block">Estado</label>' +
+                '<div class="form-check mt-1">' +
+                    '<input type="checkbox" class="form-check-input" name="' + prefix + 'active_' + newRentalPriceIndex + '" checked>' +
+                    '<label class="form-check-label small">Activo</label>' +
+                '</div>' +
+            '</div>' +
+            '<div class="col-md-2">' +
+                '<label class="form-label small mb-1 d-block">&nbsp;</label>' +
+                '<button type="button" class="btn btn-sm btn-outline-danger w-100 remove-rental-price-btn" title="Eliminar tarifa">' +
+                    '<i class="bi bi-trash"></i>' +
+                '</button>' +
+            '</div>' +
+            '<input type="hidden" name="' + prefix + 'order_' + newRentalPriceIndex + '" value="' + newRentalPriceIndex + '">';
+        container.appendChild(row);
+        row.querySelector('.remove-rental-price-btn').addEventListener('click', function() {
+            row.remove();
+        });
+        newRentalPriceIndex++;
+    }
+
+    function togglePricingMode(productTypeSelect) {
+        const isRental = productTypeSelect && productTypeSelect.value === 'rental';
+        const formRoot = productTypeSelect ? productTypeSelect.closest('form, .inventory-form, .row') : null;
+        const scope = formRoot || document;
+
+        [
+            ['sale-pricing-fields', 'rental-pricing-fields', 'pricing-section-title', 'Tarifas de alquiler', 'Precio y Stock'],
+            ['sale-pricing-fields-create', 'rental-pricing-fields-create', 'pricing-section-title-create', 'Tarifas de alquiler', 'Precio y Stock'],
+        ].forEach(function(cfg) {
+            const saleEl = document.getElementById(cfg[0]);
+            const rentalEl = document.getElementById(cfg[1]);
+            const titleEl = document.getElementById(cfg[2]);
+            if (saleEl) saleEl.style.display = isRental ? 'none' : '';
+            if (rentalEl) rentalEl.style.display = isRental ? '' : 'none';
+            if (titleEl) titleEl.textContent = isRental ? cfg[3] : cfg[4];
+        });
+    }
+
+    document.querySelectorAll('#id_product_type, select[name="product_type"]').forEach(function(select) {
+        select.addEventListener('change', function() { togglePricingMode(select); });
+        togglePricingMode(select);
+    });
+
+    const addBtn = document.getElementById('add-rental-price-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            buildNewRentalRow('rental-prices-container', 'new_rental_price_');
+        });
+    }
+
+    const addBtnCreate = document.getElementById('add-rental-price-btn-create');
+    if (addBtnCreate) {
+        addBtnCreate.addEventListener('click', function() {
+            buildNewRentalRow('rental-prices-container-create', 'new_rental_price_');
+        });
+        if (document.getElementById('id_product_type') && document.getElementById('id_product_type').value === 'rental') {
+            buildNewRentalRow('rental-prices-container-create', 'new_rental_price_');
+        }
+    }
+
+    document.querySelectorAll('.remove-rental-price-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const item = btn.closest('.rental-price-item');
+            const priceId = item && item.dataset.rentalPriceId;
+            if (priceId) {
+                const deleteInput = document.createElement('input');
+                deleteInput.type = 'hidden';
+                deleteInput.name = 'delete_rental_price';
+                deleteInput.value = priceId;
+                item.appendChild(deleteInput);
+                item.querySelectorAll('input, select, button').forEach(function(el) {
+                    if (el !== deleteInput) el.disabled = true;
+                });
+                item.style.display = 'none';
+            } else {
+                item.remove();
+            }
+        });
+    });
+})();
+
+// Color de diseño del producto
+(function() {
+    function bindColorField(colorInputId, hexLabelId, clearCheckboxId) {
+        const colorInput = document.getElementById(colorInputId);
+        const hexLabel = document.getElementById(hexLabelId);
+        const clearCheckbox = document.getElementById(clearCheckboxId);
+        if (!colorInput) return;
+
+        function sync() {
+            if (clearCheckbox && clearCheckbox.checked) {
+                colorInput.disabled = true;
+                if (hexLabel) hexLabel.textContent = 'Sin color';
+            } else {
+                colorInput.disabled = false;
+                if (hexLabel) hexLabel.textContent = colorInput.value.toUpperCase();
+            }
+        }
+
+        colorInput.addEventListener('input', function() {
+            if (clearCheckbox) clearCheckbox.checked = false;
+            sync();
+        });
+        if (clearCheckbox) {
+            clearCheckbox.addEventListener('change', sync);
+        }
+        // Asegurar envío del color: si "Sin color", mandar vacío real
+        const form = colorInput.closest('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                colorInput.disabled = false;
+                if (clearCheckbox && clearCheckbox.checked) {
+                    // type=color no acepta ''; usamos sentinel y el backend limpia por accent_color_clear
+                    colorInput.value = '#000000';
+                }
+            });
+        }
+        sync();
+    }
+
+    bindColorField('id_accent_color', 'accent-color-hex', 'accent_color_clear');
+    bindColorField('id_accent_color_create', 'accent-color-hex-create', 'accent_color_clear_create');
+})();
+
+// Precio unitario — habilitar / deshabilitar campos
+(function() {
+    function bindUnitPriceToggle(checkboxId, fieldsId) {
+        const checkbox = document.getElementById(checkboxId);
+        const fields = document.getElementById(fieldsId);
+        if (!checkbox || !fields) return;
+        function sync() {
+            const on = checkbox.checked;
+            fields.classList.toggle('opacity-50', !on);
+            fields.querySelectorAll('input, select').forEach(function(el) {
+                el.disabled = !on;
+            });
+        }
+        checkbox.addEventListener('change', sync);
+        const form = checkbox.closest('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                fields.querySelectorAll('input, select').forEach(function(el) {
+                    el.disabled = false;
+                });
+            });
+        }
+        sync();
+    }
+    bindUnitPriceToggle('id_unit_price_enabled', 'unit-price-fields');
+    bindUnitPriceToggle('id_unit_price_enabled', 'unit-price-fields-create');
 })();
 </script>
 {% endblock %}

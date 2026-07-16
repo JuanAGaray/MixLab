@@ -4,7 +4,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}MixLab{% endblock %}</title>
+    
+    <!-- Primary Meta Tags -->
+    <title>{% block title %}MixLab - Insumos, Maquinaria y Desechables para Coctelería y Mixología{% endblock %}</title>
+    <meta name="title" content="{% block meta_title %}MixLab - Insumos, Maquinaria y Desechables para Coctelería y Mixología en Colombia{% endblock %}">
+    <meta name="description" content="{% block meta_description %}MixLab es tu proveedor especializado en insumos, maquinaria y desechables para coctelería, comidas rápidas y mixología en Colombia. Envíos gratis en Cartagena.{% endblock %}">
+    <meta name="keywords" content="{% block meta_keywords %}insumos coctelería, maquinaria mixología, desechables restaurantes, granizadoras, productos para bares, Cartagena Colombia{% endblock %}">
+    <meta name="author" content="MixLab">
+    <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}">
+    <meta name="language" content="Spanish">
+    <meta name="revisit-after" content="7 days">
+    <link rel="canonical" href="{% block canonical_url %}{{ request.build_absolute_uri }}{% endblock %}">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:url" content="{% block og_url %}{{ request.build_absolute_uri }}{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}MixLab - Insumos, Maquinaria y Desechables para Coctelería y Mixología{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}MixLab es tu proveedor especializado en insumos, maquinaria y desechables para coctelería, comidas rápidas y mixología en Colombia. Envíos gratis en Cartagena.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/TotalLogo.png' %}{% endblock %}">
+    <meta property="og:site_name" content="MixLab">
+    <meta property="og:locale" content="es_CO">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{% block twitter_url %}{{ request.build_absolute_uri }}{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}MixLab - Insumos, Maquinaria y Desechables para Coctelería y Mixología{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}MixLab es tu proveedor especializado en insumos, maquinaria y desechables para coctelería, comidas rápidas y mixología en Colombia. Envíos gratis en Cartagena.{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/TotalLogo.png' %}{% endblock %}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/IsoLogo.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/IsoLogo.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/IsoLogo.png' %}">
+    <link rel="shortcut icon" href="{% static 'img/IsoLogo.png' %}">
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -14,41 +50,63 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     
     {% block extra_css %}{% endblock %}
+    
+    <!-- Schema.org JSON-LD - Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "MixLab",
+      "url": "{{ request.scheme }}://{{ request.get_host }}",
+      "logo": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/TotalLogo.png' %}",
+      "description": "Proveedor especializado en insumos, maquinaria y desechables para coctelería, comidas rápidas y mixología en Colombia",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "{{ site_settings.address_city }}",
+        "addressCountry": "CO"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "{{ site_settings.contact_phone }}",
+        "contactType": "Ventas",
+        "email": "{{ site_settings.contact_email }}"
+      },
+      "sameAs": [
+        {% for url in site_settings.social_links %}"{{ url }}"{% if not forloop.last %}, {% endif %}{% endfor %}
+      ]
+    }
+    </script>
+    
+    {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}{% if sidebar_banners %} has-sidebar-ads{% endif %}">
     <!-- Promotional Banner -->
-    <div class="promo-banner text-center py-2">
-        <strong><i class="bi bi-truck"></i> Envíos gratis para Cartagena por compras superiores a $290.000</strong>
-    </div>
+    {% include 'store/partials/promo_banners.html' %}
 
     <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white">
-        <div class="container">
-            <a class="navbar-brand" href="{% url 'store:home' %}">
-                <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="35">
+    <nav class="navbar navbar-expand-lg navbar-premium navbar-premium--simple sticky-top" id="mainNavbar">
+        <div class="container-fluid container-xl px-3 px-lg-4 navbar-shell">
+            <a class="navbar-brand navbar-brand-premium" href="{% url 'store:home' %}">
+                <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="32">
             </a>
-            <!-- Botón menú móvil (offcanvas) -->
-            <button class="navbar-toggler" type="button"
+
+            <button class="navbar-toggler navbar-toggler-premium" type="button"
                     data-bs-toggle="offcanvas"
                     data-bs-target="#mainNavOffcanvas"
                     aria-controls="mainNavOffcanvas"
                     aria-label="Abrir menú">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <!-- Navegación escritorio -->
-            <div class="d-none d-lg-flex flex-grow-1 justify-content-between" id="navbarNavDesktop">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:home' %}">Inicio</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:product_list' %}">Productos</a>
-                    </li>
+
+            <!-- Desktop nav -->
+            <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarNavDesktop">
+                <ul class="navbar-nav navbar-nav-center navbar-nav-left">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'store:home' %}">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'store:product_list' %}">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'store:water_calculator' %}">Calculadora</a></li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            Categorías
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Categorías</a>
+                        <ul class="dropdown-menu dropdown-menu-premium" aria-labelledby="navbarDropdown">
                             {% for category in categories %}
                             <li><a class="dropdown-item" href="{% url 'store:product_list' %}?category={{ category.slug }}">{{ category.name }}</a></li>
                             {% empty %}
@@ -57,50 +115,62 @@
                         </ul>
                     </li>
                     {% if user.is_staff %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="managerDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            Manager
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="managerDropdown">
+                    <li class="nav-item dropdown nav-item-manager">
+                        <a class="nav-link dropdown-toggle" href="#" id="managerDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Manager</a>
+                        <ul class="dropdown-menu dropdown-menu-premium" aria-labelledby="managerDropdown">
                             <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:client_list' %}"><i class="bi bi-people"></i> Clientes</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:staff_user_list' %}"><i class="bi bi-person-badge"></i> Personal (vendedores/admins)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:sales_list' %}"><i class="bi bi-graph-up"></i> Ventas</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:finance_list' %}"><i class="bi bi-cash-stack"></i> Gastos y pagos</a></li>
                         </ul>
                     </li>
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav">
+                <div class="navbar-actions d-flex align-items-center gap-2">
+                    <form action="{% url 'store:product_list' %}" method="get" class="navbar-search-form d-none d-lg-flex" role="search">
+                        <i class="bi bi-search"></i>
+                        <input type="search" name="q" placeholder="Buscar productos…" aria-label="Buscar productos" autocomplete="off">
+                    </form>
+                    <a href="{% url 'store:product_list' %}" class="btn-nav-icon d-lg-none" title="Buscar" aria-label="Buscar">
+                        <i class="bi bi-search"></i>
+                    </a>
+                    <a href="{% url 'store:product_list' %}" class="btn-nav-demo home-nav-cta d-none">
+                        Ver catálogo <i class="bi bi-arrow-right"></i>
+                    </a>
+                    <button type="button" class="btn-nav-icon position-relative" data-bs-toggle="offcanvas" data-bs-target="#cartOffcanvas" aria-label="Carrito">
+                        <i class="bi bi-bag"></i>
+                        {% if cart_item_count > 0 %}
+                        <span class="nav-cart-badge">{{ cart_item_count }}</span>
+                        {% endif %}
+                    </button>
                     {% if user.is_authenticated %}
                     {% load store_tags %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <div class="user-avatar me-2">
-                                <span class="avatar-initials">{{ user|initials }}</span>
-                            </div>
-                            <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                    <div class="dropdown nav-user-menu">
+                        <button class="btn-nav-user dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="user-avatar-sm"><span class="avatar-initials">{{ user|initials }}</span></span>
+                            <span class="d-none d-xxl-inline">{{ user.get_full_name|default:user.username|truncatechars:12 }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-premium">
                             <li><a class="dropdown-item" href="{% url 'store:order_list' %}"><i class="bi bi-box-seam"></i> Mis Pedidos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'rentals:rental_history' %}"><i class="bi bi-calendar-check"></i> Mis Alquileres</a></li>
                             <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person"></i> Mi Perfil</a></li>
-                            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}#direcciones"><i class="bi bi-geo-alt"></i> Mis Direcciones</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
+                                <form method="post" action="{% url 'accounts:logout' %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="dropdown-item logout-link border-0 bg-transparent w-100 text-start" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
-                                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
-                                    </button>
+                                    <button type="submit" class="dropdown-item border-0 bg-transparent w-100 text-start"><i class="bi bi-box-arrow-right"></i> Cerrar Sesión</button>
                                 </form>
                             </li>
                         </ul>
-                    </li>
+                    </div>
                     {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'accounts:login' %}">Iniciar Sesión</a>
-                    </li>
+                    <a href="{% url 'accounts:login' %}" class="btn-nav-login">Iniciar sesión</a>
                     {% endif %}
-                </ul>
+                </div>
             </div>
         </div>
     </nav>
@@ -123,6 +193,9 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-1"></i> Productos</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:water_calculator' %}"><i class="bi bi-droplet-half me-1"></i> Calculadora</a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMobile" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-grid me-1"></i> Categorías
@@ -136,15 +209,19 @@
                         </ul>
                     </li>
                     {% if user.is_staff %}
-                    <li class="nav-item dropdown mt-2">
+                    <li class="nav-item dropdown mt-2 nav-item-manager">
                         <a class="nav-link dropdown-toggle" href="#" id="managerDropdownMobile" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-speedometer2 me-1"></i> Manager
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="managerDropdownMobile">
                             <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:client_list' %}"><i class="bi bi-people"></i> Clientes</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:staff_user_list' %}"><i class="bi bi-person-badge"></i> Personal (vendedores/admins)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:sales_list' %}"><i class="bi bi-graph-up"></i> Ventas</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:finance_list' %}"><i class="bi bi-cash-stack"></i> Gastos y pagos</a></li>
                         </ul>
                     </li>
                     {% endif %}
@@ -272,15 +349,15 @@
                     <ul class="list-unstyled mb-0 text-white-50">
                         <li class="mb-2 d-flex align-items-start">
                             <i class="bi bi-envelope me-2 mt-1"></i>
-                            <a href="mailto:ventas@mixlab.com.co" class="text-white-50 text-decoration-none">ventas@mixlab.com.co</a>
+                            <a href="mailto:{{ site_settings.contact_email }}" class="text-white-50 text-decoration-none">{{ site_settings.contact_email }}</a>
                         </li>
                         <li class="mb-2 d-flex align-items-center">
                             <i class="bi bi-telephone me-2"></i>
-                            <span>+573045379501</span>
+                            <span>{{ site_settings.contact_phone }}</span>
                         </li>
                         <li class="mb-2 d-flex align-items-start">
                             <i class="bi bi-geo-alt me-2 mt-1"></i>
-                            <span>Cartagena, Colombia</span>
+                            <span>{{ site_settings.display_address }}</span>
                         </li>
                     </ul>
                 </div>
@@ -291,8 +368,15 @@
                     </a>
                     <h6 class="footer-title">Síguenos en redes</h6>
                     <div class="footer-redes">
-                        <a href="https://www.instagram.com/mixlab_co?utm_source=qr&igsh=Z2tjMjlxaHRzb3M4" class="text-white-50" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-                        <a href="https://www.tiktok.com/@mixlab_co?_r=1&_t=ZS-93oYlA79zUe" class="text-white-50" target="_blank" rel="noopener noreferrer" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                        {% if site_settings.instagram_url %}
+                        <a href="{{ site_settings.instagram_url }}" class="text-white-50" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                        {% endif %}
+                        {% if site_settings.tiktok_url %}
+                        <a href="{{ site_settings.tiktok_url }}" class="text-white-50" target="_blank" rel="noopener noreferrer" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                        {% endif %}
+                        {% if site_settings.facebook_url %}
+                        <a href="{{ site_settings.facebook_url }}" class="text-white-50" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -304,9 +388,11 @@
     </footer>
 
     <!-- Floating WhatsApp Button (above cart) -->
-    <a href="https://wa.me/573045379501" class="floating-wa-btn" target="_blank" rel="noopener noreferrer" title="Contactar por WhatsApp" aria-label="WhatsApp">
+    {% if site_settings.whatsapp_url %}
+    <a href="{{ site_settings.whatsapp_url }}" class="floating-wa-btn" target="_blank" rel="noopener noreferrer" title="Contactar por WhatsApp" aria-label="WhatsApp">
         <i class="bi bi-whatsapp"></i>
     </a>
+    {% endif %}
 
     <!-- Floating Cart Button -->
     <button type="button" class="floating-cart-btn" data-bs-toggle="offcanvas" data-bs-target="#cartOffcanvas" aria-controls="cartOffcanvas" title="Ver Carrito">
@@ -551,7 +637,10 @@
             const productName = btn.dataset.productName || 'Producto';
             const productStock = parseInt(btn.dataset.productStock || btn.getAttribute('data-product-stock') || '0', 10);
             const quantityInput = document.getElementById('quantity-input');
-            const quantity = quantityInput ? (parseInt(quantityInput.value, 10) || 1) : 1;
+            const quantityFromBtn = parseInt(btn.dataset.quantity || '', 10);
+            const quantity = !isNaN(quantityFromBtn) && quantityFromBtn > 0
+                ? quantityFromBtn
+                : (quantityInput ? (parseInt(quantityInput.value, 10) || 1) : 1);
             if (productStock > 0 && quantity > productStock) {
                 if (typeof alert === 'function') alert('No hay suficiente stock. Solo hay ' + productStock + ' unidades disponibles.');
                 return;
@@ -559,7 +648,9 @@
             if (quantity < 1) return;
             btn.disabled = true;
             const originalHtml = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Agregando...';
+            btn.innerHTML = btn.classList.contains('pd-also-cart')
+                ? '<span class="spinner-border spinner-border-sm"></span>'
+                : '<span class="spinner-border spinner-border-sm me-2"></span>Agregando...';
             fetch('/cart/add/' + productId + '/', {
                 method: 'POST',
                 headers: {
@@ -887,6 +978,17 @@
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
         initializeCartEventListeners();
+    });
+    // Navbar glass effect on scroll
+    document.addEventListener('DOMContentLoaded', function () {
+        var nav = document.getElementById('mainNavbar');
+        if (!nav) return;
+        function onScroll() {
+            var threshold = 8;
+            nav.classList.toggle('scrolled', window.scrollY > threshold);
+        }
+        onScroll();
+        window.addEventListener('scroll', onScroll, { passive: true });
     });
     </script>
     

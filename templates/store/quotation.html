@@ -115,9 +115,10 @@
                                 <thead>
                                     <tr>
                                         <th>Producto</th>
-                                        <th style="width: 120px;">Cantidad</th>
-                                        <th style="width: 170px;" class="text-end quotation-money-col">Precio unitario</th>
-                                        <th style="width: 190px;" class="text-end quotation-money-col">Subtotal</th>
+                                        <th style="width: 100px;">Cantidad</th>
+                                        <th style="width: 160px;">Descuento</th>
+                                        <th style="width: 160px;" class="text-end quotation-money-col">Precio unitario</th>
+                                        <th style="width: 170px;" class="text-end quotation-money-col">Subtotal</th>
                                         <th style="width: 60px;"></th>
                                     </tr>
                                 </thead>
@@ -127,33 +128,61 @@
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 {% if item.product.image %}
-                                                <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                                                <img src="{{ item.product.image.url }}" alt="{{ item.display_name|default:item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
                                                 {% else %}
                                                 <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
                                                     <i class="bi bi-image text-muted"></i>
                                                 </div>
                                                 {% endif %}
                                                 <div>
-                                                    <strong>{{ item.product.name }}</strong>
+                                                    <strong>{{ item.display_name|default:item.product.name }}</strong>
                                                     <br>
-                                                    <small class="text-muted">{{ item.product.category.name }}</small>
+                                                    <small class="text-muted">
+                                                        {{ item.product.category.name }}
+                                                        {% if item.period_label %} · Alquiler{% endif %}
+                                                    </small>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
-                                            <input type="number" name="quantity_{{ item.product.id }}" value="{{ item.quantity }}" min="1" class="form-control form-control-sm quantity-input" data-product-id="{{ item.product.id }}" style="width: 90px;">
+                                            <input type="number" name="quantity_{{ item.line_key|default:item.product.id }}" value="{{ item.quantity }}" min="1" class="form-control form-control-sm quantity-input" data-line-key="{{ item.line_key|default:item.product.id }}" style="width: 90px;">
                                         </td>
-                                        <td class="text-end quotation-nowrap quotation-money-col">{{ item.unit_price|pesos_colombianos }}</td>
+                                        <td>
+                                            <div class="input-group input-group-sm quote-discount-group" style="width: 150px;">
+                                                <input type="number"
+                                                       name="discount_{{ item.line_key|default:item.product.id }}"
+                                                       value="{{ item.discount_value|default:item.discount_percent|default:0 }}"
+                                                       min="0"
+                                                       step="0.01"
+                                                       class="form-control discount-input"
+                                                       data-line-key="{{ item.line_key|default:item.product.id }}"
+                                                       data-list-price="{{ item.list_unit_price }}"
+                                                       title="Descuento">
+                                                <select class="form-select discount-type-select"
+                                                        data-line-key="{{ item.line_key|default:item.product.id }}"
+                                                        style="max-width: 62px;"
+                                                        title="Tipo de descuento">
+                                                    <option value="percent"{% if item.discount_type != 'amount' %} selected{% endif %}>%</option>
+                                                    <option value="amount"{% if item.discount_type == 'amount' %} selected{% endif %}>$</option>
+                                                </select>
+                                            </div>
+                                        </td>
+                                        <td class="text-end quotation-nowrap quotation-money-col">
+                                            {% if item.discount_value and item.discount_value > 0 or item.discount_percent and item.discount_percent > 0 %}
+                                            <div class="small text-muted text-decoration-line-through">{{ item.list_unit_price|pesos_colombianos }}</div>
+                                            {% endif %}
+                                            {{ item.unit_price|pesos_colombianos }}
+                                        </td>
                                         <td class="text-end quotation-nowrap quotation-money-col"><strong>{{ item.subtotal|pesos_colombianos }}</strong></td>
                                         <td>
-                                            <button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-product-id="{{ item.product.id }}" title="Quitar">
+                                            <button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-line-key="{{ item.line_key|default:item.product.id }}" title="Quitar">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </td>
                                     </tr>
                                     {% empty %}
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">
+                                        <td colspan="6" class="text-center text-muted py-4">
                                             Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.
                                         </td>
                                     </tr>
@@ -161,7 +190,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="3" class="text-end"><strong>Total (IVA incluido):</strong></td>
+                                        <td colspan="4" class="text-end"><strong>Total (IVA incluido):</strong></td>
                                         <td class="text-end quotation-nowrap quotation-money-col"><strong class="h5 mb-0">{{ total|pesos_colombianos }}</strong></td>
                                         <td></td>
                                     </tr>
@@ -193,7 +222,7 @@
                         {% if products_by_category %}
                         <form method="get" id="add-products-form">
                             {% for item in quotation_items %}
-                            <input type="hidden" name="products" value="{{ item.product.id }}">
+                            <input type="hidden" name="products" value="{{ item.line_key|default:item.product.id }}">
                             {% endfor %}
                             <div class="accordion" id="addProductsAccordion">
                                 {% for category_name, products in products_by_category.items %}
@@ -211,42 +240,85 @@
                                                         <tr>
                                                             <th style="width: 40px;"></th>
                                                             <th>Producto</th>
-                                                            <th class="text-end" style="width: 120px;">Precio</th>
+                                                            <th class="text-end" style="width: 140px;">Precio</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {% for product in products %}
-                                                        <tr class="product-row-add" data-product-id="{{ product.id }}" data-product-name="{{ product.name|lower }}" data-product-category="{{ category_name|lower }}">
-                                                            <td>
-                                                                <input type="checkbox" name="products" value="{{ product.id }}" id="add_product_{{ product.id }}" class="form-check-input product-checkbox-add">
-                                                            </td>
-                                                            <td>
-                                                                <label for="add_product_{{ product.id }}" class="d-flex align-items-center mb-0" style="cursor: pointer;">
-                                                                    {% if product.image %}
-                                                                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
-                                                                    {% else %}
-                                                                    <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                                                        <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
-                                                                    </div>
-                                                                    {% endif %}
-                                                                    <div>
-                                                                        <strong>{{ product.name }}</strong>
-                                                                        {% if product.description %}
-                                                                        <br>
-                                                                        <small class="text-muted">{{ product.description|truncatewords:10 }}</small>
+                                                          {% if product.is_rental and product.rental_prices.all %}
+                                                            {% for tariff in product.rental_prices.all %}
+                                                            <tr class="product-row-add"
+                                                                data-product-id="{{ product.id }}"
+                                                                data-line-key="{{ product.id }}:{{ tariff.id }}"
+                                                                data-product-name="{{ product.name|lower }} {{ tariff.get_period_type_display|lower }} alquiler"
+                                                                data-product-category="{{ category_name|lower }}">
+                                                                <td>
+                                                                    <input type="checkbox" name="products" value="{{ product.id }}:{{ tariff.id }}" id="add_product_{{ product.id }}_{{ tariff.id }}" class="form-check-input product-checkbox-add">
+                                                                </td>
+                                                                <td>
+                                                                    <label for="add_product_{{ product.id }}_{{ tariff.id }}" class="d-flex align-items-center mb-0" style="cursor: pointer;">
+                                                                        {% if product.image %}
+                                                                        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                        {% else %}
+                                                                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                                            <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
+                                                                        </div>
                                                                         {% endif %}
-                                                                    </div>
-                                                                </label>
-                                                            </td>
-                                                            <td class="text-end">
-                                                                {% if product.has_discount %}
-                                                                <span class="text-decoration-line-through text-muted small d-block">{{ product.price|pesos_colombianos }}</span>
-                                                                <span class="text-primary fw-bold">{{ product.promotional_price|pesos_colombianos }}</span>
-                                                                {% else %}
-                                                                <span class="text-primary fw-bold">{{ product.price|pesos_colombianos }}</span>
-                                                                {% endif %}
-                                                            </td>
-                                                        </tr>
+                                                                        <div>
+                                                                            <strong>{{ product.name }}</strong>
+                                                                            <br>
+                                                                            <small class="text-muted">
+                                                                                <span class="badge bg-info text-dark">{{ tariff.get_period_type_display }}</span>
+                                                                                {% if product.description %}
+                                                                                · {{ product.description|striptags|truncatewords:8 }}
+                                                                                {% endif %}
+                                                                            </small>
+                                                                        </div>
+                                                                    </label>
+                                                                </td>
+                                                                <td class="text-end">
+                                                                    <span class="text-primary fw-bold">{{ tariff.price|pesos_colombianos }}</span>
+                                                                    <small class="text-muted d-block">{{ tariff.period_short_label }}</small>
+                                                                </td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                          {% else %}
+                                                            <tr class="product-row-add"
+                                                                data-product-id="{{ product.id }}"
+                                                                data-line-key="{{ product.id }}"
+                                                                data-product-name="{{ product.name|lower }}"
+                                                                data-product-category="{{ category_name|lower }}">
+                                                                <td>
+                                                                    <input type="checkbox" name="products" value="{{ product.id }}" id="add_product_{{ product.id }}" class="form-check-input product-checkbox-add">
+                                                                </td>
+                                                                <td>
+                                                                    <label for="add_product_{{ product.id }}" class="d-flex align-items-center mb-0" style="cursor: pointer;">
+                                                                        {% if product.image %}
+                                                                        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                        {% else %}
+                                                                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                                            <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
+                                                                        </div>
+                                                                        {% endif %}
+                                                                        <div>
+                                                                            <strong>{{ product.name }}</strong>
+                                                                            {% if product.description %}
+                                                                            <br>
+                                                                            <small class="text-muted">{{ product.description|striptags|truncatewords:10 }}</small>
+                                                                            {% endif %}
+                                                                        </div>
+                                                                    </label>
+                                                                </td>
+                                                                <td class="text-end">
+                                                                    {% if product.has_discount %}
+                                                                    <span class="text-decoration-line-through text-muted small d-block">{{ product.price|pesos_colombianos }}</span>
+                                                                    <span class="text-primary fw-bold">{{ product.promotional_price|pesos_colombianos }}</span>
+                                                                    {% else %}
+                                                                    <span class="text-primary fw-bold">{{ product.price|pesos_colombianos }}</span>
+                                                                    {% endif %}
+                                                                </td>
+                                                            </tr>
+                                                          {% endif %}
                                                         {% endfor %}
                                                     </tbody>
                                                 </table>
@@ -480,6 +552,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }).format(value || 0);
     }
 
+    function postDiscount(lineKey, discountValue, discountType, listPrice) {
+        let discount = parseFloat(String(discountValue).replace(',', '.'));
+        if (isNaN(discount) || discount < 0) discount = 0;
+        if (discountType === 'percent' && discount > 100) discount = 100;
+        if (discountType === 'amount' && listPrice != null && !isNaN(Number(listPrice)) && discount > Number(listPrice)) {
+            discount = Number(listPrice);
+        }
+        return fetch("{% url 'store:quotation_ajax_update_discount' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                line_key: lineKey,
+                product_id: lineKey,
+                discount_type: discountType,
+                discount_value: String(discount),
+                discount_percent: String(discount),
+            }),
+        }).then(r => r.json()).then(renderQuote).catch(() => {});
+    }
+
+    function discountControlsHtml(lineKey, item) {
+        const dtype = (item.discount_type === 'amount') ? 'amount' : 'percent';
+        const disc = Number(item.discount_value != null ? item.discount_value : (item.discount_percent || 0));
+        const listPrice = Number(item.list_unit_price || 0);
+        return (
+            '<div class="input-group input-group-sm quote-discount-group" style="width:150px;">' +
+            '<input type="number" name="discount_' + lineKey + '" value="' + disc + '" min="0" step="0.01" ' +
+            'class="form-control discount-input" data-line-key="' + lineKey + '" data-list-price="' + listPrice + '" title="Descuento">' +
+            '<select class="form-select discount-type-select" data-line-key="' + lineKey + '" style="max-width:62px;" title="Tipo de descuento">' +
+            '<option value="percent"' + (dtype === 'percent' ? ' selected' : '') + '>%</option>' +
+            '<option value="amount"' + (dtype === 'amount' ? ' selected' : '') + '>$</option>' +
+            '</select></div>'
+        );
+    }
+
     function renderQuote(payload) {
         // Actualiza tabla hoja de cotización
         const tbody = document.querySelector('table.table-hover tbody');
@@ -487,43 +598,62 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!tbody) return;
         tbody.innerHTML = '';
         if (!payload.items || payload.items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.</td></tr>';
         } else {
             payload.items.forEach(item => {
+                const lineKey = String(item.line_key || item.id);
                 const img = item.image_url
                     ? '<img src="' + item.image_url + '" class="rounded me-2" style="width:50px;height:50px;object-fit:cover;" />'
                     : '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-image text-muted"></i></div>';
+                const disc = Number(item.discount_value != null ? item.discount_value : (item.discount_percent || 0));
+                const priceCell = (disc > 0)
+                    ? '<div class="small text-muted text-decoration-line-through">' + fmtCOP(item.list_unit_price) + '</div>' + fmtCOP(item.unit_price)
+                    : fmtCOP(item.unit_price);
+                const periodHint = item.period_label ? ' · Alquiler' : '';
                 const tr = document.createElement('tr');
                 tr.innerHTML =
                     '<td><div class="d-flex align-items-center">' + img +
-                    '<div><strong>' + item.name + '</strong><br><small class="text-muted">' + item.category + '</small></div></div></td>' +
-                    '<td><input type="number" name="quantity_' + item.id + '" value="' + item.qty + '" min="1" class="form-control form-control-sm quantity-input" data-product-id="' + item.id + '" style="width:90px;"></td>' +
-                    '<td class="text-end quotation-nowrap quotation-money-col">' + fmtCOP(item.unit_price) + '</td>' +
+                    '<div><strong>' + item.name + '</strong><br><small class="text-muted">' + item.category + periodHint + '</small></div></div></td>' +
+                    '<td><input type="number" name="quantity_' + lineKey + '" value="' + item.qty + '" min="1" class="form-control form-control-sm quantity-input" data-line-key="' + lineKey + '" style="width:90px;"></td>' +
+                    '<td>' + discountControlsHtml(lineKey, item) + '</td>' +
+                    '<td class="text-end quotation-nowrap quotation-money-col">' + priceCell + '</td>' +
                     '<td class="text-end quotation-nowrap quotation-money-col"><strong>' + fmtCOP(item.subtotal) + '</strong></td>' +
-                    '<td><button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-product-id="' + item.id + '"><i class="bi bi-trash"></i></button></td>';
+                    '<td><button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-line-key="' + lineKey + '"><i class="bi bi-trash"></i></button></td>';
                 tbody.appendChild(tr);
             });
         }
         if (tfootTotal) tfootTotal.textContent = fmtCOP(payload.total);
 
-        // Ocultar/mostrar productos en el panel "Agregar productos"
-        const selectedIds = new Set((payload.items || []).map(it => String(it.id)));
+        // Ocultar/mostrar ofertas en el panel "Agregar productos"
+        const selectedKeys = new Set((payload.items || []).map(it => String(it.line_key || it.id)));
+        window.__quoteSelectedKeys = selectedKeys;
         document.querySelectorAll('.product-row-add').forEach(row => {
-            const pid = row.getAttribute('data-product-id');
+            const key = row.getAttribute('data-line-key') || row.getAttribute('data-product-id');
             const checkbox = row.querySelector('.product-checkbox-add');
-            const hide = pid && selectedIds.has(String(pid));
+            const hide = key && selectedKeys.has(String(key));
             row.style.display = hide ? 'none' : '';
             if (hide && checkbox) checkbox.checked = false;
         });
     }
 
-    const quantityInputs = document.querySelectorAll('.quantity-input');
-    quantityInputs.forEach(input => {
-        input.addEventListener('change', function() {
-            // AJAX: actualizar qty en sesión (el servidor retorna totales correctos)
-            const pid = this.dataset.productId;
-            const quantity = Math.max(1, parseInt(this.value) || 1);
-            this.value = String(quantity);
+    // Ocultar filas ya agregadas al cargar
+    (function hideSelectedOnLoad() {
+        const selectedKeys = new Set({{ selected_line_keys_json|safe }});
+        document.querySelectorAll('.product-row-add').forEach(row => {
+            const key = row.getAttribute('data-line-key') || row.getAttribute('data-product-id');
+            if (key && selectedKeys.has(String(key))) {
+                row.style.display = 'none';
+            }
+        });
+    })();
+
+    // Delegación: cantidad y descuento (incluye filas recreadas por AJAX)
+    document.addEventListener('change', function(e) {
+        const qtyInput = e.target.closest('.quantity-input');
+        if (qtyInput && qtyInput.closest('#quotation-form')) {
+            const lineKey = qtyInput.dataset.lineKey || qtyInput.dataset.productId;
+            const quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+            qtyInput.value = String(quantity);
             fetch("{% url 'store:quotation_ajax_update_qty' %}", {
                 method: 'POST',
                 headers: {
@@ -531,9 +661,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: new URLSearchParams({ product_id: pid, qty: String(quantity) }),
+                body: new URLSearchParams({ line_key: lineKey, product_id: lineKey, qty: String(quantity) }),
             }).then(r => r.json()).then(renderQuote).catch(() => {});
-        });
+            return;
+        }
+
+        const typeSelect = e.target.closest('.discount-type-select');
+        if (typeSelect && typeSelect.closest('#quotation-form')) {
+            const lineKey = typeSelect.dataset.lineKey;
+            const group = typeSelect.closest('.quote-discount-group');
+            const discInput = group ? group.querySelector('.discount-input') : null;
+            const listPrice = discInput ? discInput.dataset.listPrice : null;
+            const discount = discInput ? discInput.value : '0';
+            postDiscount(lineKey, discount, typeSelect.value, listPrice);
+            return;
+        }
+
+        const discInput = e.target.closest('.discount-input');
+        if (discInput && discInput.closest('#quotation-form')) {
+            const lineKey = discInput.dataset.lineKey || discInput.dataset.productId;
+            const group = discInput.closest('.quote-discount-group');
+            const typeSelectEl = group ? group.querySelector('.discount-type-select') : null;
+            const discountType = typeSelectEl ? typeSelectEl.value : 'percent';
+            postDiscount(lineKey, discInput.value, discountType, discInput.dataset.listPrice);
+        }
     });
 
     // Búsqueda de productos en el panel "Agregar productos"
@@ -543,13 +694,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const query = this.value.toLowerCase().trim();
             const productRows = document.querySelectorAll('.product-row-add');
             const categorySections = document.querySelectorAll('.category-section-add');
-            let visibleCategories = new Set();
+            const visibleCategories = new Set();
+            const taken = window.__quoteSelectedKeys || new Set();
 
             productRows.forEach(row => {
+                const key = row.getAttribute('data-line-key') || '';
+                if (taken.has(String(key))) {
+                    row.style.display = 'none';
+                    return;
+                }
                 const productName = row.getAttribute('data-product-name') || '';
                 const productCategory = row.getAttribute('data-product-category') || '';
                 const matches = !query || productName.includes(query) || productCategory.includes(query);
-
                 row.style.display = matches ? '' : 'none';
                 if (matches) visibleCategories.add(productCategory);
             });
@@ -560,6 +716,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // Mantener set de líneas seleccionadas para la búsqueda
+    window.__quoteSelectedKeys = new Set({{ selected_line_keys_json|safe }});
+    const _renderQuoteOrig = renderQuote;
+    renderQuote = function(payload) {
+        window.__quoteSelectedKeys = new Set((payload.items || []).map(it => String(it.line_key || it.id)));
+        _renderQuoteOrig(payload);
+    };
 
     // AJAX: agregar seleccionados
     const addBtn = document.getElementById('btn-quote-add-selected');
@@ -589,7 +753,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.btn-quote-remove');
         if (!btn) return;
-        const pid = btn.getAttribute('data-product-id');
+        const lineKey = btn.getAttribute('data-line-key') || btn.getAttribute('data-product-id');
         fetch("{% url 'store:quotation_ajax_remove' %}", {
             method: 'POST',
             headers: {
@@ -597,7 +761,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams({ product_id: pid }),
+            body: new URLSearchParams({ line_key: lineKey, product_id: lineKey }),
         }).then(r => r.json()).then(renderQuote).catch(() => {});
     });
 });

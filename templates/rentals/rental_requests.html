@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Solicitudes de alquiler - MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+.rental-req-table td, .rental-req-table th { vertical-align: middle !important; }
+.rental-req-table tbody tr.status-pending { background-color: #fffbeb; }
+.rental-req-table tbody tr.status-confirmed { background-color: #eff6ff; }
+.rental-req-table tbody tr.status-active { background-color: #ecfdf5; }
+.rental-req-table tbody tr.status-completed { background-color: #f8fafc; }
+.rental-req-table tbody tr.status-cancelled { background-color: #fef2f2; }
+.status-select.status-pending { background-color: #fef3c7; border-color: #fcd34d; }
+.status-select.status-confirmed { background-color: #dbeafe; border-color: #93c5fd; }
+.status-select.status-active { background-color: #d1fae5; border-color: #6ee7b7; }
+.status-select.status-completed { background-color: #e5e7eb; border-color: #d1d5db; }
+.status-select.status-cancelled { background-color: #fee2e2; border-color: #fca5a5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+      <h2 class="h4 mb-1">Solicitudes de alquiler</h2>
+      <p class="text-muted small mb-0">
+        Gestiona reservas y estados.
+        {% if pending_count %}
+        <span class="badge bg-warning text-dark">{{ pending_count }} pendiente{{ pending_count|pluralize }}</span>
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% url 'rentals:rental_list' %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-calendar-check"></i> Ver catálogo de alquiler
+    </a>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label small text-muted mb-1">Buscar</label>
+          <input type="search" name="q" class="form-control form-control-sm"
+                 placeholder="Cliente, producto, teléfono, #solicitud…"
+                 value="{{ filter_q }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-muted mb-1">Estado</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-funnel"></i> Filtrar
+          </button>
+          <a href="{% url 'rentals:rental_requests' %}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 rental-req-table">
+          <thead class="small text-muted">
+            <tr>
+              <th>#</th>
+              <th>Fecha</th>
+              <th>Producto</th>
+              <th>Cliente</th>
+              <th>Periodo</th>
+              <th>Estado</th>
+              <th class="text-end">Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rental in page_obj %}
+            <tr class="status-{{ rental.status }}">
+              <td class="small fw-medium">#{{ rental.id }}</td>
+              <td class="small">{{ rental.created_at|date:"d/m/Y H:i" }}</td>
+              <td>
+                <div class="fw-medium">{{ rental.product.name }}</div>
+                <small class="text-muted">{{ rental.get_duration_type_display }} × {{ rental.duration_quantity }}</small>
+              </td>
+              <td>
+                <div>{{ rental.contact_name }}</div>
+                <small class="text-muted">{{ rental.contact_phone }}</small>
+              </td>
+              <td class="small">
+                {{ rental.start_date|date:"d/m/Y" }}
+                <span class="text-muted">→</span>
+                {{ rental.end_date|date:"d/m/Y" }}
+              </td>
+              <td style="min-width: 140px;">
+                <form method="post" action="{% url 'rentals:rental_request_set_status' rental.id %}">
+                  {% csrf_token %}
+                  <select name="status" class="form-select form-select-sm status-select status-{{ rental.status }}"
+                          onchange="this.form.submit()">
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if rental.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              </td>
+              <td class="text-end small fw-semibold">{{ rental.total_price|pesos_colombianos }}</td>
+              <td class="text-end">
+                <a href="{% url 'rentals:rental_request_detail' rental.id %}" class="btn btn-sm btn-light" title="Ver detalle">
+                  <i class="bi bi-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-5">
+                No hay solicitudes de alquiler{% if filter_q or filter_status %} con esos filtros{% endif %}.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if page_obj.has_other_pages %}
+      <nav class="p-3 border-top">
+        <ul class="pagination pagination-sm mb-0 justify-content-center">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filter_q %}&q={{ filter_q }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Anterior</a>
+          </li>
+          {% endif %}
+          <li class="page-item disabled">
+            <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+          </li>
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filter_q %}&q={{ filter_q }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Siguiente</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

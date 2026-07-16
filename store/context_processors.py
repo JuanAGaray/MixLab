@@ -1,4 +1,4 @@
-from .models import Cart, Category
+from .models import Cart, Category, SiteSettings, SidebarBanner, PromoBanner
 
 
 def cart(request):
@@ -62,5 +62,14 @@ def categories(request):
     """Add categories to context"""
     return {
         'categories': Category.objects.all().order_by('name'),
+    }
+
+
+def site_settings(request):
+    """Configuración global: contacto, redes, WhatsApp, banners."""
+    return {
+        'site_settings': SiteSettings.load(),
+        'sidebar_banners': SidebarBanner.objects.filter(is_active=True).order_by('sort_order', '-created_at'),
+        'promo_banners': PromoBanner.objects.filter(is_active=True).order_by('sort_order', '-created_at'),
     }
 

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Eliminar movimiento · Finanzas{% endblock %}
+
+{% block content %}
+<div class="container my-5" style="max-width:560px;">
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <h2 class="h5 mb-3">Eliminar {{ record.get_record_type_display|lower }}</h2>
+      <p class="mb-1"><strong>{{ record.description }}</strong></p>
+      <p class="text-muted">Monto: {{ record.amount|pesos_colombianos }} · {{ record.recorded_at|date:"d/m/Y" }}</p>
+      <form method="post" class="d-flex gap-2 justify-content-end">
+        {% csrf_token %}
+        <a href="{% url 'store:finance_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-danger">Eliminar</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

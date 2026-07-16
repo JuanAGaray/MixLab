@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Solicitud #{{ rental.id }} - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="mb-3">
+    <a href="{% url 'rentals:rental_requests' %}" class="small text-muted text-decoration-none">
+      ← Volver a solicitudes
+    </a>
+  </div>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+    <div>
+      <h2 class="h4 mb-1">Solicitud #{{ rental.id }}</h2>
+      <p class="text-muted small mb-0">Creada {{ rental.created_at|date:"d/m/Y H:i" }}</p>
+    </div>
+    <span class="badge
+      {% if rental.status == 'pending' %}bg-warning text-dark
+      {% elif rental.status == 'confirmed' %}bg-info
+      {% elif rental.status == 'active' %}bg-success
+      {% elif rental.status == 'completed' %}bg-secondary
+      {% else %}bg-danger{% endif %} fs-6">
+      {{ rental.get_status_display }}
+    </span>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Producto y periodo</h5>
+        </div>
+        <div class="card-body">
+          <p class="mb-2"><strong>Producto:</strong> {{ rental.product.name }}</p>
+          <p class="mb-2"><strong>Tipo:</strong> {{ rental.get_duration_type_display }} × {{ rental.duration_quantity }}</p>
+          <p class="mb-2"><strong>Inicio:</strong> {{ rental.start_date|date:"d/m/Y" }}</p>
+          <p class="mb-2"><strong>Fin:</strong> {{ rental.end_date|date:"d/m/Y" }}</p>
+          <p class="mb-2"><strong>Tarifa base:</strong> {{ rental.daily_price|pesos_colombianos }}</p>
+          <p class="mb-0 fs-5"><strong>Total:</strong> {{ rental.total_price|pesos_colombianos }}</p>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Contacto y entrega</h5>
+        </div>
+        <div class="card-body">
+          <p class="mb-2"><strong>Contacto:</strong> {{ rental.contact_name }}</p>
+          <p class="mb-2">
+            <strong>Teléfono / WhatsApp:</strong>
+            {% with wa=rental.contact_phone|phone_whatsapp_url %}
+              {% if wa %}
+              <a href="{{ wa }}"
+                 target="_blank"
+                 rel="noopener"
+                 class="btn btn-sm btn-success ms-1 align-middle"
+                 title="Abrir chat en WhatsApp">
+                <i class="bi bi-whatsapp"></i> {{ rental.contact_phone }}
+              </a>
+              {% else %}
+              {{ rental.contact_phone }}
+              {% endif %}
+            {% endwith %}
+          </p>
+          <p class="mb-2"><strong>Usuario:</strong> {{ rental.user.get_full_name|default:rental.user.username }} ({{ rental.user.email }})</p>
+          <p class="mb-2"><strong>Ciudad:</strong> {{ rental.delivery_city }}</p>
+          <p class="mb-2"><strong>Dirección:</strong><br>{{ rental.delivery_address }}</p>
+          {% if rental.special_requirements %}
+          <p class="mb-0"><strong>Requisitos especiales:</strong><br>{{ rental.special_requirements }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Actualizar estado</h5>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <label class="form-label">Estado de la solicitud</label>
+            <select name="status" class="form-select mb-3">
+              {% for value, label in status_choices %}
+              <option value="{{ value }}" {% if rental.status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary w-100">
+              Guardar cambios
+            </button>
+          </form>
+          {% if rental.confirmed_at %}
+          <p class="small text-muted mt-3 mb-0">Confirmado: {{ rental.confirmed_at|date:"d/m/Y H:i" }}</p>
+          {% endif %}
+          {% if rental.completed_at %}
+          <p class="small text-muted mb-0">Completado: {{ rental.completed_at|date:"d/m/Y H:i" }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

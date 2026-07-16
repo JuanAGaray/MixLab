@@ -145,27 +145,66 @@ section {
 
 /* Promotional Banner */
 .promo-banner {
-    background-color: #d3d3d4 ! ;
-    color: var(--text-light) !important;
+    background: #111827;
+    color: #fff !important;
+    position: relative;
+    overflow: hidden;
+    border-bottom: none;
+    box-shadow: none;
+    font-size: 0.8125rem;
+}
+
+.promo-banner-carousel,
+.promo-banner-carousel .carousel-inner,
+.promo-banner-carousel .carousel-item {
+    width: 100%;
+}
+
+.promo-banner-link {
+    display: block;
+    width: 100%;
+}
+
+.promo-banner-image {
+    display: block;
+    width: 100%;
+    height: clamp(48px, 6vw, 80px);
+    object-fit: cover;
+}
+
+.promo-banner-indicators {
+    margin-bottom: 0.25rem;
+}
+
+.promo-banner-indicators [data-bs-target] {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.55);
+    border: none;
+    margin: 0 2px;
+}
+
+.promo-banner-indicators .active {
+    background-color: #fff;
+}
+
+.promo-banner-fallback {
     font-size: 0.95rem;
     font-weight: 700;
     padding: 0.75rem 0 !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border-bottom: 2px solid var(--gray-300);
-    position: relative;
-    overflow: hidden;
 }
 
-.promo-banner strong {
+.promo-banner-fallback strong {
     color: var(--text-light) !important;
     letter-spacing: 0.3px;
     position: relative;
     display: inline-block;
-    background: linear-gradient(90deg, 
-        var(--text-light) 0%, 
-        var(--text-light) 40%, 
-        rgba(255, 255, 255, 0.9) 50%, 
-        var(--text-light) 60%, 
+    background: linear-gradient(90deg,
+        var(--text-light) 0%,
+        var(--text-light) 40%,
+        rgba(255, 255, 255, 0.9) 50%,
+        var(--text-light) 60%,
         var(--text-light) 100%);
     background-size: 200% 100%;
     -webkit-background-clip: text;
@@ -190,6 +229,386 @@ section {
 }
 
 /* Navigation */
+.navbar-premium {
+    padding: 0.5rem 0;
+    min-height: 64px;
+    background: rgba(255, 255, 255, 0.72) !important;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border-bottom: 1px solid rgba(15, 111, 255, 0.08);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    transition: background 300ms ease, box-shadow 300ms ease;
+    z-index: 1040;
+}
+
+.navbar-premium.scrolled {
+    background: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+}
+
+/* Nav alto contraste — global */
+.navbar-premium--simple {
+    padding: 0.7rem 0;
+    min-height: 58px;
+    background: #0f172a !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: none;
+    box-shadow: none;
+    z-index: 1040;
+}
+
+.navbar-premium--simple.scrolled {
+    background: #0f172a !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-premium--simple .navbar-brand-premium {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 1rem;
+}
+
+.navbar-premium--simple .navbar-brand-premium img {
+    height: 28px;
+    filter: brightness(0) invert(1);
+}
+
+.navbar-premium--simple .home-nav-cta {
+    display: none !important;
+}
+
+.navbar-premium--simple .navbar-toggler {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+}
+
+.navbar-premium--simple .navbar-toggler-icon {
+    filter: invert(1);
+}
+
+@media (min-width: 992px) {
+    .navbar-premium--simple #navbarNavDesktop {
+        width: 100%;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .navbar-premium--simple .navbar-nav-left {
+        margin: 0 !important;
+        flex: 0 1 auto;
+        gap: 0.1rem;
+    }
+
+    .navbar-premium--simple .navbar-nav-left .nav-link {
+        color: #fff !important;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 0.4rem 0.75rem !important;
+        border-radius: 0;
+        background: transparent !important;
+    }
+
+    .navbar-premium--simple .navbar-nav-left .nav-link:hover,
+    .navbar-premium--simple .navbar-nav-left .nav-link:focus {
+        color: #A9E8FF !important;
+        background: transparent !important;
+    }
+
+    .navbar-premium--simple .navbar-actions {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+        gap: 0.65rem !important;
+    }
+
+    .navbar-premium--simple .navbar-search-form {
+        display: flex !important;
+        flex: 1 1 auto;
+        max-width: 420px;
+        min-width: 220px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 0.45rem 0.9rem;
+    }
+
+    .navbar-premium--simple .navbar-search-form i {
+        color: rgba(255, 255, 255, 0.75);
+    }
+
+    .navbar-premium--simple .navbar-search-form input {
+        width: 100%;
+        min-width: 0;
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: 0;
+        color: #fff;
+    }
+
+    .navbar-premium--simple .navbar-search-form input::placeholder {
+        color: rgba(255, 255, 255, 0.55);
+    }
+
+    .navbar-premium--simple .btn-nav-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+    }
+
+    .navbar-premium--simple .btn-nav-icon:hover {
+        background: #fff;
+        color: #0f172a;
+        border-color: #fff;
+    }
+
+    .navbar-premium--simple .btn-nav-login {
+        background: #fff;
+        color: #0f172a !important;
+        border: 1px solid #fff;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 0.45rem 0.95rem;
+        box-shadow: none;
+    }
+
+    .navbar-premium--simple .btn-nav-login:hover {
+        background: #A9E8FF;
+        border-color: #A9E8FF;
+        color: #0f172a !important;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .navbar-premium--simple .btn-nav-user {
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        color: #fff;
+    }
+
+    .navbar-premium--simple .btn-nav-user:hover {
+        background: rgba(255, 255, 255, 0.16);
+        border-color: rgba(255, 255, 255, 0.4);
+        color: #fff;
+    }
+
+    .navbar-premium--simple .btn-nav-user .d-none.d-xxl-inline {
+        color: #fff;
+    }
+
+    .navbar-premium--simple .nav-cart-badge {
+        border-color: #0f172a;
+    }
+}
+
+.navbar-brand-premium img {
+    height: 32px;
+    transition: transform 300ms ease;
+}
+
+.navbar-brand-premium:hover img {
+    transform: scale(1.02);
+}
+
+.navbar-nav-center .nav-link {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: #374151 !important;
+    padding: 0.5rem 0.875rem !important;
+    border-radius: 8px;
+    transition: color 200ms ease, background 200ms ease;
+}
+
+.navbar-nav-center .nav-link:hover,
+.navbar-nav-center .nav-link:focus {
+    color: #0F6FFF !important;
+    background: rgba(15, 111, 255, 0.06);
+}
+
+@media (min-width: 992px) {
+    .navbar-premium:not(.navbar-premium--modern):not(.navbar-premium--simple) .navbar-nav-left {
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+}
+
+.btn-nav-demo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.55rem 1.15rem;
+    background: #0F6FFF;
+    color: #fff !important;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 999px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
+}
+
+.btn-nav-demo:hover {
+    background: #0b5ce0;
+    color: #fff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(15, 111, 255, 0.28);
+}
+
+.dropdown-menu-premium {
+    border: 1px solid rgba(15, 111, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.1);
+    padding: 0.5rem;
+}
+
+.dropdown-menu-premium .dropdown-item {
+    border-radius: 8px;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.navbar-search-form {
+    align-items: center;
+    gap: 0.5rem;
+    background: #f1f5f9;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 0.4rem 1rem;
+    min-width: 200px;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.navbar-search-form:focus-within {
+    border-color: rgba(15, 111, 255, 0.25);
+    box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.1);
+    background: #fff;
+}
+
+.navbar-search-form i {
+    color: #9ca3af;
+    font-size: 0.9rem;
+}
+
+.navbar-search-form input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.875rem;
+    width: 160px;
+    color: #111827;
+}
+
+.btn-nav-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 111, 255, 0.1);
+    background: rgba(255, 255, 255, 0.8);
+    color: #374151;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 200ms ease;
+}
+
+.btn-nav-icon:hover {
+    color: #0F6FFF;
+    border-color: rgba(15, 111, 255, 0.25);
+    background: #fff;
+}
+
+.nav-cart-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    background: #0F6FFF;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+}
+
+.btn-nav-login {
+    padding: 0.5rem 1.25rem;
+    background: #0F6FFF;
+    color: #fff !important;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: all 200ms ease;
+    white-space: nowrap;
+}
+
+.btn-nav-login:hover {
+    background: #0b5ce0;
+    color: #fff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(15, 111, 255, 0.3);
+}
+
+.btn-nav-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.35rem;
+    border: 1px solid rgba(15, 111, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 200ms ease;
+}
+
+.btn-nav-user:hover {
+    border-color: rgba(15, 111, 255, 0.25);
+    background: #fff;
+}
+
+.user-avatar-sm {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #4DA8FF, #0F6FFF);
+}
+
+.user-avatar-sm .avatar-initials {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.navbar-toggler-premium {
+    border: 1px solid rgba(15, 111, 255, 0.15);
+    border-radius: 10px;
+    padding: 0.35rem 0.6rem;
+}
+
 .navbar {
     padding: 0.35rem 0;
     box-shadow: none;
@@ -612,99 +1031,213 @@ section {
 /* Floating WhatsApp Button (above cart) */
 .floating-wa-btn {
     position: fixed;
-    bottom: 100px;
-    right: 30px;
+    bottom: 96px;
+    right: 24px;
     width: 56px;
     height: 56px;
-    background: #25D366;
+    background: #128C7E;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4);
+    box-shadow: 0 8px 24px rgba(18, 140, 126, 0.35);
     z-index: 1050;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
     color: #fff;
     text-decoration: none;
-    font-size: 1.75rem;
+    font-size: 1.55rem;
+    border: 2px solid rgba(255, 255, 255, 0.9);
 }
 
 .floating-wa-btn:hover {
-    transform: scale(1.1);
+    transform: translateY(-2px) scale(1.04);
     color: #fff;
-    box-shadow: 0 6px 25px rgba(37, 211, 102, 0.5);
-    background: #20bd5a;
+    background: #0f766e;
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.4);
 }
 
 @media (max-width: 768px) {
     .floating-wa-btn {
         width: 52px;
         height: 52px;
-        bottom: 88px;
-        right: 20px;
-        font-size: 1.5rem;
+        bottom: 84px;
+        right: 16px;
+        font-size: 1.4rem;
     }
 }
 
 /* Floating Cart Button */
 .floating-cart-btn {
     position: fixed;
-    bottom: 30px;
-    right: 30px;
-    width: 60px;
-    height: 60px;
-    background: #A9E8FF;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    background: #0F6FFF;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(15, 111, 255, 0.35);
     z-index: 1050;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    color: #1e293b;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+    color: #fff;
     text-decoration: none;
-    font-size: 1.5rem;
-    border: none;
+    font-size: 1.4rem;
+    border: 2px solid rgba(255, 255, 255, 0.9);
     cursor: pointer;
+    padding: 0;
 }
 
 .floating-cart-btn:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.25), 0 3px 10px rgba(0, 0, 0, 0.2);
-    color: #1e293b;
-    background: #7FD4FF;
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 12px 28px rgba(11, 92, 224, 0.42);
+    color: #fff;
+    background: #0b5ce0;
 }
 
 .floating-cart-badge {
     position: absolute;
-    top: -5px;
-    right: -5px;
-    background: #ef4444;
+    top: -4px;
+    right: -4px;
+    background: #dc2626;
     color: white;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 5px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    border: 2px solid white;
+    border: 2px solid #fff;
+    line-height: 1;
 }
 
 @media (max-width: 768px) {
     .floating-cart-btn {
-        width: 56px;
-        height: 56px;
+        width: 52px;
+        height: 52px;
+        bottom: 16px;
+        right: 16px;
+        font-size: 1.25rem;
+    }
+
+    .floating-cart-badge {
+        min-width: 20px;
+        height: 20px;
+        font-size: 0.65rem;
+    }
+}
+
+/* Sidebar advertising banner (2:3) */
+.site-page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(240px, 20vw);
+    gap: 1.25rem;
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 clamp(0.75rem, 2vw, 1.5rem);
+    align-items: start;
+}
+
+.site-page-grid--full {
+    display: block;
+    max-width: none;
+    padding: 0;
+}
+
+.site-page-main {
+    min-width: 0;
+}
+
+.site-page-sidebar {
+    position: sticky;
+    top: 1rem;
+    padding-top: 0.25rem;
+}
+
+.sidebar-ad-panel {
+    width: 100%;
+}
+
+.sidebar-ad-carousel {
+    aspect-ratio: 2 / 3;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.18);
+    background: #f8fafc;
+}
+
+.sidebar-ad-carousel .carousel-inner,
+.sidebar-ad-carousel .carousel-item {
+    height: 100%;
+}
+
+.sidebar-ad-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.sidebar-ad-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.sidebar-ad-indicators {
+    margin-bottom: 0.35rem;
+}
+
+.sidebar-ad-indicators [data-bs-target] {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.55);
+    border: none;
+    margin: 0 3px;
+}
+
+.sidebar-ad-indicators .active {
+    background-color: #fff;
+}
+
+.sidebar-ad-control {
+    width: 12%;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.sidebar-ad-carousel:hover .sidebar-ad-control {
+    opacity: 0.85;
+}
+
+.sidebar-ad-control .carousel-control-prev-icon,
+.sidebar-ad-control .carousel-control-next-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+@media (min-width: 769px) {
+    .floating-wa-btn {
+        bottom: 96px;
+        right: 20px;
+    }
+
+    .floating-cart-btn {
         bottom: 20px;
         right: 20px;
-        font-size: 1.3rem;
     }
-    
-    .floating-cart-badge {
-        width: 22px;
-        height: 22px;
-        font-size: 0.7rem;
+}
+
+@media (min-width: 992px) {
+    .floating-wa-btn,
+    .floating-cart-btn {
+        right: 20px !important;
     }
 }
 
@@ -903,7 +1436,7 @@ section {
         font-size: 0.75rem !important;
         padding: 0.5rem 0.5rem !important;
     }
-    .promo-banner strong {
+    .promo-banner-fallback strong {
         display: inline;
     }
     .navbar-brand img {

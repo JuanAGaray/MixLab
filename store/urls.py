@@ -10,6 +10,7 @@ urlpatterns = [
     path('normatividad/', views.normatividad, name='normatividad'),
     path('products/', views.product_list, name='product_list'),
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
+    path('calculadora/', views.water_calculator, name='water_calculator'),
     path('cart/', views.cart, name='cart'),
     path('cart/add/<int:product_id>/', views.add_to_cart, name='add_to_cart'),
     path('cart/update/<int:item_id>/', views.update_cart_item, name='update_cart_item'),
@@ -25,10 +26,18 @@ urlpatterns = [
     path('cotizaciones/ajax/set-status/', views.quotation_ajax_set_status, name='quotation_ajax_set_status'),
     path('cotizaciones/<int:quotation_id>/', views.quotation_detail, name='quotation_detail'),
     path('cotizaciones/<int:quotation_id>/pdf/', views.quotation_pdf, name='quotation_pdf'),
+    path('cotizaciones/<int:quotation_id>/pdf/file/', views.quotation_pdf_file, name='quotation_pdf_file'),
+    path('cotizaciones/<int:quotation_id>/factura/', views.quotation_invoice_download, name='quotation_invoice_download'),
+    path('cotizaciones/<int:quotation_id>/contrato-alquiler/', views.quotation_rental_contract, name='quotation_rental_contract'),
+    path('cotizaciones/<int:quotation_id>/requisitos-contrato/', views.quotation_rental_requirements, name='quotation_rental_requirements'),
+    path('cotizaciones/<int:quotation_id>/acta-recepcion/', views.quotation_delivery_acta, name='quotation_delivery_acta'),
+    path('cotizaciones/<int:quotation_id>/acta-recepcion/pdf/', views.quotation_delivery_acta_pdf, name='quotation_delivery_acta_pdf'),
+    path('cotizaciones/ajax/reverse-geocode/', views.ajax_reverse_geocode, name='ajax_reverse_geocode'),
     path('cotizaciones/<int:quotation_id>/eliminar/', views.quotation_delete, name='quotation_delete'),
     path('cotizacion/ajax/add/', views.quotation_ajax_add, name='quotation_ajax_add'),
     path('cotizacion/ajax/remove/', views.quotation_ajax_remove, name='quotation_ajax_remove'),
     path('cotizacion/ajax/update-qty/', views.quotation_ajax_update_qty, name='quotation_ajax_update_qty'),
+    path('cotizacion/ajax/update-discount/', views.quotation_ajax_update_discount, name='quotation_ajax_update_discount'),
     
     # Manager - Clientes
     path('manager/clientes/', views.client_list, name='client_list'),
@@ -37,9 +46,19 @@ urlpatterns = [
     path('manager/clientes/<int:client_id>/editar/', views.client_edit, name='client_edit'),
     path('manager/clientes/<int:client_id>/eliminar/', views.client_delete, name='client_delete'),
     path('manager/clientes/<int:client_id>/generar-password/', views.client_generate_password, name='client_generate_password'),
-    
+
+    # Manager - Personal (vendedores / admins)
+    path('manager/personal/', views.staff_user_list, name='staff_user_list'),
+    path('manager/personal/crear/', views.staff_user_create, name='staff_user_create'),
+    path('manager/personal/<int:user_id>/editar/', views.staff_user_edit, name='staff_user_edit'),
+    path('manager/personal/<int:user_id>/desactivar/', views.staff_user_toggle_active, name='staff_user_toggle_active'),
+
     # Manager - Ventas
     path('manager/ventas/', views.sales_list, name='sales_list'),
+
+    # Manager - Gastos y pagos
+    path('manager/finanzas/', views.finance_list, name='finance_list'),
+    path('manager/finanzas/<int:record_id>/eliminar/', views.finance_delete, name='finance_delete'),
     
     # Inventory routes
     path('inventory/', views.inventory_dashboard, name='inventory_dashboard'),
@@ -76,4 +95,13 @@ urlpatterns = [
     
     # Categories
     path('inventory/categories/create/', views.inventory_create_category, name='inventory_create_category'),
+
+    # Calculadora de dilución (admin)
+    path('inventory/calculadora/', views.dilution_product_list, name='dilution_product_list'),
+    path('inventory/calculadora/nuevo/', views.dilution_product_create, name='dilution_product_create'),
+    path('inventory/calculadora/<int:item_id>/editar/', views.dilution_product_edit, name='dilution_product_edit'),
+    path('inventory/calculadora/<int:item_id>/eliminar/', views.dilution_product_delete, name='dilution_product_delete'),
+
+    # Configuración del sitio (contacto, redes, WA)
+    path('inventory/configuracion-sitio/', views.site_settings_edit, name='site_settings_edit'),
 ]

@@ -36,9 +36,16 @@
                     <h5 class="mb-0">Precios de Alquiler</h5>
                 </div>
                 <div class="card-body">
-                    <p><strong>Diario:</strong> ${{ product.price|floatformat:0 }}/día</p>
-                    <p><strong>Semanal:</strong> ${{ product.price|floatformat:0 }} x 7 días = ${{ product.price|multiply:7|floatformat:0 }} (15% descuento)</p>
-                    <p><strong>Mensual:</strong> ${{ product.price|floatformat:0 }} x 30 días = ${{ product.price|multiply:30|floatformat:0 }} (25% descuento)</p>
+                    {% if rental_prices %}
+                        {% for tariff in rental_prices %}
+                        <p class="mb-2">
+                            <strong>{{ tariff.get_period_type_display }}:</strong>
+                            {{ tariff.price|pesos_colombianos }}{{ tariff.period_short_label }}
+                        </p>
+                        {% endfor %}
+                    {% else %}
+                        <p class="mb-0"><strong>Diario:</strong> {{ product.price|pesos_colombianos }}/día</p>
+                    {% endif %}
                 </div>
             </div>
             
@@ -50,6 +57,22 @@
                 <div class="card-body">
                     <form method="post" action="{% url 'rentals:create_rental' product.id %}">
                         {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="duration_type" class="form-label">Tipo de alquiler *</label>
+                            <select class="form-select" id="duration_type" name="duration_type" required>
+                                {% if rental_prices %}
+                                    {% for tariff in rental_prices %}
+                                    <option value="{{ tariff.period_type }}">{{ tariff.get_period_type_display }} — {{ tariff.price|pesos_colombianos }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="daily">Por día — {{ product.price|pesos_colombianos }}</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="mb-3" id="hours-field-wrap" style="display: none;">
+                            <label for="hours" class="form-label">Cantidad de horas *</label>
+                            <input type="number" class="form-control" id="hours" name="hours" min="1" value="1">
+                        </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="start_date" class="form-label">Fecha de Inicio *</label>
@@ -102,6 +125,17 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        var durationTypeEl = document.getElementById('duration_type');
+        var hoursWrap = document.getElementById('hours-field-wrap');
+        function toggleHoursField() {
+            if (!durationTypeEl || !hoursWrap) return;
+            hoursWrap.style.display = durationTypeEl.value === 'hourly' ? '' : 'none';
+        }
+        if (durationTypeEl) {
+            durationTypeEl.addEventListener('change', toggleHoursField);
+            toggleHoursField();
+        }
+
         var startDateEl = document.getElementById('start_date');
         if (startDateEl) {
             startDateEl.addEventListener('change', function() {

@@ -3,36 +3,178 @@
 
 {% block content %}
 <style>
-  .quotes-table td, .quotes-table th { vertical-align: middle !important; }
-  .quotes-table tbody tr { position: relative; }
-  .quotes-table tbody tr .row-actions {
-      position: absolute;
-      right: 0.5rem;
-      top: 0.4rem;
-      transform: none;
-      display: inline-flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 0.2rem;
-      opacity: 0;
-      pointer-events: none;
-      background-color: rgba(148, 163, 184, 0.12); /* gris suave */
-      padding: 0.15rem 0.4rem;
-      border-radius: 999px;
+  .quotes-table { font-size: 0.875rem; }
+  .quotes-table thead th {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom-width: 1px;
+    padding: 0.5rem 0.5rem !important;
+    white-space: nowrap;
+    vertical-align: middle !important;
   }
-  .quotes-table tbody tr:hover .row-actions {
-      opacity: 1;
-      pointer-events: auto;
+  .quotes-table td {
+    vertical-align: middle !important;
+    padding: 0.4rem 0.5rem !important;
+  }
+  .quotes-table .col-actions {
+    width: 1%;
+    white-space: nowrap;
+    padding-left: 0.25rem !important;
+  }
+  .quotes-table .col-total {
+    white-space: nowrap;
+    min-width: 92px;
+    padding-right: 0.65rem !important;
+  }
+  .quotes-table .quote-id-link {
+    color: #0f172a;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
+  .quotes-table .quote-id-link:hover {
+    color: #0369a1;
+    text-decoration: underline;
+  }
+  .quotes-table .client-cell {
+    min-width: 170px;
+    max-width: 230px;
+  }
+  .quotes-table .client-name {
+    font-weight: 650;
+    font-size: 0.875rem;
+    line-height: 1.15;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .quotes-table .client-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.1rem;
+    line-height: 1;
+  }
+  .quotes-table .client-phone .phone-text {
+    font-size: 0.74rem;
+    color: #64748b;
+  }
+  .quotes-table .btn-wa {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 999px;
+    background: #25d366;
+    color: #fff !important;
+    border: 0;
+    font-size: 0.7rem;
+    line-height: 1;
+    text-decoration: none;
+    flex: 0 0 auto;
+  }
+  .quotes-table .btn-wa:hover {
+    background: #1ebe57;
+    color: #fff !important;
+  }
+  .quotes-table .creator-name {
+    font-size: 0.8rem;
+    color: #475569;
+  }
+  .quotes-table .row-actions {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.18rem;
+    background-color: #0f172a;
+    padding: 0.15rem 0.28rem;
+    border-radius: 999px;
+  }
+  .quotes-table .row-actions .dropdown {
+    display: inline-flex;
+    position: relative;
+  }
+  .quotes-table .row-actions .btn-pdf-menu::after {
+    display: none;
+  }
+  .quotes-table .row-actions .dropdown-menu {
+    min-width: 11rem;
+    font-size: 0.82rem;
+    border-radius: 0.65rem;
+    padding: 0.3rem;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  }
+  .quotes-table .row-actions .dropdown-item {
+    border-radius: 0.45rem;
+    padding: 0.4rem 0.65rem;
   }
   .quotes-table .row-actions .btn {
-      padding: 0.15rem 0.25rem;
-      font-size: 0.75rem;
-      border-radius: 999px;
+    padding: 0;
+    font-size: 0.72rem;
+    border-radius: 999px;
+    line-height: 1;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    min-width: 1.45rem;
+    min-height: 1.45rem;
+  }
+  .quotes-table .row-actions .btn-light,
+  .quotes-table .row-actions a.btn-light {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+  .quotes-table .row-actions .btn-light:hover,
+  .quotes-table .row-actions a.btn-light:hover {
+    background: #f8fafc !important;
+    color: #020617 !important;
+  }
+  .quotes-table .row-actions .btn-outline-warning,
+  .quotes-table .row-actions a.btn-outline-warning {
+    background: #f59e0b !important;
+    color: #0f172a !important;
+    border-color: #d97706 !important;
+  }
+  .quotes-table .row-actions .btn-outline-warning:hover,
+  .quotes-table .row-actions a.btn-outline-warning:hover {
+    background: #fbbf24 !important;
+  }
+  .quotes-table .row-actions .text-danger,
+  .quotes-table .row-actions a.text-danger,
+  .quotes-table .row-actions .btn-quote-delete {
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
+    border-color: #fecaca !important;
+  }
+  .quotes-table .row-actions .text-danger:hover,
+  .quotes-table .row-actions a.text-danger:hover {
+    background: #fecaca !important;
+    color: #991b1b !important;
+  }
+  .quotes-table .row-actions .btn-quote-delete:disabled,
+  .quotes-table .row-actions .btn-quote-delete[aria-disabled="true"] {
+    background: #94a3b8 !important;
+    color: #ffffff !important;
+    border-color: #64748b !important;
+    opacity: 1 !important;
+    pointer-events: none;
   }
   .quotes-table .form-select.form-select-sm {
-      padding-top: 0.15rem;
-      padding-bottom: 0.15rem;
-      font-size: 0.8rem;
+    padding: 0.15rem 1.6rem 0.15rem 0.45rem;
+    font-size: 0.76rem;
+    min-height: 1.7rem;
+    height: 1.7rem;
+    line-height: 1.2;
   }
   .quotes-table tbody tr.quote-status-generada { background-color: #f3f4f6; }
   .quotes-table tbody tr.quote-status-enviada { background-color: #e0f2fe; }
@@ -88,72 +230,134 @@
   <div class="card">
     <div class="card-body">
       <div class="table-responsive">
-        <table class="table table-hover align-middle quotes-table">
+        <table class="table table-sm table-hover align-middle quotes-table mb-0">
           <thead>
             <tr>
-              <th style="min-width:110px;">#</th>
-              <th style="min-width:110px;">Fecha</th>
+              <th style="min-width:84px;">#</th>
+              <th style="min-width:96px;">Fecha</th>
               <th>Cliente</th>
-              <th style="min-width:170px;">Hecha por</th>
-              <th style="min-width:140px;">Estado cotización</th>
-              <th style="min-width:150px;">Estado del pedido</th>
-              <th class="text-end" style="min-width:160px;">Total</th>
-              <th style="width:1px;"></th>
+              <th style="min-width:100px;">Hecha por</th>
+              <th style="min-width:128px;">Estado cotización</th>
+              <th style="min-width:136px;">Estado del pedido</th>
+              <th class="text-end col-total">Total</th>
+              <th class="col-actions"></th>
             </tr>
           </thead>
           <tbody>
             {% for q in quotes %}
             <tr data-quotation-id="{{ q.id }}">
-              <td class="fw-semibold">COT-{{ q.id }}</td>
-              <td>{{ q.created_at|date:"Y-m-d" }}</td>
               <td>
-                <div class="fw-semibold">{{ q.client_name|default:"—" }}</div>
-                <div class="text-muted small">{{ q.get_client_kind_display }}</div>
+                <a class="quote-id-link" href="{% url 'store:quotation_detail' quotation_id=q.id %}" title="Abrir cotización">
+                  COT-{{ q.id }}
+                </a>
+              </td>
+              <td class="text-muted">{{ q.created_at|date:"Y-m-d" }}</td>
+              <td class="client-cell">
+                <div class="client-name" title="{{ q.display_client_name|default:'' }}">{{ q.display_client_name|default:"—" }}</div>
+                {% if q.client_phone %}
+                <div class="client-phone">
+                  <span class="phone-text">{{ q.client_phone }}</span>
+                  <a class="btn-wa"
+                     href="{{ q.client_phone|whatsapp_url }}"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     title="Abrir WhatsApp">
+                    <i class="bi bi-whatsapp"></i>
+                  </a>
+                </div>
+                {% else %}
+                <div class="phone-text">Sin teléfono</div>
+                {% endif %}
               </td>
               <td>
                 {% if q.created_by %}
-                  {{ q.created_by.username }}
+                  <span class="creator-name">{{ q.created_by.username }}</span>
                 {% else %}
                   <span class="text-muted">—</span>
                 {% endif %}
               </td>
               <td>
-                <select class="form-select form-select-sm quotation-status-select" style="min-width: 140px;">
+                <select class="form-select form-select-sm quotation-status-select" style="min-width: 118px;">
                   {% for value,label in q.QUOTATION_STATUS_CHOICES %}
                     <option value="{{ value }}" {% if value == q.quotation_status %}selected{% endif %}>{{ label }}</option>
                   {% endfor %}
                 </select>
               </td>
               <td>
-                <select class="form-select form-select-sm order-status-select" style="min-width: 150px;" data-has-payment-proof="{% if q.payment_proof %}1{% else %}0{% endif %}">
+                <select class="form-select form-select-sm order-status-select" style="min-width: 128px;" data-has-payment-proof="{% if q.payment_proof %}1{% else %}0{% endif %}">
                   {% for value, label in order_status_choices %}
                     <option value="{{ value }}"
                             {% if value == q.order_status %}selected{% endif %}
-                            {% if not q.payment_proof and value in 'pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+                            {% if not q.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
                         {{ label }}
                     </option>
                   {% endfor %}
                 </select>
               </td>
-              <td class="text-end fw-semibold">{{ q.total|pesos_colombianos }}</td>
-              <td class="text-end" style="width:1px; padding: 0;">
-                <div class="row-actions d-inline-flex align-items-center justify-content-end">
-                  {% if q.order_status == 'esperando_pago' %}
+              <td class="text-end fw-semibold col-total">{{ q.total|pesos_colombianos }}</td>
+              <td class="text-end col-actions">
+                <div class="row-actions">
+                  {% if q.order_status == 'esperando_pago' or q.order_status == 'pago_parcial' %}
                   <a href="{% url 'store:quotation_detail' quotation_id=q.id %}#payment-proof-section"
                      class="btn btn-outline-warning btn-sm"
                      title="Subir comprobante de pago">
                     <i class="bi bi-upload"></i>
                   </a>
                   {% endif %}
-                  <a href="{% url 'store:quotation_detail' quotation_id=q.id %}" class="btn btn-light btn-sm" title="Ver">
-                    <i class="bi bi-eye"></i>
-                  </a>
-                  <a href="{% url 'store:quotation_pdf' quotation_id=q.id %}" class="btn btn-light btn-sm" title="Ver PDF" target="_blank" rel="noopener noreferrer">
-                    <i class="bi bi-file-earmark-pdf"></i>
-                  </a>
-                  <a href="{% url 'store:quotation_delete' quotation_id=q.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar">
+                  <div class="dropdown">
+                    <button type="button"
+                            class="btn btn-light btn-sm dropdown-toggle btn-pdf-menu"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            title="PDF · elegir formato">
+                      <i class="bi bi-file-earmark-pdf"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                      <li>
+                        <a class="dropdown-item" href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=1" target="_blank" rel="noopener noreferrer">
+                          <i class="bi bi-receipt me-2 text-muted"></i>Detallado con IVA
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=0" target="_blank" rel="noopener noreferrer">
+                          <i class="bi bi-file-text me-2 text-muted"></i>Detallado sin IVA
+                        </a>
+                      </li>
+                      {% if q.order_status == 'pago_recibido' or q.order_status == 'enviado' or q.order_status == 'recibido' or q.order_status == 'modificado_y_enviado' %}
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <a class="dropdown-item" href="{% url 'store:quotation_invoice_download' quotation_id=q.id %}?iva=1">
+                          <i class="bi bi-receipt-cutoff me-2 text-success"></i>Descargar factura
+                        </a>
+                      </li>
+                      {% endif %}
+                      {% if q.includes_rental %}
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <a class="dropdown-item" href="{% url 'store:quotation_rental_contract' quotation_id=q.id %}" target="_blank" rel="noopener noreferrer">
+                          <i class="bi bi-pen me-2 text-muted"></i>Contrato de alquiler
+                        </a>
+                      </li>
+                      {% endif %}
+                    </ul>
+                  </div>
+                  {% if q.order_status == 'esperando_pago' %}
+                  <button type="button"
+                          class="btn btn-light btn-sm text-danger btn-quote-delete"
+                          data-delete-url="{% url 'store:quotation_delete' quotation_id=q.id %}"
+                          disabled
+                          title="No se puede eliminar mientras está esperando pago"
+                          aria-disabled="true">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                  {% else %}
+                  <a href="{% url 'store:quotation_delete' quotation_id=q.id %}"
+                     class="btn btn-light btn-sm text-danger btn-quote-delete"
+                     data-delete-url="{% url 'store:quotation_delete' quotation_id=q.id %}"
+                     title="Eliminar">
                     <i class="bi bi-trash"></i>
                   </a>
+                  {% endif %}
                 </div>
               </td>
             </tr>
@@ -229,6 +433,43 @@
       });
     });
 
+    function syncDeleteButton(row, orderStatus) {
+      if (!row) return;
+      const actions = row.querySelector('.row-actions');
+      if (!actions) return;
+      let btn = actions.querySelector('.btn-quote-delete');
+      if (!btn) return;
+      const deleteUrl = btn.getAttribute('data-delete-url') || btn.getAttribute('href') || '';
+      const waiting = orderStatus === 'esperando_pago';
+
+      if (waiting) {
+        if (btn.tagName === 'A') {
+          const disabledBtn = document.createElement('button');
+          disabledBtn.type = 'button';
+          disabledBtn.className = 'btn btn-light btn-sm text-danger btn-quote-delete';
+          disabledBtn.setAttribute('data-delete-url', deleteUrl);
+          disabledBtn.disabled = true;
+          disabledBtn.setAttribute('aria-disabled', 'true');
+          disabledBtn.title = 'No se puede eliminar mientras está esperando pago';
+          disabledBtn.innerHTML = '<i class="bi bi-trash"></i>';
+          btn.replaceWith(disabledBtn);
+        } else {
+          btn.disabled = true;
+          btn.setAttribute('aria-disabled', 'true');
+          btn.title = 'No se puede eliminar mientras está esperando pago';
+          btn.removeAttribute('href');
+        }
+      } else if (btn.tagName === 'BUTTON' || btn.disabled) {
+        const link = document.createElement('a');
+        link.href = deleteUrl;
+        link.className = 'btn btn-light btn-sm text-danger btn-quote-delete';
+        link.setAttribute('data-delete-url', deleteUrl);
+        link.title = 'Eliminar';
+        link.innerHTML = '<i class="bi bi-trash"></i>';
+        btn.replaceWith(link);
+      }
+    }
+
     document.querySelectorAll('.order-status-select').forEach(function (sel) {
       sel.setAttribute('data-prev', sel.value);
       sel.addEventListener('change', function () {
@@ -238,7 +479,7 @@
         const prevVal = sel.getAttribute('data-prev');
         const hasProof = sel.getAttribute('data-has-payment-proof') === '1';
 
-        const requiresProof = ['pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'];
+        const requiresProof = ['pago_parcial', 'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'];
 
         if (!hasProof && requiresProof.includes(val)) {
           sel.value = prevVal;
@@ -262,6 +503,7 @@
               return;
             }
             sel.setAttribute('data-prev', payload.order_status);
+            syncDeleteButton(row, payload.order_status);
             // Si el backend acepta un estado que requiere comprobante, asumimos que ya hay comprobante
             if (requiresProof.includes(payload.order_status)) {
               sel.setAttribute('data-has-payment-proof', '1');

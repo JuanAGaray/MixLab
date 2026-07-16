@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% load static store_tags %}
+
+{% block title %}{{ title }} · Personal{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width:720px;">
+  <a href="{% url 'store:staff_user_list' %}" class="btn btn-link btn-sm text-decoration-none px-0 mb-2">
+    <i class="bi bi-chevron-left"></i> Volver al personal
+  </a>
+  <h2 class="h4 mb-3">{{ title }}</h2>
+
+  {% if new_password %}
+  <div class="alert alert-warning">
+    <strong>Contraseña generada (guárdala ahora):</strong>
+    <code class="fs-6 ms-1">{{ new_password }}</code>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      {% if not is_create and profile and profile.avatar %}
+      <div class="mb-3 d-flex align-items-center gap-3">
+        <img src="{{ profile.avatar.url }}" alt="Foto" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;">
+        <div>
+          <div class="fw-semibold">{{ staff_user.get_full_name|default:staff_user.username }}</div>
+          <div class="small text-muted">{{ role_label }} · @{{ staff_user.username }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data" class="row g-3">
+        {% csrf_token %}
+
+        {% if is_create %}
+        <div class="col-md-6">
+          <label class="form-label">{{ form.username.label }}</label>
+          {{ form.username }}
+          {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="col-md-6">
+          <label class="form-label">{{ form.email.label }}</label>
+          {{ form.email }}
+          {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.first_name.label }}</label>
+          {{ form.first_name }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.last_name.label }}</label>
+          {{ form.last_name }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.phone.label }}</label>
+          <div class="input-group">
+            <span class="input-group-text">+57</span>
+            {{ form.phone }}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.role.label }}</label>
+          {{ form.role }}
+          {% if form.role.help_text %}<div class="form-text">{{ form.role.help_text }}</div>{% endif %}
+          {% if form.role.errors %}<div class="text-danger small">{{ form.role.errors|striptags }}</div>{% endif %}
+          {% if not can_manage_admins %}
+          <div class="form-text">Solo los administradores pueden crear/asignar rol Admin.</div>
+          {% endif %}
+        </div>
+
+        {% if is_create %}
+        <div class="col-md-6">
+          <label class="form-label">{{ form.password1.label }}</label>
+          {{ form.password1 }}
+          {% if form.password1.errors %}<div class="text-danger small">{{ form.password1.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.password2.label }}</label>
+          {{ form.password2 }}
+          {% if form.password2.errors %}<div class="text-danger small">{{ form.password2.errors|striptags }}</div>{% endif %}
+        </div>
+        {% else %}
+        <div class="col-md-6">
+          <label class="form-label">{{ form.new_password.label }}</label>
+          {{ form.new_password }}
+          <div class="form-text">{{ form.new_password.help_text }}</div>
+        </div>
+        <div class="col-md-6 d-flex align-items-end">
+          <div class="form-check mb-2">
+            {{ form.is_active }}
+            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="col-12">
+          <label class="form-label">{{ form.avatar.label }}</label>
+          {{ form.avatar }}
+          {% if not is_create %}
+          <div class="form-check mt-2">
+            {{ form.clear_avatar }}
+            <label class="form-check-label" for="{{ form.clear_avatar.id_for_label }}">{{ form.clear_avatar.label }}</label>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+          <a href="{% url 'store:staff_user_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check2-circle"></i> Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

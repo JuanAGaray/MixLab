@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% load static store_tags %}
+
+{% block title %}Personal · Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+  .staff-avatar {
+    width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
+    border: 2px solid #e2e8f0; background: #f8fafc;
+  }
+  .staff-avatar-fallback {
+    width: 42px; height: 42px; border-radius: 50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:#0f172a; color:#fff; font-weight:700; font-size:.85rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+      <h2 class="h4 mb-1">Personal del equipo</h2>
+      <p class="text-muted small mb-0">Crea vendedores o administradores, edita perfiles y el nombre de la empresa.</p>
+    </div>
+    <a href="{% url 'store:staff_user_create' %}" class="btn btn-primary btn-sm rounded-pill fw-semibold">
+      <i class="bi bi-person-plus"></i> Nuevo usuario
+    </a>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h3 class="h6 fw-bold text-uppercase text-muted mb-3">Nombre de la empresa</h3>
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_company">
+        <div class="col-md-8">
+          <label class="form-label small mb-1">{{ company_form.company_legal_name.label }}</label>
+          {{ company_form.company_legal_name }}
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-dark w-100">
+            <i class="bi bi-building"></i> Guardar nombre
+          </button>
+        </div>
+      </form>
+      <div class="form-text mt-2">Actual: <strong>{{ settings_obj.company_legal_name|default:"—" }}</strong></div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label small text-muted mb-1">Buscar</label>
+          <input type="search" name="q" class="form-control form-control-sm" value="{{ filter_q }}" placeholder="Nombre, usuario, correo…">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-muted mb-1">Rol</label>
+          <select name="role" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="vendedor" {% if filter_role == 'vendedor' %}selected{% endif %}>Vendedor</option>
+            <option value="admin" {% if filter_role == 'admin' %}selected{% endif %}>Administrador</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+          <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
+          <a href="{% url 'store:staff_user_list' %}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="small text-muted">
+          <tr>
+            <th></th>
+            <th>Usuario</th>
+            <th>Correo / Teléfono</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td style="width:56px;">
+              {% if u.profile.avatar %}
+              <img src="{{ u.profile.avatar.url }}" alt="" class="staff-avatar">
+              {% else %}
+              <span class="staff-avatar-fallback">{{ u|initials }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="fw-semibold">{{ u.get_full_name|default:u.username }}</div>
+              <div class="small text-muted">@{{ u.username }}</div>
+            </td>
+            <td>
+              <div>{{ u.email|default:"—" }}</div>
+              <div class="small text-muted">{{ u.profile.phone|default:"—" }}</div>
+            </td>
+            <td>
+              {% if u.is_superuser %}
+              <span class="badge text-bg-dark">Administrador</span>
+              {% else %}
+              <span class="badge text-bg-primary">Vendedor</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_active %}
+              <span class="badge text-bg-success">Activo</span>
+              {% else %}
+              <span class="badge text-bg-secondary">Inactivo</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              {% if u.is_superuser and not can_manage_admins %}
+              <span class="small text-muted">Sin permiso</span>
+              {% else %}
+              <a href="{% url 'store:staff_user_edit' user_id=u.id %}" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-pencil"></i> Editar
+              </a>
+              {% if u.id != request.user.id %}
+              <form method="post" action="{% url 'store:staff_user_toggle_active' user_id=u.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-{% if u.is_active %}warning{% else %}success{% endif %}">
+                  {% if u.is_active %}Desactivar{% else %}Activar{% endif %}
+                </button>
+              </form>
+              {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No hay usuarios del equipo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Alquileres · Panel - MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .rd-page { --ink:#0f172a; --muted:#475569; --line:#e2e8f0; --soft:#f8fafc; }
+  .rd-title { font-weight:800; letter-spacing:-.02em; color:var(--ink); margin:0; }
+  .rd-sub { color:var(--muted); font-size:.9rem; font-weight:500; }
+  .rd-card {
+    border:1px solid var(--line); border-radius:1rem; background:#fff;
+    box-shadow:0 10px 28px rgba(15,23,42,.04); overflow:hidden; height:100%;
+  }
+  .rd-card-head {
+    padding:.85rem 1.1rem; background:var(--soft); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+  }
+  .rd-card-head h5 {
+    margin:0; font-size:.92rem; font-weight:800; text-transform:uppercase;
+    letter-spacing:.03em; color:var(--ink);
+  }
+  .rd-card-body { padding:1rem 1.1rem; }
+  .rd-kpi {
+    border:1px solid var(--line); border-radius:1rem; background:#fff;
+    padding:1rem 1.15rem; box-shadow:0 8px 20px rgba(15,23,42,.04); height:100%;
+  }
+  .rd-kpi .label { font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+  .rd-kpi .value { font-size:1.7rem; font-weight:800; color:var(--ink); line-height:1.1; margin-top:.2rem; }
+  .rd-kpi.ok { border-color:#86efac; background:#f0fdf4; }
+  .rd-kpi.warn { border-color:#fcd34d; background:#fffbeb; }
+  .rd-kpi.danger { border-color:#fca5a5; background:#fef2f2; }
+  .rd-kpi.info { border-color:#93c5fd; background:#eff6ff; }
+  .rd-table td, .rd-table th { vertical-align:middle !important; font-size:.9rem; }
+  .rd-table thead th { color:#64748b; font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
+  .badge-avail { background:#dcfce7; color:#166534; }
+  .badge-out { background:#fee2e2; color:#991b1b; }
+  .badge-stock { background:#e2e8f0; color:#0f172a; }
+  tr.st-sin_respuesta { background:#fffbeb; }
+  tr.st-modificado_y_enviado { background:#eff6ff; }
+  tr.st-aceptado, tr.st-esperando_pago { background:#ecfeff; }
+  tr.st-pago_recibido, tr.st-enviado, tr.st-recibido { background:#ecfdf5; }
+  tr.st-rechazado { background:#fef2f2; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4 rd-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+    <div>
+      <h1 class="rd-title h3">Panel de alquileres</h1>
+      <div class="rd-sub">
+        Stock según cotizaciones · {{ today|date:"d/m/Y" }}<br>
+        <span class="small">
+          Una máquina se considera <strong>alquilada</strong> si su cotización está en un estado
+          distinto de <em>Sin respuesta</em>, <em>Rechazado</em> o <em>Modificado y enviado</em>.
+        </span>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'store:quotation_list' %}" class="btn btn-sm btn-outline-dark rounded-pill fw-semibold">
+        <i class="bi bi-file-earmark-text me-1"></i> Cotizaciones
+      </a>
+      <a href="{% url 'store:inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary rounded-pill fw-semibold">
+        <i class="bi bi-boxes me-1"></i> Inventario
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="rd-kpi">
+        <div class="label">Stock total</div>
+        <div class="value">{{ total_stock }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rd-kpi {% if total_available > 0 %}ok{% else %}danger{% endif %}">
+        <div class="label">Disponibles ahora</div>
+        <div class="value">{{ total_available }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rd-kpi {% if total_out %}info{% endif %}">
+        <div class="label">En alquiler (cotiz.)</div>
+        <div class="value">{{ total_out }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rd-kpi {% if pending_count %}warn{% endif %}">
+        <div class="label">Solicitudes abiertas</div>
+        <div class="value">{{ pending_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rd-card mb-4">
+    <div class="rd-card-head">
+      <h5><i class="bi bi-hdd-stack me-1"></i> Máquinas · stock</h5>
+      <span class="small text-muted">Disponible = stock − unidades en cotizaciones ya alquiladas</span>
+    </div>
+    <div class="rd-card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 rd-table">
+          <thead>
+            <tr>
+              <th>Máquina</th>
+              <th class="text-center">Stock</th>
+              <th class="text-center">En alquiler</th>
+              <th class="text-center">Quedan disponibles</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in stock_rows %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ row.product.name }}</div>
+                <div class="small text-muted">
+                  {% if row.product.rental_brand or row.product.rental_model or row.product.rental_serial %}
+                    {{ row.product.rental_brand|default:"" }}
+                    {% if row.product.rental_model %} · {{ row.product.rental_model }}{% endif %}
+                    {% if row.product.rental_serial %} · S/N {{ row.product.rental_serial }}{% endif %}
+                  {% else %}
+                    Producto de alquiler
+                  {% endif %}
+                </div>
+              </td>
+              <td class="text-center"><span class="badge badge-stock rounded-pill px-3">{{ row.stock }}</span></td>
+              <td class="text-center"><span class="badge badge-out rounded-pill px-3">{{ row.out }}</span></td>
+              <td class="text-center">
+                <span class="badge {% if row.available %}badge-avail{% else %}badge-out{% endif %} rounded-pill px-3">
+                  {{ row.available }}
+                </span>
+              </td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'rentals:rental_detail' row.product.id %}">Ver</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No hay máquinas de alquiler registradas.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="rd-card">
+        <div class="rd-card-head">
+          <h5><i class="bi bi-inbox me-1"></i> Tabla de solicitudes</h5>
+          <span class="small text-muted">Sin respuesta / Modificado y enviado</span>
+        </div>
+        <div class="rd-card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 rd-table">
+              <thead>
+                <tr>
+                  <th>COT</th>
+                  <th>Cliente</th>
+                  <th>Máquina(s)</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for q in pending_quotes %}
+                <tr class="st-{{ q.order_status }}">
+                  <td class="fw-semibold">COT-{{ q.id }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ q.display_client_name|default:"—" }}</div>
+                    <div class="small text-muted">{{ q.created_at|date:"d/m/Y H:i" }}</div>
+                  </td>
+                  <td>
+                    {% for it in q.items.all %}
+                      {% if it.product.product_type == 'rental' %}
+                        <div>{{ it.product.name|truncatechars:28 }} ×{{ it.quantity }}</div>
+                      {% endif %}
+                    {% endfor %}
+                  </td>
+                  <td>
+                    <span class="badge text-bg-{% if q.order_status == 'sin_respuesta' %}warning{% else %}primary{% endif %}">
+                      {{ q.get_order_status_display }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <a href="{% url 'store:quotation_detail' quotation_id=q.id %}" class="btn btn-sm btn-outline-dark">Abrir</a>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No hay solicitudes abiertas de alquiler.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="rd-card">
+        <div class="rd-card-head">
+          <h5><i class="bi bi-truck me-1"></i> Máquinas en alquiler</h5>
+          <span class="badge text-bg-primary">{{ active_count }} und.</span>
+        </div>
+        <div class="rd-card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 rd-table">
+              <thead>
+                <tr>
+                  <th>Máquina</th>
+                  <th>Cliente / COT</th>
+                  <th>Estado pedido</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in machines_out %}
+                <tr class="st-{{ row.order_status }}">
+                  <td>
+                    <div class="fw-semibold">{{ row.product.name|truncatechars:32 }}</div>
+                    <div class="small text-muted">×{{ row.quantity }} · {{ row.period_label }}</div>
+                  </td>
+                  <td>
+                    <div>{{ row.client_name }}</div>
+                    <div class="small text-muted">COT-{{ row.quote.id }} · {{ row.updated_at|date:"d/m/Y" }}</div>
+                  </td>
+                  <td>
+                    <span class="badge text-bg-success">{{ row.order_status_display }}</span>
+                  </td>
+                  <td class="text-end">
+                    <a href="{% url 'store:quotation_detail' quotation_id=row.quote.id %}" class="btn btn-sm btn-outline-dark">Ver</a>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">
+                    No hay máquinas alquiladas por cotización en este momento.
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

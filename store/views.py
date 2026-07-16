@@ -1,15 +1,20 @@
 import os
 import logging
+import json
 from datetime import timedelta
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.text import slugify
+from django.utils import timezone
 from django.contrib import messages
+import base64
+import re
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login as auth_login
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Count, Min, Max, Sum, Prefetch
 from django.core.paginator import Paginator
@@ -18,7 +23,11 @@ from decimal import Decimal
 
 from .models import (
     Product, Category, Cart, CartItem, Order, OrderItem,
-    ProductImage, ProductVariation, ProductVariationImage, ProductTechnicalSpec, ProductAttribute
+    ProductImage, ProductVariation, ProductVariationImage, ProductTechnicalSpec, ProductAttribute,
+    ProductRentalPrice,
+    DilutionBaseProduct, SiteSettings, PaymentMethod,
+    RentalContractRequirements, RentalDeliveryActa,
+    FinanceRecord,
 )
 from .forms import (
     ProductForm,
@@ -30,6 +39,9 @@ from .forms import (
     ProductAttributeForm,
     QuotationForm,
     GuestCheckoutForm,
+    DilutionBaseProductForm,
+    SiteSettingsForm,
+    PaymentMethodForm,
 )
 from .models import Quotation, QuotationItem
 
@@ -39,15 +51,71 @@ IVA_RATE = Decimal('0.19')
 logger = logging.getLogger(__name__)
 
 
+def _stock_commit_statuses():
+    """Estados de pedido que comprometen inventario (descuentan stock una sola vez)."""
+    return {
+        'aceptado',
+        'esperando_pago',
+        'pago_parcial',
+        'pago_recibido',
+        'enviado',
+        'recibido',
+        'modificado_y_enviado',
+    }
+
+
+def _post_payment_statuses():
+    """Estados que implican comprobante / pago (o posteriores)."""
+    return {
+        'pago_parcial',
+        'pago_recibido',
+        'enviado',
+        'recibido',
+        'modificado_y_enviado',
+    }
+
+
+def _fully_paid_statuses():
+    """Estados con pago total (cotización cerrada / factura disponible)."""
+    return {
+        'pago_recibido',
+        'enviado',
+        'recibido',
+        'modificado_y_enviado',
+    }
+
+
+def _close_quotation_on_full_payment(quote: Quotation) -> bool:
+    """Marca la cotización como cerrada cuando el pago es total. Devuelve True si cambió."""
+    changed = False
+    if quote.quotation_status != 'cerrada':
+        quote.quotation_status = 'cerrada'
+        changed = True
+    return changed
+
+
+def _quotation_is_fully_paid(quote: Quotation) -> bool:
+    return quote.order_status in _fully_paid_statuses() and bool(quote.payment_proof)
+
+
 def _deduct_stock_for_quotation(quotation: Quotation):
     """
     Descontar stock de los productos de una cotización.
-    Se llama una sola vez cuando el estado de pedido pasa por primera vez a un estado post‑pago.
+    Se ejecuta una sola vez (flag stock_deducted), al aceptar el pedido o al
+    pasar a un estado posterior que también compromete inventario.
+    No descuenta productos de alquiler.
     """
+    if getattr(quotation, 'stock_deducted', False):
+        return False
+
     items = quotation.items.select_related('product')
+    changed_any = False
     for it in items:
         product = it.product
         if not product:
+            continue
+        # Alquiler no reduce stock de inventario de venta
+        if getattr(product, 'is_rental', False) or getattr(product, 'product_type', '') == 'rental':
             continue
         try:
             qty = int(it.quantity or 0)
@@ -62,12 +130,33 @@ def _deduct_stock_for_quotation(quotation: Quotation):
         if new_stock != current_stock:
             product.stock = new_stock
             product.save(update_fields=['stock'])
+            changed_any = True
+
+    quotation.stock_deducted = True
+    quotation.save(update_fields=['stock_deducted', 'updated_at'])
+    return changed_any
+
+
+def _ensure_stock_deducted_for_committed_quotations():
+    """Sincroniza stock pendiente de cotizaciones ya aceptadas/pagadas sin descuento."""
+    pending = Quotation.objects.filter(
+        stock_deducted=False,
+        order_status__in=_stock_commit_statuses(),
+    ).prefetch_related('items__product')
+    for quote in pending:
+        _deduct_stock_for_quotation(quote)
 
 
 def home(request):
     """Home page with featured products"""
-    featured_products = Product.objects.filter(available=True)[:8]
-    
+    from django.utils import timezone
+    from datetime import timedelta
+
+    featured_products = list(Product.objects.filter(available=True).select_related('category')[:8])
+    total_products = Product.objects.filter(available=True).count()
+    now = timezone.now()
+    recent_cutoff = now - timedelta(days=30)
+
     # Get cart quantities for authenticated users
     cart_quantities = {}
     if request.user.is_authenticated:
@@ -78,7 +167,6 @@ def home(request):
         except Cart.DoesNotExist:
             pass
     else:
-        # For anonymous users, get from session
         session_cart = request.session.get('cart', {})
         for product_id_str, quantity in session_cart.items():
             try:
@@ -86,13 +174,41 @@ def home(request):
                 cart_quantities[product_id] = quantity
             except (ValueError, TypeError):
                 continue
-    
-    # Attach cart quantities to products
-    for product in featured_products:
+
+    for i, product in enumerate(featured_products):
         product.cart_quantity = cart_quantities.get(product.id, 0)
-    
+        if product.has_discount:
+            product.display_badge = 'Oferta'
+            product.display_badge_class = 'badge-offer'
+        elif product.created_at >= recent_cutoff:
+            product.display_badge = 'Nuevo'
+            product.display_badge_class = 'badge-new'
+        elif i < 2:
+            product.display_badge = 'Más vendido'
+            product.display_badge_class = 'badge-bestseller'
+        else:
+            product.display_badge = ''
+            product.display_badge_class = ''
+
+    product_prefetch = Prefetch(
+        'products',
+        queryset=(
+            Product.objects
+            .prefetch_related('rental_prices', 'attributes')
+            .order_by('-available', '-created_at')[:10]
+        ),
+        to_attr='preview_products',
+    )
+    category_showcases = list(
+        Category.objects.prefetch_related(product_prefetch).order_by('name')[:8]
+    )
+    category_showcases = [c for c in category_showcases if c.preview_products]
+
     context = {
         'featured_products': featured_products,
+        'total_products': total_products,
+        'total_clients': 100,
+        'category_showcases': category_showcases,
     }
     return render(request, 'store/home.html', context)
 
@@ -309,10 +425,14 @@ def product_detail(request, slug):
         session_cart = request.session.get('cart', {})
         cart_quantity = session_cart.get(str(product.id), 0)
     
-    related_products = Product.objects.filter(
-        category=product.category,
-        available=True
-    ).exclude(id=product.id)[:4]
+    related_qs = product.related_products.filter(available=True)
+    if related_qs.exists():
+        related_products = related_qs[:8]
+    else:
+        related_products = Product.objects.filter(
+            category=product.category,
+            available=True
+        ).exclude(id=product.id)[:8]
 
     # Favoritos (solo logueados)
     is_favorited = False
@@ -757,11 +877,17 @@ def checkout(request):
             user = request.user
             full_name = user.get_full_name() or user.username
             email = user.email or ''
+            profile = getattr(user, 'profile', None)
+            kind = 'natural'
+            if profile and (profile.client_type or '') in ('natural', 'empresa'):
+                kind = profile.client_type
+            if not phone and profile:
+                phone = (profile.phone or '').strip()
 
             quotation_obj = Quotation.objects.create(
                 created_by=user,
                 existing_client=user,
-                client_kind='existing',
+                client_kind=kind,
                 client_name=full_name,
                 client_email=email,
                 client_phone=phone,
@@ -795,6 +921,7 @@ def checkout(request):
                 quotation_obj.id,
             )
             _notify_telegram_new_quotation(quotation_obj, is_registered=True)
+            _notify_wa_new_quotation(quotation_obj, source='Checkout cliente registrado', request=request)
 
             # Mostrar la misma página de "pasarela deshabilitada" / pedido registrado
             return render(request, 'store/guest_checkout_success.html', {
@@ -925,6 +1052,7 @@ def guest_checkout(request):
                 quotation_obj.id,
             )
             _notify_telegram_new_quotation(quotation_obj, is_registered=False)
+            _notify_wa_new_quotation(quotation_obj, source='Checkout invitado / cliente', request=request)
 
             return render(request, 'store/guest_checkout_success.html', {
                 'quote': quotation_obj,
@@ -1222,7 +1350,18 @@ def client_edit(request, client_id):
                 client.profile.city = form.cleaned_data.get('city', '')
                 client.profile.address = form.cleaned_data.get('address', '')
                 client.profile.save()
-            messages.success(request, f'Cliente "{client.get_full_name() or client.username}" actualizado.')
+
+            # Actualizar cotizaciones vinculadas con el nombre/datos actuales
+            linked_quotes = Quotation.objects.filter(existing_client=client)
+            updated_quotes = 0
+            for quote in linked_quotes.iterator():
+                if quote.sync_client_snapshot_from_profile(save=True):
+                    updated_quotes += 1
+
+            msg = f'Cliente "{client.get_full_name() or client.username}" actualizado.'
+            if updated_quotes:
+                msg += f' Se sincronizaron {updated_quotes} cotización(es).'
+            messages.success(request, msg)
             return redirect('store:client_detail', client_id=client.id)
     else:
         profile = getattr(client, 'profile', None)
@@ -1269,10 +1408,191 @@ def client_generate_password(request, client_id):
     return JsonResponse({'password': pwd})
 
 
+def _staff_role_label(user: User) -> str:
+    if user.is_superuser:
+        return 'Administrador'
+    if user.is_staff:
+        return 'Vendedor'
+    return 'Cliente'
+
+
+@staff_member_required
+def staff_user_list(request):
+    """Listado de personal (vendedores / admins) + edición de nombre de empresa."""
+    from .forms import CompanyNameForm
+
+    settings_obj = SiteSettings.load()
+    company_form = CompanyNameForm(initial={'company_legal_name': settings_obj.company_legal_name})
+
+    if request.method == 'POST' and request.POST.get('action') == 'update_company':
+        company_form = CompanyNameForm(request.POST)
+        if company_form.is_valid():
+            settings_obj.company_legal_name = company_form.cleaned_data['company_legal_name'].strip()
+            settings_obj.save(update_fields=['company_legal_name', 'updated_at'])
+            messages.success(request, 'Nombre de la empresa actualizado.')
+            return redirect('store:staff_user_list')
+
+    q = (request.GET.get('q') or '').strip()
+    role = (request.GET.get('role') or '').strip()
+    users = User.objects.filter(is_staff=True).select_related('profile').order_by('-is_superuser', 'first_name', 'username')
+    if q:
+        users = users.filter(
+            Q(username__icontains=q)
+            | Q(email__icontains=q)
+            | Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+        )
+    if role == 'admin':
+        users = users.filter(is_superuser=True)
+    elif role == 'vendedor':
+        users = users.filter(is_superuser=False)
+
+    return render(request, 'store/manager/staff_user_list.html', {
+        'users': users,
+        'filter_q': q,
+        'filter_role': role,
+        'company_form': company_form,
+        'settings_obj': settings_obj,
+        'can_manage_admins': request.user.is_superuser,
+    })
+
+
+@staff_member_required
+def staff_user_create(request):
+    """Crear vendedor o administrador."""
+    from .forms import StaffUserCreateForm
+
+    allow_admin = request.user.is_superuser
+    if request.method == 'POST':
+        form = StaffUserCreateForm(request.POST, request.FILES, allow_admin_role=allow_admin)
+        if form.is_valid():
+            user = form.save()
+            role = 'Administrador' if user.is_superuser else 'Vendedor'
+            messages.success(request, f'{role} “{user.get_full_name() or user.username}” creado correctamente.')
+            request.session['new_staff_password'] = form.cleaned_data.get('password1', '')
+            return redirect('store:staff_user_edit', user_id=user.id)
+    else:
+        form = StaffUserCreateForm(allow_admin_role=allow_admin)
+
+    return render(request, 'store/manager/staff_user_form.html', {
+        'form': form,
+        'title': 'Nuevo usuario del equipo',
+        'is_create': True,
+        'can_manage_admins': allow_admin,
+    })
+
+
+@staff_member_required
+def staff_user_edit(request, user_id):
+    """Editar datos, rol y foto de perfil de un usuario staff."""
+    from .forms import StaffUserEditForm
+
+    target = get_object_or_404(User.objects.select_related('profile'), id=user_id, is_staff=True)
+    allow_admin = request.user.is_superuser
+
+    # Un vendedor no puede editar administradores ni a sí mismo promoverse
+    if target.is_superuser and not allow_admin:
+        messages.error(request, 'No tienes permiso para editar administradores.')
+        return redirect('store:staff_user_list')
+
+    profile = getattr(target, 'profile', None)
+    new_password = request.session.pop('new_staff_password', None)
+
+    if request.method == 'POST':
+        form = StaffUserEditForm(request.POST, request.FILES, allow_admin_role=allow_admin)
+        if form.is_valid():
+            # Evitar que un admin se quite a sí mismo el rol admin y se bloquee
+            new_role = form.cleaned_data['role']
+            if target.id == request.user.id and new_role != 'admin' and target.is_superuser:
+                messages.error(request, 'No puedes quitarte el rol de administrador a ti mismo.')
+                return redirect('store:staff_user_edit', user_id=target.id)
+
+            target.email = form.cleaned_data['email']
+            target.first_name = form.cleaned_data['first_name']
+            target.last_name = form.cleaned_data['last_name'] or ''
+            target.is_staff = True
+            if allow_admin:
+                target.is_superuser = (new_role == 'admin')
+            # No permitir desactivar la propia cuenta
+            if target.id == request.user.id:
+                target.is_active = True
+            else:
+                target.is_active = bool(form.cleaned_data.get('is_active'))
+
+            new_pwd = (form.cleaned_data.get('new_password') or '').strip()
+            if new_pwd:
+                target.set_password(new_pwd)
+
+            target.save()
+
+            if profile is None:
+                from accounts.models import UserProfile
+                profile = UserProfile.objects.create(user=target)
+            profile.phone = form.cleaned_data.get('phone', '') or ''
+            if form.cleaned_data.get('clear_avatar') and profile.avatar:
+                profile.avatar.delete(save=False)
+                profile.avatar = None
+            avatar = form.cleaned_data.get('avatar')
+            if avatar:
+                profile.avatar = avatar
+            profile.save()
+
+            messages.success(request, f'Usuario “{target.get_full_name() or target.username}” actualizado.')
+            return redirect('store:staff_user_list')
+    else:
+        phone = ''
+        if profile and profile.phone:
+            phone = profile.phone.replace('+57 ', '').replace('+57', '').strip()
+        form = StaffUserEditForm(
+            initial={
+                'email': target.email,
+                'first_name': target.first_name,
+                'last_name': target.last_name,
+                'phone': phone,
+                'role': 'admin' if target.is_superuser else 'vendedor',
+                'is_active': target.is_active,
+            },
+            allow_admin_role=allow_admin,
+        )
+
+    return render(request, 'store/manager/staff_user_form.html', {
+        'form': form,
+        'title': f'Editar · {target.get_full_name() or target.username}',
+        'is_create': False,
+        'staff_user': target,
+        'profile': profile,
+        'new_password': new_password,
+        'role_label': _staff_role_label(target),
+        'can_manage_admins': allow_admin,
+    })
+
+
+@staff_member_required
+def staff_user_toggle_active(request, user_id):
+    """Activar/desactivar usuario staff (POST)."""
+    if request.method != 'POST':
+        return redirect('store:staff_user_list')
+    target = get_object_or_404(User, id=user_id, is_staff=True)
+    if target.id == request.user.id:
+        messages.error(request, 'No puedes desactivar tu propia cuenta.')
+        return redirect('store:staff_user_list')
+    if target.is_superuser and not request.user.is_superuser:
+        messages.error(request, 'No tienes permiso para modificar administradores.')
+        return redirect('store:staff_user_list')
+    target.is_active = not target.is_active
+    target.save(update_fields=['is_active'])
+    estado = 'activado' if target.is_active else 'desactivado'
+    messages.success(request, f'Usuario “{target.get_full_name() or target.username}” {estado}.')
+    return redirect('store:staff_user_list')
+
+
 # Inventory views (staff only)
 @staff_member_required
 def inventory_dashboard(request):
     """Inventory dashboard"""
+    # Cotizaciones ya aceptadas/pagadas que aún no restaron inventario
+    _ensure_stock_deducted_for_committed_quotations()
+
     total_products = Product.objects.count()
     available_products = Product.objects.filter(available=True).count()
     low_stock_products = Product.objects.filter(stock__lt=5, stock__gt=0).count()
@@ -1295,7 +1615,7 @@ def inventory_dashboard(request):
 @staff_member_required
 def inventory_list(request):
     """List all products for inventory management"""
-    products = Product.objects.all().order_by('-created_at')
+    products = Product.objects.select_related('category').prefetch_related('rental_prices').order_by('-created_at')
     
     paginator = Paginator(products, 20)
     page_number = request.GET.get('page')
@@ -1333,6 +1653,7 @@ def inventory_create(request):
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
             product = form.save()
+            _process_rental_prices(request, product)
             
             # Process new attributes
             new_attr_index = 0
@@ -1364,8 +1685,64 @@ def inventory_create(request):
     
     context = {
         'form': form,
+        'rental_period_choices': ProductRentalPrice.PERIOD_CHOICES,
     }
     return render(request, 'store/inventory/product_form.html', context)
+
+
+RENTAL_PERIOD_ORDER = ('hourly', 'daily', 'weekly', 'monthly')
+
+
+def _process_rental_prices(request, product):
+    """Guardar tarifas de alquiler desde el formulario de inventario."""
+    if product.product_type != 'rental':
+        ProductRentalPrice.objects.filter(product=product).delete()
+        return
+
+    delete_ids = {int(x) for x in request.POST.getlist('delete_rental_price') if str(x).isdigit()}
+    ProductRentalPrice.objects.filter(product=product, id__in=delete_ids).delete()
+
+    for rental_price in ProductRentalPrice.objects.filter(product=product):
+        price_key = f'rental_price_{rental_price.id}_price'
+        if price_key not in request.POST:
+            continue
+        price_val = (request.POST.get(price_key) or '').strip()
+        period_type = (request.POST.get(f'rental_price_{rental_price.id}_period') or rental_price.period_type).strip()
+        if not price_val:
+            rental_price.delete()
+            continue
+        try:
+            rental_price.period_type = period_type
+            rental_price.price = Decimal(price_val)
+            rental_price.is_active = request.POST.get(f'rental_price_{rental_price.id}_active') == 'on'
+            rental_price.order = int(request.POST.get(f'rental_price_{rental_price.id}_order', rental_price.order) or 0)
+            rental_price.save()
+        except (ValueError, TypeError):
+            rental_price.delete()
+
+    new_index = 0
+    while True:
+        period_type = (request.POST.get(f'new_rental_price_period_{new_index}') or '').strip()
+        price_val = (request.POST.get(f'new_rental_price_price_{new_index}') or '').strip()
+        if not period_type and not price_val:
+            break
+        if period_type and price_val:
+            try:
+                order = int(request.POST.get(f'new_rental_price_order_{new_index}', new_index) or new_index)
+            except (ValueError, TypeError):
+                order = new_index
+            ProductRentalPrice.objects.update_or_create(
+                product=product,
+                period_type=period_type,
+                defaults={
+                    'price': Decimal(price_val),
+                    'is_active': request.POST.get(f'new_rental_price_active_{new_index}') == 'on',
+                    'order': order,
+                },
+            )
+        new_index += 1
+
+    product.sync_rental_catalog_price()
 
 
 def _process_attributes(request, product):
@@ -1455,7 +1832,39 @@ def inventory_edit(request, product_id):
             product.product_type = request.POST.get('product_type', product.product_type)
             product.description = request.POST.get('description', product.description)
             product.keywords = request.POST.get('keywords', product.keywords)
-            product.save(update_fields=['name', 'slug', 'category_id', 'product_type', 'description', 'keywords'])
+            if request.POST.get('accent_color_clear') == 'on':
+                product.accent_color = ''
+            else:
+                color = (request.POST.get('accent_color') or '').strip()
+                import re
+                if color and re.fullmatch(r'#[0-9A-Fa-f]{6}', color):
+                    product.accent_color = color.upper()
+                elif not color:
+                    product.accent_color = ''
+            product.unit_price_enabled = request.POST.get('unit_price_enabled') == 'on'
+            unit_qty_raw = (request.POST.get('unit_quantity') or '').strip()
+            unit_measure = (request.POST.get('unit_measure') or 'l').strip()
+            valid_measures = {c[0] for c in Product.UNIT_MEASURE_CHOICES}
+            if unit_measure not in valid_measures:
+                unit_measure = 'l'
+            product.unit_measure = unit_measure
+            if product.unit_price_enabled and unit_qty_raw:
+                try:
+                    qty = Decimal(unit_qty_raw)
+                    if qty > 0:
+                        product.unit_quantity = qty
+                    else:
+                        product.unit_quantity = None
+                        product.unit_price_enabled = False
+                except Exception:
+                    product.unit_quantity = None
+                    product.unit_price_enabled = False
+            else:
+                product.unit_quantity = None
+            product.save(update_fields=[
+                'name', 'slug', 'category_id', 'product_type', 'description', 'keywords',
+                'accent_color', 'unit_price_enabled', 'unit_quantity', 'unit_measure',
+            ])
             messages.success(request, 'Información básica guardada')
             return redirect('store:inventory_edit', product_id=product.id)
 
@@ -1470,14 +1879,41 @@ def inventory_edit(request, product_id):
 
         elif save_section == 'pricing':
             try:
-                product.purchase_cost = Decimal(str(request.POST.get('purchase_cost', product.purchase_cost) or 0))
-                product.price = Decimal(str(request.POST.get('price', product.price) or 0))
-                pr = request.POST.get('promotional_price')
-                product.promotional_price = Decimal(pr) if pr else None
-                product.stock = int(request.POST.get('stock', product.stock) or 0)
-                product.available = request.POST.get('available') == 'on'
-                product.save(update_fields=['purchase_cost', 'price', 'promotional_price', 'stock', 'available'])
-                messages.success(request, 'Precio y stock guardados')
+                if product.product_type == 'rental':
+                    _process_rental_prices(request, product)
+                    product.stock = int(request.POST.get('stock', product.stock) or 0)
+                    product.available = request.POST.get('available') == 'on'
+                    product.rental_brand = (request.POST.get('rental_brand') or '').strip()
+                    product.rental_model = (request.POST.get('rental_model') or '').strip()
+                    product.rental_serial = (request.POST.get('rental_serial') or '').strip()
+                    product.rental_condition = (request.POST.get('rental_condition') or '').strip() or 'Buen estado de funcionamiento'
+                    product.rental_accessories = (request.POST.get('rental_accessories') or '').strip()
+                    cv = (request.POST.get('rental_commercial_value') or '').strip()
+                    dep = (request.POST.get('rental_deposit') or '').strip()
+                    try:
+                        product.rental_commercial_value = Decimal(cv) if cv else None
+                    except Exception:
+                        product.rental_commercial_value = None
+                    try:
+                        product.rental_deposit = Decimal(dep) if dep else None
+                    except Exception:
+                        product.rental_deposit = None
+                    product.save(update_fields=[
+                        'stock', 'available',
+                        'rental_brand', 'rental_model', 'rental_serial', 'rental_condition',
+                        'rental_accessories', 'rental_commercial_value', 'rental_deposit',
+                    ])
+                    messages.success(request, 'Tarifas de alquiler, datos de contrato y disponibilidad guardados')
+                else:
+                    product.purchase_cost = Decimal(str(request.POST.get('purchase_cost', product.purchase_cost) or 0))
+                    product.price = Decimal(str(request.POST.get('price', product.price) or 0))
+                    pr = request.POST.get('promotional_price')
+                    product.promotional_price = Decimal(pr) if pr else None
+                    product.stock = int(request.POST.get('stock', product.stock) or 0)
+                    product.available = request.POST.get('available') == 'on'
+                    product.save(update_fields=['purchase_cost', 'price', 'promotional_price', 'stock', 'available'])
+                    ProductRentalPrice.objects.filter(product=product).delete()
+                    messages.success(request, 'Precio y stock guardados')
             except (ValueError, TypeError) as e:
                 messages.error(request, f'Error en precio/stock: {e}')
             return redirect('store:inventory_edit', product_id=product.id)
@@ -1497,6 +1933,7 @@ def inventory_edit(request, product_id):
         form = ProductForm(request.POST, request.FILES, instance=product)
         if form.is_valid():
             product = form.save()
+            _process_rental_prices(request, product)
             _process_attributes(request, product)
             messages.success(request, f'Producto {product.name} actualizado')
             return redirect('store:inventory_detail', product_id=product.id)
@@ -1510,6 +1947,7 @@ def inventory_edit(request, product_id):
         'form': form,
         'product': product,
         'products_for_related': products_for_related,
+        'rental_period_choices': ProductRentalPrice.PERIOD_CHOICES,
     }
     return render(request, 'store/inventory/product_form.html', context)
 
@@ -1556,6 +1994,10 @@ def inventory_duplicate(request, product_id):
         available=False,
         image=product.image,
         keywords=product.keywords,
+        accent_color=product.accent_color,
+        unit_price_enabled=product.unit_price_enabled,
+        unit_quantity=product.unit_quantity,
+        unit_measure=product.unit_measure,
     )
 
     for attr in product.attributes.all():
@@ -1564,6 +2006,14 @@ def inventory_duplicate(request, product_id):
             key=attr.key,
             value=attr.value,
             order=attr.order,
+        )
+    for rental_price in product.rental_prices.all():
+        ProductRentalPrice.objects.create(
+            product=new_product,
+            period_type=rental_price.period_type,
+            price=rental_price.price,
+            is_active=rental_price.is_active,
+            order=rental_price.order,
         )
     for spec in product.technical_specs.all():
         ProductTechnicalSpec.objects.create(
@@ -1932,19 +2382,46 @@ def quotation(request):
     # Si hay sesión de cotización, úsala como base (AJAX)
     session_quote = _get_quote_session(request)
     if session_quote:
-        for pid_str, qty in session_quote.items():
+        for line_key, entry in session_quote.items():
             try:
-                product = Product.objects.get(id=int(pid_str), available=True)
-                price = product.selling_price
+                product_id, rental_from_key = _parse_quote_line_key(line_key)
+                product = Product.objects.select_related('category').get(id=product_id, available=True)
+                entry = _normalize_quote_entry(entry)
+                qty = entry['qty']
+                rental_price_id = entry.get('rental_price_id') or rental_from_key
+                list_unit = _quote_base_unit_price(product, rental_price_id=rental_price_id)
+                price = _quote_unit_price(
+                    product,
+                    discount_value=entry.get('discount_value', entry.get('discount_percent', 0)),
+                    discount_type=entry.get('discount_type', 'percent'),
+                    rental_price_id=rental_price_id,
+                )
                 subtotal = price * qty
                 total += subtotal
+                period_label = ''
+                display_name = product.name
+                if rental_price_id:
+                    tariff = ProductRentalPrice.objects.filter(
+                        id=rental_price_id, product_id=product.id, is_active=True
+                    ).first()
+                    if tariff:
+                        period_label = tariff.get_period_type_display()
+                        display_name = f'{product.name} · {period_label}'
                 quotation_items.append({
                     'product': product,
+                    'line_key': line_key,
+                    'display_name': display_name,
+                    'period_label': period_label,
                     'quantity': qty,
+                    'discount_type': entry.get('discount_type', 'percent'),
+                    'discount_value': entry.get('discount_value', entry.get('discount_percent', 0)),
+                    'discount_percent': entry.get('discount_percent', 0),
+                    'rental_price_id': rental_price_id,
+                    'list_unit_price': list_unit,
                     'unit_price': price,
                     'subtotal': subtotal,
                 })
-            except (Product.DoesNotExist, ValueError):
+            except (Product.DoesNotExist, ValueError, TypeError):
                 continue
 
     # Obtener productos seleccionados desde GET o POST (fallback/compat)
@@ -1963,15 +2440,25 @@ def quotation(request):
             if selected_client and not unregistered:
                 client_name = selected_client.get_full_name() or selected_client.username
                 client_email = selected_client.email or ''
-                # phone desde perfil si existe
                 client_phone = ''
-                try:
-                    client_phone = getattr(getattr(selected_client, 'profile', None), 'phone', '') or ''
-                except Exception:
-                    client_phone = ''
-                client_kind = 'existing'
+                client_kind = 'natural'
                 client_departamento = ''
                 client_city = ''
+                try:
+                    profile = getattr(selected_client, 'profile', None)
+                    if profile:
+                        client_phone = (profile.phone or '').strip()
+                        if (profile.client_type or '') in ('natural', 'empresa'):
+                            client_kind = profile.client_type
+                        client_departamento = (profile.departamento or '').strip()
+                        client_city = (profile.city or '').strip()
+                        if (not client_departamento or not client_city) and profile.default_shipping_address_id:
+                            addr = profile.default_shipping_address
+                            if addr:
+                                client_departamento = client_departamento or (addr.departamento or '').strip()
+                                client_city = client_city or (addr.city or '').strip()
+                except Exception:
+                    pass
             else:
                 client_name = (form.cleaned_data.get('client_name') or '').strip()
                 client_email = (form.cleaned_data.get('client_email') or '').strip()
@@ -2011,17 +2498,34 @@ def quotation(request):
             )
 
             running_total = Decimal('0.00')
-            for pid_str, qty in session_quote.items():
+            for line_key, entry in session_quote.items():
                 try:
-                    product = Product.objects.get(id=int(pid_str), available=True)
-                except (Product.DoesNotExist, ValueError):
+                    product_id, rental_from_key = _parse_quote_line_key(line_key)
+                    product = Product.objects.get(id=product_id, available=True)
+                except (Product.DoesNotExist, ValueError, TypeError):
                     continue
-                price = product.selling_price
+                entry = _normalize_quote_entry(entry)
+                qty = entry['qty']
+                rental_price_id = entry.get('rental_price_id') or rental_from_key
+                list_unit = _quote_base_unit_price(product, rental_price_id=rental_price_id)
+                price = _quote_unit_price(
+                    product,
+                    discount_value=entry.get('discount_value', entry.get('discount_percent', 0)),
+                    discount_type=entry.get('discount_type', 'percent'),
+                    rental_price_id=rental_price_id,
+                )
+                rental_obj = None
+                if rental_price_id:
+                    rental_obj = ProductRentalPrice.objects.filter(
+                        id=rental_price_id, product_id=product.id
+                    ).first()
                 item = QuotationItem.objects.create(
                     quotation=quotation_obj,
                     product=product,
                     quantity=qty,
                     unit_price=price,
+                    list_unit_price=list_unit,
+                    rental_price=rental_obj,
                     subtotal=price * qty,
                 )
                 running_total += item.subtotal
@@ -2033,54 +2537,121 @@ def quotation(request):
             request.session['quotation'] = {}
             request.session.modified = True
 
+            _notify_wa_new_quotation(
+                quotation_obj,
+                source=f'Staff · {(request.user.get_full_name() or request.user.username) if request.user.is_authenticated else "Manager"}',
+                request=request,
+            )
+
             messages.success(request, f'Cotización #{quotation_obj.id} generada exitosamente.')
             return redirect('store:quotation_detail', quotation_id=quotation_obj.id)
     else:
         form = QuotationForm()
         # Obtener productos desde GET (pueden venir desde la lista de productos)
+        # Soporta "productId" o "productId:rentalPriceId"
         product_ids = request.GET.getlist('products')
-        
-        # Eliminar duplicados manteniendo el orden
+        session_quote = _get_quote_session(request)
+
         seen = set()
-        unique_product_ids = []
-        for pid in product_ids:
-            try:
-                pid_int = int(pid)
-                if pid_int not in seen:
-                    seen.add(pid_int)
-                    unique_product_ids.append(pid_int)
-            except (ValueError, TypeError):
+        unique_line_keys = []
+        for raw in product_ids:
+            product_id, rental_price_id = _parse_quote_line_key(raw)
+            if product_id is None:
                 continue
-        
-        # Construir items de cotización (y persistir a sesión)
-        for pid in unique_product_ids:
-            try:
-                product = Product.objects.get(id=pid, available=True)
-                price = product.selling_price
-                # si ya venía desde sesión, no duplicar
-                already = any(it['product'].id == product.id for it in quotation_items)
-                if already:
+            if rental_price_id:
+                key = f'{product_id}:{rental_price_id}'
+            else:
+                # Producto alquiler sin tarifa: no agregar precio catálogo solo;
+                # el usuario elige tarifas en el panel.
+                try:
+                    prod = Product.objects.only('id', 'product_type').get(id=product_id, available=True)
+                    if prod.is_rental:
+                        continue
+                except Product.DoesNotExist:
                     continue
+                key = str(product_id)
+            if key not in seen:
+                seen.add(key)
+                unique_line_keys.append((key, product_id, rental_price_id))
+
+        for key, product_id, rental_price_id in unique_line_keys:
+            try:
+                product = Product.objects.get(id=product_id, available=True)
+                if rental_price_id and not ProductRentalPrice.objects.filter(
+                    id=rental_price_id, product_id=product_id, is_active=True
+                ).exists():
+                    continue
+                already = any(it.get('line_key') == key for it in quotation_items)
+                if already or key in session_quote:
+                    continue
+                list_unit = _quote_base_unit_price(product, rental_price_id=rental_price_id)
+                period_label = ''
+                display_name = product.name
+                if rental_price_id:
+                    tariff = ProductRentalPrice.objects.filter(id=rental_price_id).first()
+                    if tariff:
+                        period_label = tariff.get_period_type_display()
+                        display_name = f'{product.name} · {period_label}'
                 quotation_items.append({
                     'product': product,
+                    'line_key': key,
+                    'display_name': display_name,
+                    'period_label': period_label,
                     'quantity': 1,
-                    'unit_price': price,
-                    'subtotal': price,
+                    'discount_type': 'percent',
+                    'discount_value': 0.0,
+                    'discount_percent': 0.0,
+                    'rental_price_id': rental_price_id,
+                    'list_unit_price': list_unit,
+                    'unit_price': list_unit,
+                    'subtotal': list_unit,
                 })
-                total += price
-                session_quote[str(product.id)] = 1
-            except (Product.DoesNotExist, ValueError):
+                total += list_unit
+                session_quote[key] = {
+                    'qty': 1,
+                    'discount_type': 'percent',
+                    'discount_value': 0.0,
+                    'discount_percent': 0.0,
+                    'rental_price_id': rental_price_id,
+                }
+            except (Product.DoesNotExist, ValueError, TypeError):
                 continue
         request.session['quotation'] = session_quote
         request.session.modified = True
-    
-    # Lista de todos los productos disponibles agrupados por categoría
-    # Excluir productos ya en la cotización solo si hay productos seleccionados
-    selected_product_ids = [item['product'].id for item in quotation_items] if quotation_items else []
+ 
+    # Excluir solo productos NO alquiler ya agregados (alquiler permite varias tarifas)
+    selected_product_ids = []
+    selected_line_keys = set(session_quote.keys()) if session_quote else set()
+    for item in quotation_items:
+        pid = item['product'].id
+        if item.get('rental_price_id'):
+            continue
+        selected_product_ids.append(pid)
     if selected_product_ids:
-        all_products = Product.objects.filter(available=True).exclude(id__in=selected_product_ids).select_related('category').order_by('category__name', 'name')
+        all_products = (
+            Product.objects.filter(available=True)
+            .exclude(id__in=selected_product_ids)
+            .select_related('category')
+            .prefetch_related(
+                Prefetch(
+                    'rental_prices',
+                    queryset=ProductRentalPrice.objects.filter(is_active=True).order_by('order', 'period_type'),
+                )
+            )
+            .order_by('category__name', 'name')
+        )
     else:
-        all_products = Product.objects.filter(available=True).select_related('category').order_by('category__name', 'name')
+        all_products = (
+            Product.objects.filter(available=True)
+            .select_related('category')
+            .prefetch_related(
+                Prefetch(
+                    'rental_prices',
+                    queryset=ProductRentalPrice.objects.filter(is_active=True).order_by('order', 'period_type'),
+                )
+            )
+            .order_by('category__name', 'name')
+        )
     products_by_category = {}
     for product in all_products:
         category_name = product.category.name
@@ -2095,6 +2666,8 @@ def quotation(request):
     context = {
         'form': form,
         'quotation_items': quotation_items,
+        'selected_line_keys': selected_line_keys,
+        'selected_line_keys_json': json.dumps(sorted(selected_line_keys)),
         'total': total,
         'all_products': all_products,
         'products_by_category': products_by_category,
@@ -2108,6 +2681,13 @@ def quotation(request):
 def quotation_list(request):
     """Listado (registro) de cotizaciones realizadas con filtros por cliente, manager y estado."""
     quotes = Quotation.objects.select_related('existing_client', 'created_by').order_by('-created_at')
+    # Marca cotizaciones con líneas de alquiler (para botón de contrato)
+    from django.db.models import Exists, OuterRef
+    rental_lines = QuotationItem.objects.filter(
+        quotation_id=OuterRef('pk'),
+        product__product_type='rental',
+    )
+    quotes = quotes.annotate(includes_rental=Exists(rental_lines))
     # Filtro por búsqueda de cliente (nombre o email)
     client_search = (request.GET.get('cliente') or '').strip()
     if client_search:
@@ -2141,14 +2721,145 @@ def quotation_list(request):
 
 @staff_member_required
 def sales_list(request):
-    """Vista de ventas: cotizaciones con estado de pedido 'pago_recibido'."""
-    quotes = (
-        Quotation.objects
-        .filter(order_status='pago_recibido')
-        .select_related('existing_client', 'created_by')
-        .order_by('-created_at')
+    """
+    Vista de ventas con 3 tablas:
+    - Cotizaciones pagadas
+    - Cotizaciones por falta de pago (vencidas esperando pago)
+    - Cotizaciones sin pagar (aceptadas / esperando pago vigentes)
+    Cada una muestra las últimas 10 y un total (de todo el conjunto filtrado).
+    """
+    from django.utils import timezone
+
+    base = Quotation.objects.select_related('existing_client', 'created_by').order_by('-created_at')
+
+    client_search = (request.GET.get('cliente') or '').strip()
+    manager_id = (request.GET.get('manager') or '').strip()
+    date_from = (request.GET.get('desde') or '').strip()
+    date_to = (request.GET.get('hasta') or '').strip()
+
+    if client_search:
+        base = base.filter(
+            Q(client_name__icontains=client_search) | Q(client_email__icontains=client_search)
+        )
+    if manager_id:
+        try:
+            base = base.filter(created_by_id=int(manager_id))
+        except ValueError:
+            pass
+    if date_from:
+        try:
+            base = base.filter(created_at__date__gte=date_from)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            base = base.filter(created_at__date__lte=date_to)
+        except Exception:
+            pass
+
+    paid_statuses = ['pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado']
+
+    now = timezone.now()
+    expiry_cutoff = now - timedelta(days=1)
+
+    paid_qs = base.filter(order_status__in=paid_statuses)
+    # Por falta de pago: esperando pago y ya venció la vigencia (1 día)
+    overdue_qs = base.filter(order_status='esperando_pago', created_at__lt=expiry_cutoff)
+    # Sin pagar: aceptado, o esperando pago todavía vigente
+    unpaid_qs = base.filter(
+        Q(order_status='aceptado') |
+        Q(order_status='esperando_pago', created_at__gte=expiry_cutoff)
     )
-    return render(request, 'store/manager/sales_list.html', {'quotes': quotes})
+
+    def _section(qs):
+        total = qs.aggregate(s=Sum('total'))['s'] or Decimal('0.00')
+        count = qs.count()
+        items = list(qs[:10])
+        return {
+            'items': items,
+            'total': total,
+            'count': count,
+            'showing': len(items),
+        }
+
+    manager_ids = Quotation.objects.exclude(created_by_id__isnull=True).values_list('created_by_id', flat=True).distinct()
+    managers = User.objects.filter(id__in=manager_ids).order_by('username')
+
+    return render(request, 'store/manager/sales_list.html', {
+        'paid': _section(paid_qs),
+        'overdue': _section(overdue_qs),
+        'unpaid': _section(unpaid_qs),
+        'managers': managers,
+        'filter_cliente': client_search,
+        'filter_manager': manager_id,
+        'filter_desde': date_from,
+        'filter_hasta': date_to,
+    })
+
+
+@staff_member_required
+def finance_list(request):
+    """Listado de gastos y pagos + formularios rápidos."""
+    from .forms import FinanceRecordForm
+    from datetime import date as date_cls
+
+    records = FinanceRecord.objects.select_related(
+        'created_by', 'related_quotation'
+    ).order_by('-recorded_at', '-id')
+
+    tipo = (request.GET.get('tipo') or '').strip()
+    if tipo in dict(FinanceRecord.TYPE_CHOICES):
+        records = records.filter(record_type=tipo)
+
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        records = records.filter(
+            Q(description__icontains=q)
+            | Q(notes__icontains=q)
+            | Q(category__icontains=q)
+        )
+
+    form = FinanceRecordForm(initial={'recorded_at': date_cls.today(), 'record_type': 'gasto'})
+    if request.method == 'POST':
+        form = FinanceRecordForm(request.POST, request.FILES)
+        if form.is_valid():
+            record = form.save(commit=False)
+            record.created_by = request.user
+            record.save()
+            _notify_wa_finance_record(record, request=request)
+            messages.success(
+                request,
+                f'{record.get_record_type_display()} de ${record.amount} registrado y notificado a WhatsApp.',
+            )
+            return redirect('store:finance_list')
+
+    gastos = FinanceRecord.objects.filter(record_type='gasto').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    pagos = FinanceRecord.objects.filter(record_type='pago').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+
+    paginator = Paginator(records, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'store/manager/finance_list.html', {
+        'page_obj': page_obj,
+        'form': form,
+        'filter_tipo': tipo,
+        'filter_q': q,
+        'total_gastos': gastos,
+        'total_pagos': pagos,
+        'balance': pagos - gastos,
+    })
+
+
+@staff_member_required
+def finance_delete(request, record_id):
+    """Eliminar un gasto/pago."""
+    record = get_object_or_404(FinanceRecord, id=record_id)
+    if request.method == 'POST':
+        label = f'{record.get_record_type_display()} ${record.amount}'
+        record.delete()
+        messages.success(request, f'{label} eliminado.')
+        return redirect('store:finance_list')
+    return render(request, 'store/manager/finance_confirm_delete.html', {'record': record})
 
 
 @staff_member_required
@@ -2166,12 +2877,13 @@ def quotation_ajax_set_status(request):
     except Exception:
         return JsonResponse({'error': 'Invalid quotation_id'}, status=400)
     update_fields = []
+    notify_pago = False
     if qs and qs in allowed_qs and qs != qobj.quotation_status:
         qobj.quotation_status = qs
         update_fields.extend(['quotation_status'])
     if os_ and os_ in allowed_os and os_ != qobj.order_status:
         # Estados que requieren comprobante de pago antes de avanzar
-        post_payment_statuses = {'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'}
+        post_payment_statuses = _post_payment_statuses()
         if os_ in post_payment_statuses and not qobj.payment_proof:
             return JsonResponse({
                 'error': 'Debe subir una referencia de pago en el detalle de la cotización antes de marcar este estado.',
@@ -2181,15 +2893,26 @@ def quotation_ajax_set_status(request):
             return JsonResponse({
                 'error': 'No es posible regresar el estado del pedido una vez que ha sido marcado como pagado/enviado/recibido.',
             }, status=400)
-        # Si pasamos por primera vez a un estado post‑pago, descontar stock
+        # Descontar stock al aceptar (o al primer estado que compromete inventario)
         previous_status = qobj.order_status
-        if os_ in post_payment_statuses and previous_status not in post_payment_statuses:
-            _deduct_stock_for_quotation(qobj)
+        commit_statuses = _stock_commit_statuses()
         qobj.order_status = os_
         update_fields.extend(['order_status'])
+        if os_ in commit_statuses and (
+            previous_status not in commit_statuses or not qobj.stock_deducted
+        ):
+            _deduct_stock_for_quotation(qobj)
+        notify_pago = (os_ == 'pago_recibido' and previous_status != 'pago_recibido')
+        if os_ in _fully_paid_statuses() and _close_quotation_on_full_payment(qobj):
+            update_fields.append('quotation_status')
     if update_fields:
         update_fields.append('updated_at')
-        qobj.save(update_fields=update_fields)
+        qobj.save(update_fields=list(dict.fromkeys(update_fields)))
+    # Si ya estaba aceptada sin descontar (legado), sincronizar
+    if qobj.order_status in _stock_commit_statuses() and not qobj.stock_deducted:
+        _deduct_stock_for_quotation(qobj)
+    if notify_pago:
+        _notify_wa_quotation_payment(qobj, event='pago_recibido', request=request)
     return JsonResponse({
         'ok': True,
         'quotation_id': qobj.id,
@@ -2204,11 +2927,48 @@ def quotation_detail(request, quotation_id):
     items = q.items.select_related('product', 'product__category').all()
     expires_at = q.created_at + timedelta(days=1)
 
-    # Subir referencia de pago (solo staff)
+    # Subir referencia de pago (solo staff) — parcial o total actualiza el estado
     if request.method == 'POST' and request.user.is_authenticated and request.user.is_staff and request.FILES.get('payment_proof'):
+        payment_type = (request.POST.get('payment_type') or 'total').strip().lower()
+        if payment_type not in ('parcial', 'total'):
+            payment_type = 'total'
+
+        previous_status = q.order_status
+        new_status = 'pago_parcial' if payment_type == 'parcial' else 'pago_recibido'
+
         q.payment_proof = request.FILES['payment_proof']
-        q.save(update_fields=['payment_proof'])
-        messages.success(request, 'Referencia de pago subida correctamente.')
+        q.order_status = new_status
+        update_fields = ['payment_proof', 'order_status', 'updated_at']
+        if payment_type == 'total':
+            if _close_quotation_on_full_payment(q):
+                update_fields.append('quotation_status')
+        q.save(update_fields=update_fields)
+
+        commit_statuses = _stock_commit_statuses()
+        if new_status in commit_statuses and (
+            previous_status not in commit_statuses or not q.stock_deducted
+        ):
+            _deduct_stock_for_quotation(q)
+
+        if new_status == 'pago_recibido' and previous_status != 'pago_recibido':
+            _notify_wa_quotation_payment(q, event='pago_recibido', request=request)
+        else:
+            _notify_wa_quotation_payment(
+                q,
+                event='pago_parcial' if payment_type == 'parcial' else 'referencia',
+                request=request,
+            )
+
+        if payment_type == 'parcial':
+            messages.success(
+                request,
+                'Referencia de pago parcial subida. Estado actualizado a «Pago parcial».',
+            )
+        else:
+            messages.success(
+                request,
+                'Pago total registrado. Cotización cerrada como «Pagada». Ya puedes descargar la factura.',
+            )
         return redirect('store:quotation_detail', quotation_id=q.id)
 
     # Actualizar estados (solo staff)
@@ -2222,22 +2982,33 @@ def quotation_detail(request, quotation_id):
             q.quotation_status = qs
             changed = True
         if os_ and os_ in allowed_os and os_ != q.order_status:
-            post_payment_statuses = {'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'}
+            post_payment_statuses = _post_payment_statuses()
             if os_ in post_payment_statuses and not q.payment_proof:
                 messages.warning(request, 'Debe subir una referencia de pago antes de marcar este estado de pedido.')
             else:
                 if q.order_status in post_payment_statuses and os_ not in post_payment_statuses:
                     messages.warning(request, 'No es posible regresar el estado del pedido una vez que ha sido marcado como pagado/enviado/recibido.')
                 else:
-                    # Si pasamos por primera vez a un estado post‑pago, descontar stock
                     previous_status = q.order_status
-                    if os_ in post_payment_statuses and previous_status not in post_payment_statuses:
-                        _deduct_stock_for_quotation(q)
+                    commit_statuses = _stock_commit_statuses()
                     q.order_status = os_
                     changed = True
+                    if os_ in commit_statuses and (
+                        previous_status not in commit_statuses or not q.stock_deducted
+                    ):
+                        _deduct_stock_for_quotation(q)
+                    if os_ == 'pago_recibido' and previous_status != 'pago_recibido':
+                        _notify_wa_quotation_payment(q, event='pago_recibido', request=request)
+                    if os_ in _fully_paid_statuses():
+                        if _close_quotation_on_full_payment(q):
+                            changed = True
         if changed:
             q.save(update_fields=['quotation_status', 'order_status', 'updated_at'])
             messages.success(request, 'Estados actualizados.')
+        # Sincronizar stock si la cotización ya estaba aceptada sin descontar
+        if q.order_status in _stock_commit_statuses() and not q.stock_deducted:
+            _deduct_stock_for_quotation(q)
+            messages.info(request, 'Inventario actualizado según productos aceptados.')
         return redirect('store:quotation_detail', quotation_id=q.id)
 
     def split_iva(amount: Decimal):
@@ -2263,6 +3034,20 @@ def quotation_detail(request, quotation_id):
         total_base += it.base_subtotal
         total_iva += it.iva_subtotal
 
+    rental_requirements = None
+    delivery_acta = None
+    if q.has_rental_items:
+        rental_requirements = RentalContractRequirements.objects.filter(quotation=q).first()
+        delivery_acta = RentalDeliveryActa.objects.filter(quotation=q).first()
+
+    # Completar tipo/depto/ciudad si la cotización se creó sin copiar el perfil
+    q.sync_client_snapshot_from_profile(save=True)
+
+    # Cotizaciones ya con pago total: asegurar cierre (legado)
+    if q.order_status in _fully_paid_statuses() and q.quotation_status != 'cerrada':
+        _close_quotation_on_full_payment(q)
+        q.save(update_fields=['quotation_status', 'updated_at'])
+
     return render(
         request,
         'store/quotation_detail.html',
@@ -2272,23 +3057,51 @@ def quotation_detail(request, quotation_id):
             'expires_at': expires_at,
             'total_base': total_base,
             'total_iva': total_iva,
+            'rental_requirements': rental_requirements,
+            'delivery_acta': delivery_acta,
+            'is_fully_paid': _quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses(),
+            'is_quote_closed': q.quotation_status == 'cerrada' or q.order_status in _fully_paid_statuses(),
         },
     )
 
 
-def quotation_pdf(request, quotation_id):
-    """
-    Vista de cotización en formato imprimible.
+def _infer_quotation_list_unit_price(product, unit_price) -> Decimal:
+    """Infer catalog/tariff list price for a saved quotation line (legacy items)."""
+    unit = unit_price if unit_price is not None else Decimal('0.00')
+    if getattr(product, 'is_rental', False) or getattr(product, 'product_type', '') == 'rental':
+        tariffs = [
+            rp.price
+            for rp in product.rental_prices.filter(is_active=True)
+            if rp.price is not None
+        ]
+        if tariffs:
+            above = [t for t in tariffs if t >= unit]
+            return min(above) if above else max(tariffs)
+    catalog = getattr(product, 'price', None) or getattr(product, 'selling_price', None)
+    if catalog is None:
+        return unit
+    return catalog if catalog >= unit else unit
 
-    En lugar de generar un PDF en el servidor (que requiere librerías nativas como
-    Cairo, problemáticas en Vercel), devolvemos HTML listo para imprimir.
-    Desde el navegador el usuario puede usar \"Imprimir\" → \"Guardar como PDF\".
-    """
-    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
-    items = q.items.select_related('product', 'product__category').all()
-    expires_at = q.created_at + timedelta(days=1)
 
-    # Reusar mismos cálculos del detalle
+def _normalize_pdf_iva_mode(raw) -> str:
+    """Return 'with_iva' or 'no_iva' from request/query values."""
+    value = str(raw or '').strip().lower()
+    if value in ('0', 'false', 'no', 'sin', 'sin-iva', 'sin_iva', 'no_iva', 'no-iva'):
+        return 'no_iva'
+    return 'with_iva'
+
+
+def _quotation_pdf_context(quote: Quotation, iva_mode: str = 'with_iva', doc_type: str = 'cotizacion') -> dict:
+    """Shared context for quotation PDF HTML / xhtml2pdf."""
+    quote.sync_client_snapshot_from_profile(save=True)
+    show_iva = _normalize_pdf_iva_mode(iva_mode) == 'with_iva'
+    is_factura = (doc_type or 'cotizacion') == 'factura'
+    is_paid = _quotation_is_fully_paid(quote) or quote.order_status in _fully_paid_statuses()
+    items = quote.items.select_related('product', 'product__category').prefetch_related(
+        'product__rental_prices'
+    ).all()
+    expires_at = quote.created_at + timedelta(days=1)
+
     def split_iva(amount: Decimal):
         if amount is None:
             amount = Decimal('0.00')
@@ -2302,31 +3115,601 @@ def quotation_pdf(request, quotation_id):
         it.base_unit, it.iva_unit = split_iva(it.unit_price)
         it.base_subtotal, it.iva_subtotal = split_iva(it.subtotal)
         try:
-            it.original_unit_price = it.product.price
-            it.discount_unit = (it.original_unit_price - it.unit_price) if it.product.has_discount else Decimal('0.00')
+            list_price = it.list_unit_price
+            if list_price is None:
+                list_price = _infer_quotation_list_unit_price(it.product, it.unit_price)
+            it.original_unit_price = list_price
+            diff = list_price - it.unit_price
+            it.discount_unit = diff if diff > 0 else Decimal('0.00')
         except Exception:
             it.original_unit_price = it.unit_price
             it.discount_unit = Decimal('0.00')
         total_base += it.base_subtotal
         total_iva += it.iva_subtotal
 
-    return render(
-        request,
-        'store/quotation_pdf.html',
-        {
-            'quote': q,
-            'items': items,
-            'expires_at': expires_at,
-            'total_base': total_base,
-            'total_iva': total_iva,
-        },
+    return {
+        'quote': quote,
+        'items': items,
+        'expires_at': expires_at,
+        'total_base': total_base,
+        'total_iva': total_iva,
+        'show_iva': show_iva,
+        'iva_mode': 'with_iva' if show_iva else 'no_iva',
+        'payment_methods': PaymentMethod.objects.filter(is_active=True).order_by('sort_order', 'id'),
+        'for_pdf_engine': True,
+        'doc_type': 'factura' if is_factura else 'cotizacion',
+        'is_factura': is_factura,
+        'is_paid': is_paid,
+        'show_paid_watermark': is_paid or is_factura,
+    }
+
+
+def _pdf_link_callback(uri, rel):
+    """Resolve static/media URIs for xhtml2pdf."""
+    from django.conf import settings
+    from django.contrib.staticfiles import finders
+    from urllib.parse import unquote, urlparse
+
+    raw = unquote(uri or '')
+    # Descarta query/hash si vienen
+    raw = urlparse(raw).path or raw
+
+    if raw.startswith(settings.MEDIA_URL):
+        path = os.path.join(settings.MEDIA_ROOT, raw.replace(settings.MEDIA_URL, '', 1))
+    elif raw.startswith(settings.STATIC_URL):
+        path = finders.find(raw.replace(settings.STATIC_URL, '', 1))
+    elif raw.startswith('/static/'):
+        path = finders.find(raw.replace('/static/', '', 1))
+    elif raw.startswith('/media/'):
+        path = os.path.join(settings.MEDIA_ROOT, raw.replace('/media/', '', 1))
+    else:
+        path = raw
+    if not path:
+        return uri
+    if isinstance(path, (list, tuple)):
+        path = path[0]
+    return path
+
+
+def _quotation_pdf_cache_path(quote: Quotation, iva_mode: str = 'with_iva', doc_type: str = 'cotizacion') -> str:
+    """Disk cache path for generated quotation PDF."""
+    from django.conf import settings
+
+    mode = _normalize_pdf_iva_mode(iva_mode)
+    kind = 'fac' if doc_type == 'factura' else 'cot'
+    paid = 'pagado' if _quotation_is_fully_paid(quote) or quote.order_status in _fully_paid_statuses() else 'abierto'
+    stamp = quote.updated_at.strftime('%Y%m%d%H%M%S') if quote.updated_at else '0'
+    folder = os.path.join(settings.MEDIA_ROOT, 'quotations', 'pdf_cache')
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, f'COT{quote.id}-{stamp}-{mode}-{kind}-{paid}.pdf')
+
+
+def _build_quotation_pdf_bytes(quote: Quotation, iva_mode: str = 'with_iva', doc_type: str = 'cotizacion'):
+    """Generate PDF bytes with xhtml2pdf (cached by quote.updated_at + iva mode). Returns (bytes|None, error)."""
+    mode = _normalize_pdf_iva_mode(iva_mode)
+    kind = 'factura' if doc_type == 'factura' else 'cotizacion'
+    cache_path = _quotation_pdf_cache_path(quote, mode, kind)
+    try:
+        if os.path.isfile(cache_path):
+            with open(cache_path, 'rb') as fh:
+                data = fh.read()
+            if data.startswith(b'%PDF'):
+                return data, None
+    except OSError:
+        pass
+
+    try:
+        from django.template.loader import get_template
+        from xhtml2pdf import pisa
+        from io import BytesIO
+    except ImportError:
+        return None, 'xhtml2pdf no está instalado'
+
+    template = get_template('store/quotation_pdf.html')
+    html = template.render(_quotation_pdf_context(quote, iva_mode=mode, doc_type=kind))
+    result = BytesIO()
+    pdf = pisa.pisaDocument(
+        BytesIO(html.encode('utf-8')),
+        result,
+        encoding='utf-8',
+        link_callback=_pdf_link_callback,
     )
+    if pdf.err:
+        return None, f'Error generando PDF: {pdf.err}'
+    data = result.getvalue()
+    try:
+        # Limpia caches viejos de esta cotización (ambos modos)
+        folder = os.path.dirname(cache_path)
+        for name in os.listdir(folder):
+            if name.startswith(f'COT{quote.id}-') and name.endswith('.pdf'):
+                old = os.path.join(folder, name)
+                if old != cache_path:
+                    try:
+                        os.remove(old)
+                    except OSError:
+                        pass
+        with open(cache_path, 'wb') as fh:
+            fh.write(data)
+    except OSError:
+        logger.exception('No se pudo cachear PDF de cotización %s', quote.id)
+    return data, None
+
+
+@xframe_options_sameorigin
+def quotation_pdf(request, quotation_id):
+    """Visor PDF de cotización (iframe) con descarga rápida."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    iva_mode = _normalize_pdf_iva_mode(request.GET.get('iva'))
+    iva_qs = '1' if iva_mode == 'with_iva' else '0'
+    doc_type = 'factura' if str(request.GET.get('tipo') or '').lower() in ('factura', 'invoice', 'fac') else 'cotizacion'
+    safe_client = slugify(q.client_name or 'sin-cliente')[:40]
+    mode_label = 'con-iva' if iva_mode == 'with_iva' else 'sin-iva'
+    prefix = 'FAC' if doc_type == 'factura' else 'COT'
+    filename = f"{prefix}{q.id}-{q.created_at.strftime('%Y-%m-%d')}-{safe_client}-{mode_label}.pdf"
+    file_url = (
+        reverse('store:quotation_pdf_file', kwargs={'quotation_id': q.id})
+        + f'?iva={iva_qs}&tipo={"factura" if doc_type == "factura" else "cotizacion"}'
+    )
+    return render(request, 'store/quotation_pdf_viewer.html', {
+        'quote': q,
+        'filename': filename,
+        'iva_mode': iva_mode,
+        'show_iva': iva_mode == 'with_iva',
+        'is_factura': doc_type == 'factura',
+        'is_paid': _quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses(),
+        'pdf_file_url': file_url,
+        'pdf_download_url': file_url + '&download=1',
+        'pdf_with_iva_url': reverse('store:quotation_pdf', kwargs={'quotation_id': q.id})
+            + f'?iva=1&tipo={"factura" if doc_type == "factura" else "cotizacion"}',
+        'pdf_no_iva_url': reverse('store:quotation_pdf', kwargs={'quotation_id': q.id})
+            + f'?iva=0&tipo={"factura" if doc_type == "factura" else "cotizacion"}',
+    })
+
+
+@xframe_options_sameorigin
+def quotation_pdf_file(request, quotation_id):
+    """Sirve el PDF binario (inline para el visor, attachment para descargar)."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    iva_mode = _normalize_pdf_iva_mode(request.GET.get('iva'))
+    iva_qs = '1' if iva_mode == 'with_iva' else '0'
+    doc_type = 'factura' if str(request.GET.get('tipo') or '').lower() in ('factura', 'invoice', 'fac') else 'cotizacion'
+    if doc_type == 'factura' and not (
+        _quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses()
+    ):
+        return HttpResponse(
+            'La factura solo está disponible cuando el pago es total.',
+            content_type='text/plain; charset=utf-8',
+            status=403,
+        )
+    pdf_bytes, err = _build_quotation_pdf_bytes(q, iva_mode=iva_mode, doc_type=doc_type)
+    if not pdf_bytes:
+        # Evitar HTML (con X-Frame-Options deny / redirects) dentro del iframe del visor.
+        msg = err or 'No se pudo generar el PDF'
+        return HttpResponse(
+            f'<html><body style="font-family:sans-serif;padding:2rem;background:#111;color:#eee;">'
+            f'<h3>No se pudo mostrar el PDF</h3><p>{msg}</p>'
+            f'<p><a style="color:#93c5fd;" href="{reverse("store:quotation_pdf_file", kwargs={"quotation_id": q.id})}?iva={iva_qs}&tipo={doc_type}&download=1">'
+            f'Descargar de nuevo</a></p></body></html>',
+            content_type='text/html; charset=utf-8',
+            status=500,
+        )
+
+    safe_client = slugify(q.client_name or 'sin-cliente')[:40]
+    mode_label = 'con-iva' if iva_mode == 'with_iva' else 'sin-iva'
+    prefix = 'FAC' if doc_type == 'factura' else 'COT'
+    filename = f"{prefix}{q.id}-{q.created_at.strftime('%Y-%m-%d')}-{safe_client}-{mode_label}.pdf"
+    as_download = str(request.GET.get('download') or '') in ('1', 'true', 'yes')
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    response['Content-Length'] = str(len(pdf_bytes))
+    response['Cache-Control'] = 'private, max-age=60'
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
+
+
+@staff_member_required
+def quotation_invoice_download(request, quotation_id):
+    """Descarga directa de factura (solo con pago total)."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    if not (_quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses()):
+        messages.warning(request, 'La factura solo está disponible cuando el pago es total.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+    iva_mode = _normalize_pdf_iva_mode(request.GET.get('iva', '1'))
+    return redirect(
+        reverse('store:quotation_pdf_file', kwargs={'quotation_id': q.id})
+        + f'?iva={"1" if iva_mode == "with_iva" else "0"}&tipo=factura&download=1'
+    )
+
+
+def _quotation_rental_items(quote: Quotation):
+    return list(
+        quote.items.select_related('product', 'product__category', 'rental_price')
+        .filter(product__product_type='rental')
+        .order_by('id')
+    )
+
+
+def _rental_contract_context(quote: Quotation) -> dict:
+    """Context for rental equipment contract PDF."""
+    quote.sync_client_snapshot_from_profile(save=True)
+    settings_obj = SiteSettings.load()
+    rental_items = _quotation_rental_items(quote)
+    equipment = []
+    deposit_examples = []
+    for it in rental_items:
+        p = it.product
+        tariffs = list(p.rental_prices.filter(is_active=True).order_by('order', 'period_type'))
+        commercial = p.rental_commercial_value
+        deposit_8pct = None
+        if commercial is not None and commercial > 0:
+            deposit_8pct = (commercial * Decimal('0.08')).quantize(Decimal('0.01'))
+        entry = {
+            'item': it,
+            'product': p,
+            'period_label': it.rental_price.get_period_type_display() if it.rental_price_id else 'Alquiler',
+            'tariffs': tariffs,
+            'commercial_value': commercial,
+            'deposit_8pct': deposit_8pct,
+        }
+        equipment.append(entry)
+        if deposit_8pct is not None:
+            deposit_examples.append(entry)
+    return {
+        'quote': quote,
+        'settings': settings_obj,
+        'equipment': equipment,
+        'deposit_examples': deposit_examples,
+        'today': quote.created_at,
+        'for_pdf_engine': True,
+    }
+
+
+def _build_rental_contract_pdf_bytes(quote: Quotation):
+    """Generate rental contract PDF for quotation rental lines."""
+    if not _quotation_rental_items(quote):
+        return None, 'Esta cotización no incluye máquinas de alquiler.'
+
+    try:
+        from django.template.loader import get_template
+        from xhtml2pdf import pisa
+        from io import BytesIO
+    except ImportError:
+        return None, 'xhtml2pdf no está instalado'
+
+    template = get_template('store/rental_contract_pdf.html')
+    html = template.render(_rental_contract_context(quote))
+    result = BytesIO()
+    pdf = pisa.pisaDocument(
+        BytesIO(html.encode('utf-8')),
+        result,
+        encoding='utf-8',
+        link_callback=_pdf_link_callback,
+    )
+    if pdf.err:
+        return None, f'Error generando contrato: {pdf.err}'
+    return result.getvalue(), None
+
+
+@xframe_options_sameorigin
+def quotation_rental_contract(request, quotation_id):
+    """Visor / descarga del contrato de alquiler asociado a la cotización."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    if not q.has_rental_items:
+        messages.warning(request, 'Esta cotización no tiene máquinas de alquiler para generar contrato.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    as_download = str(request.GET.get('download') or '') in ('1', 'true', 'yes')
+    pdf_bytes, err = _build_rental_contract_pdf_bytes(q)
+    if not pdf_bytes:
+        messages.error(request, err or 'No se pudo generar el contrato.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    safe_client = slugify(q.client_name or 'sin-cliente')[:40]
+    filename = f"CONTRATO-ALQUILER-COT{q.id}-{q.created_at.strftime('%Y-%m-%d')}-{safe_client}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    response['Content-Length'] = str(len(pdf_bytes))
+    response['Cache-Control'] = 'private, max-age=60'
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
+
+
+def _save_data_url_image(field, data_url, filename_prefix):
+    """Persist a canvas signature (data:image/png;base64,...) into an ImageField."""
+    if not data_url or not str(data_url).startswith('data:image'):
+        return False
+    match = re.match(r'^data:image/(png|jpeg|jpg);base64,(.+)$', str(data_url).strip(), re.IGNORECASE | re.DOTALL)
+    if not match:
+        return False
+    ext = match.group(1).lower()
+    if ext == 'jpeg':
+        ext = 'jpg'
+    raw = base64.b64decode(match.group(2))
+    field.save(f'{filename_prefix}.{ext}', ContentFile(raw), save=False)
+    return True
+
+
+@staff_member_required
+def quotation_rental_requirements(request, quotation_id):
+    """Captura requisitos del contrato: firmas digitales + fotos de cédula."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    if not q.has_rental_items:
+        messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    req, _ = RentalContractRequirements.objects.get_or_create(quotation=q)
+    if not req.tenant_name:
+        req.tenant_name = q.client_name or ''
+    if not req.representative_name:
+        settings_obj = SiteSettings.load()
+        req.representative_name = settings_obj.company_rep_name or settings_obj.company_legal_name or 'MIXLAB SAS'
+
+    if request.method == 'POST':
+        req.representative_name = (request.POST.get('representative_name') or '').strip()
+        req.tenant_name = (request.POST.get('tenant_name') or '').strip() or (q.client_name or '')
+        req.notes = (request.POST.get('notes') or '').strip()
+
+        _save_data_url_image(
+            req.representative_signature,
+            request.POST.get('representative_signature_data'),
+            f'cot{q.id}-req-rep',
+        )
+        _save_data_url_image(
+            req.tenant_signature,
+            request.POST.get('tenant_signature_data'),
+            f'cot{q.id}-req-tenant',
+        )
+        if request.FILES.get('id_front'):
+            req.id_front = request.FILES['id_front']
+        if request.FILES.get('id_back'):
+            req.id_back = request.FILES['id_back']
+
+        if req.is_complete and not req.completed_at:
+            req.completed_at = timezone.now()
+        elif not req.is_complete:
+            req.completed_at = None
+        req.save()
+        messages.success(request, 'Requisitos del contrato guardados.')
+        return redirect('store:quotation_rental_requirements', quotation_id=q.id)
+
+    return render(request, 'store/quotation_rental_requirements.html', {
+        'quote': q,
+        'req': req,
+    })
+
+
+@staff_member_required
+def ajax_reverse_geocode(request):
+    """Devuelve una dirección aproximada a partir de lat/lng (Nominatim)."""
+    if request.method != 'GET':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+
+    lat = (request.GET.get('lat') or '').strip()
+    lng = (request.GET.get('lng') or '').strip()
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Coordenadas inválidas'}, status=400)
+
+    address = ''
+    try:
+        import json as _json
+        import urllib.parse
+        import urllib.request
+
+        params = urllib.parse.urlencode({
+            'format': 'jsonv2',
+            'lat': f'{lat_f:.6f}',
+            'lon': f'{lng_f:.6f}',
+            'zoom': 18,
+            'addressdetails': 1,
+            'accept-language': 'es',
+        })
+        url = f'https://nominatim.openstreetmap.org/reverse?{params}'
+        req = urllib.request.Request(
+            url,
+            headers={
+                'User-Agent': 'MixLab-Frozz/1.0 (acta-recepcion)',
+                'Accept': 'application/json',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = _json.loads(resp.read().decode('utf-8'))
+        address = (data.get('display_name') or '').strip()
+    except Exception as exc:
+        logger.warning('Reverse geocode failed: %s', exc)
+        return JsonResponse({'ok': False, 'error': 'No se pudo obtener la dirección aproximada'}, status=502)
+
+    return JsonResponse({
+        'ok': True,
+        'address': address,
+        'maps_url': f'https://www.google.com/maps?q={lat_f:.6f},{lng_f:.6f}',
+    })
+
+
+@staff_member_required
+def quotation_delivery_acta(request, quotation_id):
+    """Acta de recepción: firmas + fotos + video + lugar al momento de la entrega."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    if not q.has_rental_items:
+        messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    acta, _ = RentalDeliveryActa.objects.get_or_create(quotation=q)
+    if not acta.tenant_name:
+        acta.tenant_name = q.client_name or ''
+    if not acta.representative_name:
+        settings_obj = SiteSettings.load()
+        acta.representative_name = settings_obj.company_rep_name or settings_obj.company_legal_name or 'MIXLAB SAS'
+    if not acta.delivered_at:
+        acta.delivered_at = timezone.now()
+
+    photo_fields = (
+        ('photo_covers', 'Tapas y plásticos'),
+        ('photo_lighting', 'Iluminación'),
+        ('photo_buttons', 'Botones'),
+        ('photo_radiator', 'Radiador'),
+        ('photo_rear', 'Parte trasera'),
+        ('photo_front', 'Parte delantera'),
+    )
+
+    if request.method == 'POST':
+        acta.representative_name = (request.POST.get('representative_name') or '').strip()
+        acta.tenant_name = (request.POST.get('tenant_name') or '').strip() or (q.client_name or '')
+        acta.reception_location = (request.POST.get('reception_location') or '').strip()
+        acta.reception_maps_url = (request.POST.get('reception_maps_url') or '').strip()
+        acta.delivery_notes = (request.POST.get('delivery_notes') or '').strip()
+
+        lat_raw = (request.POST.get('reception_latitude') or '').strip()
+        lng_raw = (request.POST.get('reception_longitude') or '').strip()
+        try:
+            acta.reception_latitude = Decimal(lat_raw) if lat_raw else None
+        except Exception:
+            acta.reception_latitude = None
+        try:
+            acta.reception_longitude = Decimal(lng_raw) if lng_raw else None
+        except Exception:
+            acta.reception_longitude = None
+
+        delivered_raw = (request.POST.get('delivered_at') or '').strip()
+        if delivered_raw:
+            try:
+                from django.utils.dateparse import parse_datetime
+                parsed = parse_datetime(delivered_raw)
+                if parsed is None:
+                    # datetime-local: 2026-07-15T16:00
+                    parsed = parse_datetime(delivered_raw.replace('T', ' ') + ':00' if len(delivered_raw) == 16 else delivered_raw.replace('T', ' '))
+                if parsed is not None:
+                    if timezone.is_naive(parsed):
+                        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+                    acta.delivered_at = parsed
+            except Exception:
+                pass
+
+        _save_data_url_image(
+            acta.representative_signature,
+            request.POST.get('representative_signature_data'),
+            f'cot{q.id}-acta-rep',
+        )
+        _save_data_url_image(
+            acta.tenant_signature,
+            request.POST.get('tenant_signature_data'),
+            f'cot{q.id}-acta-tenant',
+        )
+        for field_name, _label in photo_fields:
+            uploaded = request.FILES.get(field_name)
+            if uploaded:
+                setattr(acta, field_name, uploaded)
+
+        video_uploaded = request.FILES.get('delivery_video')
+        if video_uploaded:
+            acta.delivery_video = video_uploaded
+
+        if acta.is_complete and not acta.completed_at:
+            acta.completed_at = timezone.now()
+        elif not acta.is_complete:
+            acta.completed_at = None
+        acta.save()
+        messages.success(request, 'Acta de recepción guardada.')
+        if acta.is_complete:
+            return redirect('store:quotation_detail', quotation_id=q.id)
+        return redirect('store:quotation_delivery_acta', quotation_id=q.id)
+
+    return render(request, 'store/quotation_delivery_acta.html', {
+        'quote': q,
+        'acta': acta,
+        'photo_fields': [
+            {
+                'name': name,
+                'label': label,
+                'current': getattr(acta, name),
+            }
+            for name, label in photo_fields
+        ],
+    })
+
+
+def _delivery_acta_pdf_context(quote: Quotation, acta: RentalDeliveryActa) -> dict:
+    settings_obj = SiteSettings.load()
+    return {
+        'quote': quote,
+        'acta': acta,
+        'settings': settings_obj,
+        'equipment': _quotation_rental_items(quote),
+        'photos': [
+            {'label': label, 'image': image}
+            for _name, label, image in acta.photo_items()
+            if image
+        ],
+        'for_pdf_engine': True,
+    }
+
+
+def _build_delivery_acta_pdf_bytes(quote: Quotation, acta: RentalDeliveryActa):
+    """Generate delivery reception acta PDF with photos and signatures."""
+    try:
+        from django.template.loader import get_template
+        from xhtml2pdf import pisa
+        from io import BytesIO
+    except ImportError:
+        return None, 'xhtml2pdf no está instalado'
+
+    template = get_template('store/delivery_acta_pdf.html')
+    html = template.render(_delivery_acta_pdf_context(quote, acta))
+    result = BytesIO()
+    pdf = pisa.pisaDocument(
+        BytesIO(html.encode('utf-8')),
+        result,
+        encoding='utf-8',
+        link_callback=_pdf_link_callback,
+    )
+    if pdf.err:
+        return None, f'Error generando acta: {pdf.err}'
+    return result.getvalue(), None
+
+
+@staff_member_required
+@xframe_options_sameorigin
+def quotation_delivery_acta_pdf(request, quotation_id):
+    """Visor / descarga del acta de recepción completa."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    acta = RentalDeliveryActa.objects.filter(quotation=q).first()
+    if not acta or not acta.is_complete:
+        messages.warning(request, 'El acta de recepción aún no está completa.')
+        return redirect('store:quotation_delivery_acta', quotation_id=q.id)
+
+    as_download = str(request.GET.get('download') or '') in ('1', 'true', 'yes')
+    pdf_bytes, err = _build_delivery_acta_pdf_bytes(q, acta)
+    if not pdf_bytes:
+        messages.error(request, err or 'No se pudo generar el acta.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    safe_client = slugify(q.client_name or 'sin-cliente')[:40]
+    stamp = (acta.completed_at or acta.updated_at or timezone.now()).strftime('%Y-%m-%d')
+    filename = f"ACTA-RECEPCION-COT{q.id}-{stamp}-{safe_client}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    response['Content-Length'] = str(len(pdf_bytes))
+    response['Cache-Control'] = 'private, max-age=60'
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
 
 
 @staff_member_required
 def quotation_delete(request, quotation_id):
     """Eliminar una cotización (solo staff) con confirmación."""
     q = get_object_or_404(Quotation, id=quotation_id)
+    # No permitir eliminar mientras espera pago
+    if q.order_status == 'esperando_pago':
+        messages.error(
+            request,
+            'No se puede eliminar una cotización que está en estado "Esperando pago".'
+        )
+        return redirect('store:quotation_list')
     # No permitir eliminar cotizaciones que ya tengan un estado de pedido post‑pago,
     # excepto si el usuario es superusuario (administrador total).
     post_payment_statuses = {'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'}
@@ -2343,6 +3726,165 @@ def quotation_delete(request, quotation_id):
         messages.success(request, f'Cotización {qid} ({name}) eliminada correctamente.')
         return redirect('store:quotation_list')
     return render(request, 'store/quotation_confirm_delete.html', {'quote': q})
+
+
+def _absolute_url(path_or_url: str, request=None) -> str:
+    """Build absolute URL from relative path when possible."""
+    value = (path_or_url or '').strip()
+    if not value:
+        return ''
+    if value.startswith('http://') or value.startswith('https://'):
+        return value
+    if request is not None:
+        try:
+            return request.build_absolute_uri(value)
+        except Exception:
+            pass
+    from django.conf import settings
+    base = getattr(settings, 'SITE_URL', '') or ''
+    if base:
+        return base.rstrip('/') + '/' + value.lstrip('/')
+    return value
+
+
+def _notify_whatsapp_n8n(*, message: str, link: str = '', phone: str = '', request=None) -> bool:
+    """
+    Envía notificación a WhatsApp vía webhook n8n.
+    Payload esperado por n8n: body.phone, body.link, body.message
+    """
+    try:
+        settings_obj = SiteSettings.load()
+    except Exception:
+        logger.exception('[WA-N8N] No se pudo cargar SiteSettings')
+        return False
+
+    if not getattr(settings_obj, 'wa_n8n_enabled', True):
+        logger.info('[WA-N8N] Notificaciones desactivadas')
+        return False
+
+    webhook = (getattr(settings_obj, 'wa_n8n_webhook_url', '') or '').strip()
+    target = (phone or getattr(settings_obj, 'wa_n8n_phone', '') or '').strip()
+    if not webhook:
+        logger.warning('[WA-N8N] Falta wa_n8n_webhook_url')
+        return False
+    if not target:
+        logger.warning('[WA-N8N] Falta teléfono / Group ID destino')
+        return False
+
+    payload = {
+        'phone': target,
+        'link': _absolute_url(link, request=request),
+        'message': (message or '').strip(),
+    }
+    try:
+        import requests
+        resp = requests.post(webhook, json=payload, timeout=12)
+        logger.info('[WA-N8N] POST %s status=%s phone=%s', webhook, resp.status_code, target)
+        return 200 <= resp.status_code < 300
+    except Exception:
+        logger.exception('[WA-N8N] Error enviando webhook')
+        return False
+
+
+def _notify_wa_new_quotation(quote: Quotation, *, source: str = '', request=None) -> None:
+    """WhatsApp: nueva cotización (staff, cliente o checkout)."""
+    quote.sync_client_snapshot_from_profile(save=True)
+    items = list(quote.items.select_related('product')[:8])
+    lines_items = []
+    for it in items:
+        name = getattr(it.product, 'name', 'Producto')
+        lines_items.append(f"• {name} x{it.quantity} = {it.subtotal}")
+    more = quote.items.count() - len(items)
+    if more > 0:
+        lines_items.append(f"• … y {more} ítem(s) más")
+
+    source_label = source or ('Cliente registrado' if quote.existing_client_id else 'Cotización')
+    message = "\n".join([
+        f"🧊 *Nueva cotización COT-{quote.id}*",
+        f"Origen: {source_label}",
+        f"Cliente: {quote.display_client_name or '—'}",
+        f"Tel: {quote.display_client_phone or '—'}",
+        f"Correo: {quote.display_client_email or '—'}",
+        f"Ubicación: {quote.display_client_departamento or '—'} · {quote.display_client_city or '—'}",
+        f"Total: ${quote.total}",
+        "Productos:",
+        *(lines_items or ['• Sin ítems']),
+    ])
+    link = ''
+    if request is not None:
+        try:
+            link = request.build_absolute_uri(reverse('store:quotation_detail', kwargs={'quotation_id': quote.id}))
+        except Exception:
+            link = f"/cotizaciones/{quote.id}/"
+    else:
+        link = f"/cotizaciones/{quote.id}/"
+    _notify_whatsapp_n8n(message=message, link=link, request=request)
+
+
+def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia', request=None) -> None:
+    """WhatsApp: pago / referencia de cotización."""
+    quote.sync_client_snapshot_from_profile(save=True)
+    if event == 'pago_recibido':
+        title = '💳 *Pago total de cotización*'
+    elif event == 'pago_parcial':
+        title = '💵 *Pago parcial de cotización*'
+    else:
+        title = '📎 *Referencia de pago subida*'
+    message = "\n".join([
+        title,
+        f"COT-{quote.id}",
+        f"Cliente: {quote.display_client_name or '—'}",
+        f"Tel: {quote.display_client_phone or '—'}",
+        f"Estado pedido: {quote.get_order_status_display()}",
+        f"Total: ${quote.total}",
+    ])
+    link = ''
+    if request is not None:
+        try:
+            link = request.build_absolute_uri(reverse('store:quotation_detail', kwargs={'quotation_id': quote.id}))
+        except Exception:
+            link = f"/cotizaciones/{quote.id}/"
+        if quote.payment_proof:
+            try:
+                link = request.build_absolute_uri(quote.payment_proof.url)
+            except Exception:
+                link = getattr(quote.payment_proof, 'url', link) or link
+    else:
+        link = f"/cotizaciones/{quote.id}/"
+    _notify_whatsapp_n8n(message=message, link=link, request=request)
+
+
+def _notify_wa_finance_record(record: FinanceRecord, request=None) -> None:
+    """WhatsApp: gasto o pago registrado en caja."""
+    emoji = '📉' if record.record_type == 'gasto' else '📈'
+    lines = [
+        f"{emoji} *{record.get_record_type_display()} registrado*",
+        f"Monto: ${record.amount}",
+        f"Categoría: {record.get_category_display()}",
+        f"Descripción: {record.description}",
+        f"Fecha: {record.recorded_at}",
+    ]
+    if record.related_quotation_id:
+        lines.append(f"Cotización: COT-{record.related_quotation_id}")
+    if record.notes:
+        lines.append(f"Notas: {record.notes}")
+    if record.created_by_id:
+        lines.append(f"Por: {record.created_by.get_full_name() or record.created_by.username}")
+
+    link = ''
+    if request is not None:
+        try:
+            link = request.build_absolute_uri(reverse('store:finance_list'))
+        except Exception:
+            link = '/manager/finanzas/'
+        if record.receipt:
+            try:
+                link = request.build_absolute_uri(record.receipt.url)
+            except Exception:
+                link = getattr(record.receipt, 'url', link) or link
+    else:
+        link = '/manager/finanzas/'
+    _notify_whatsapp_n8n(message="\n".join(lines), link=link, request=request)
 
 
 def _notify_telegram_new_quotation(quote: Quotation, is_registered: bool) -> None:
@@ -2372,7 +3914,7 @@ def _notify_telegram_new_quotation(quote: Quotation, is_registered: bool) -> Non
         f"Nombre: {quote.client_name or '—'}",
         f"Correo: {quote.client_email or '—'}",
         f"Teléfono (WhatsApp): {quote.client_phone or '—'}",
-        f"Ubicación: {quote.client_departamento or '—'} - {quote.client_city or '—'}",
+        f"Ubicación: {quote.display_client_departamento or '—'} - {quote.display_client_city or '—'}",
         f"Total: {quote.total} COP",
     ]
     if quote.notes:
@@ -2403,74 +3945,13 @@ def _notify_telegram_new_quotation(quote: Quotation, is_registered: bool) -> Non
 
     # Generar y enviar PDF
     try:
-        from django.template.loader import get_template
-        from xhtml2pdf import pisa
         from io import BytesIO
-        from django.contrib.staticfiles import finders
-        import os
-        from django.utils.text import slugify
 
-        items = quote.items.select_related('product', 'product__category').all()
-        
-        def link_callback(uri, rel):
-            if uri.startswith(settings.MEDIA_URL):
-                path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, ""))
-            elif uri.startswith(settings.STATIC_URL):
-                path = finders.find(uri.replace(settings.STATIC_URL, ""))
-            else:
-                path = uri
-            if not path:
-                raise Exception(f'No se pudo resolver el recurso: {uri}')
-            if isinstance(path, (list, tuple)):
-                path = path[0]
-            return path
-
-        template = get_template('store/quotation_pdf.html')
-        
-        def split_iva(amount: Decimal):
-            if amount is None:
-                amount = Decimal('0.00')
-            base = (amount / (Decimal('1.00') + IVA_RATE))
-            iva = amount - base
-            return base, iva
-
-        total_base = Decimal('0.00')
-        total_iva = Decimal('0.00')
-        for it in items:
-            it.base_unit, it.iva_unit = split_iva(it.unit_price)
-            it.base_subtotal, it.iva_subtotal = split_iva(it.subtotal)
-            try:
-                it.original_unit_price = it.product.price
-                it.discount_unit = (it.original_unit_price - it.unit_price) if it.product.has_discount else Decimal('0.00')
-            except Exception:
-                it.original_unit_price = it.unit_price
-                it.discount_unit = Decimal('0.00')
-            total_base += it.base_subtotal
-            total_iva += it.iva_subtotal
-
-        expires_at = quote.created_at + timedelta(days=1)
-        html = template.render(
-            {
-                'quote': quote,
-                'items': items,
-                'expires_at': expires_at,
-                'total_base': total_base,
-                'total_iva': total_iva,
-            }
-        )
-
-        result = BytesIO()
-        pdf = pisa.pisaDocument(
-            BytesIO(html.encode('utf-8')),
-            result,
-            encoding='utf-8',
-            link_callback=link_callback,
-        )
-        if pdf.err:
-            logger.warning("[TELEGRAM] Error generando PDF: %s", pdf.err)
+        pdf_bytes, err = _build_quotation_pdf_bytes(quote)
+        if not pdf_bytes:
+            logger.warning("[TELEGRAM] No se pudo generar PDF: %s", err)
             return
 
-        pdf_bytes = result.getvalue()
         safe_client = slugify(quote.client_name or 'sin-cliente')[:40]
         safe_date = quote.created_at.strftime('%Y-%m-%d')
         filename = f"COT{quote.id}-{safe_date}-{safe_client}.pdf"
@@ -2484,7 +3965,7 @@ def _notify_telegram_new_quotation(quote: Quotation, is_registered: bool) -> Non
                 'caption': f'📄 PDF de la cotización COT{quote.id}',
             },
             files={
-                'document': (filename, pdf_bytes, 'application/pdf'),
+                'document': (filename, BytesIO(pdf_bytes), 'application/pdf'),
             },
             timeout=10,
         )
@@ -2499,32 +3980,159 @@ def _notify_telegram_new_quotation(quote: Quotation, is_registered: bool) -> Non
         logger.exception("[TELEGRAM] Error al generar o enviar PDF")
 
 
+def _parse_quote_line_key(key):
+    """Parse session key 'productId' or 'productId:rentalPriceId'."""
+    parts = str(key).split(':')
+    try:
+        product_id = int(parts[0])
+    except (TypeError, ValueError):
+        return None, None
+    rental_price_id = None
+    if len(parts) >= 2 and parts[1]:
+        try:
+            rental_price_id = int(parts[1])
+        except (TypeError, ValueError):
+            rental_price_id = None
+    return product_id, rental_price_id
+
+
+def _normalize_quote_entry(raw) -> dict:
+    """Normalize session line to {qty, discount_type, discount_value, rental_price_id}."""
+    qty = 1
+    discount_value = Decimal('0.00')
+    discount_type = 'percent'
+    rental_price_id = None
+    if isinstance(raw, dict):
+        try:
+            qty = int(raw.get('qty', 1))
+        except (TypeError, ValueError):
+            qty = 1
+        raw_type = str(raw.get('discount_type') or 'percent').strip().lower()
+        discount_type = 'amount' if raw_type in ('amount', 'value', 'fixed', '$', 'cop') else 'percent'
+        # Compat: discount_value nuevo; si no, discount_percent legado
+        raw_disc = raw.get('discount_value', None)
+        if raw_disc is None:
+            raw_disc = raw.get('discount_percent', 0)
+        try:
+            discount_value = Decimal(str(raw_disc).replace(',', '.'))
+        except Exception:
+            discount_value = Decimal('0.00')
+        try:
+            rid = raw.get('rental_price_id')
+            rental_price_id = int(rid) if rid not in (None, '', 'null') else None
+        except (TypeError, ValueError):
+            rental_price_id = None
+    else:
+        try:
+            qty = int(raw)
+        except (TypeError, ValueError):
+            qty = 1
+    if qty < 1:
+        qty = 1
+    if discount_value < 0:
+        discount_value = Decimal('0.00')
+    if discount_type == 'percent' and discount_value > 100:
+        discount_value = Decimal('100.00')
+    discount_value = discount_value.quantize(Decimal('0.01'))
+    return {
+        'qty': qty,
+        'discount_type': discount_type,
+        'discount_value': float(discount_value),
+        # Compat lectura templates/JS antiguos
+        'discount_percent': float(discount_value) if discount_type == 'percent' else 0.0,
+        'rental_price_id': rental_price_id,
+    }
+
+
+def _quote_base_unit_price(product, rental_price_id=None) -> Decimal:
+    """Catalog/list unit price before line discount (supports rental tariffs)."""
+    if rental_price_id:
+        tariff = ProductRentalPrice.objects.filter(
+            id=rental_price_id,
+            product_id=product.id,
+            is_active=True,
+        ).first()
+        if tariff:
+            return tariff.price
+    return product.selling_price or Decimal('0.00')
+
+
+def _quote_unit_price(
+    product,
+    discount_value=0,
+    rental_price_id=None,
+    discount_type='percent',
+    discount_percent=None,
+) -> Decimal:
+    """Unit price after optional line discount (% or fixed amount)."""
+    base = _quote_base_unit_price(product, rental_price_id=rental_price_id)
+    # Compat: callers antiguos solo pasan discount_percent
+    if discount_percent is not None and (discount_value is None or discount_value == 0):
+        discount_value = discount_percent
+        discount_type = 'percent'
+    try:
+        disc = Decimal(str(discount_value or 0))
+    except Exception:
+        disc = Decimal('0.00')
+    if disc <= 0:
+        return base
+
+    dtype = str(discount_type or 'percent').strip().lower()
+    if dtype in ('amount', 'value', 'fixed', '$', 'cop'):
+        if disc > base:
+            disc = base
+        return (base - disc).quantize(Decimal('0.01'))
+
+    if disc > 100:
+        disc = Decimal('100.00')
+    factor = (Decimal('100') - disc) / Decimal('100')
+    return (base * factor).quantize(Decimal('0.01'))
+
+
 def _get_quote_session(request) -> dict:
-    """Return quotation session dict: {product_id(str): qty(int)}"""
+    """Return quotation session: {line_key: {qty, discount_type, discount_value, rental_price_id}}"""
     data = request.session.get('quotation', {})
     if not isinstance(data, dict):
         data = {}
-    # sanitize
-    clean: dict[str, int] = {}
+    clean: dict[str, dict] = {}
     for k, v in data.items():
-        try:
-            pid = str(int(k))
-            qty = int(v)
-            if qty < 1:
-                qty = 1
-            clean[pid] = qty
-        except (ValueError, TypeError):
+        product_id, rental_from_key = _parse_quote_line_key(k)
+        if product_id is None:
             continue
+        entry = _normalize_quote_entry(v)
+        if rental_from_key and not entry.get('rental_price_id'):
+            entry['rental_price_id'] = rental_from_key
+        if entry.get('rental_price_id'):
+            line_key = f"{product_id}:{entry['rental_price_id']}"
+        else:
+            line_key = str(product_id)
+        clean[line_key] = entry
     request.session['quotation'] = clean
+    request.session.modified = True
     return clean
 
 
 def _quote_payload(request) -> dict:
     """Build JSON payload for current quotation session."""
     q = _get_quote_session(request)
-    ids = [int(pid) for pid in q.keys()]
-    products = Product.objects.filter(id__in=ids).select_related('category')
+    product_ids = set()
+    rental_ids = set()
+    for key, entry in q.items():
+        pid, rid = _parse_quote_line_key(key)
+        if pid is None:
+            continue
+        product_ids.add(pid)
+        rid = entry.get('rental_price_id') or rid
+        if rid:
+            rental_ids.add(rid)
+
+    products = Product.objects.filter(id__in=product_ids).select_related('category')
     by_id = {p.id: p for p in products}
+    tariffs = {
+        t.id: t
+        for t in ProductRentalPrice.objects.filter(id__in=rental_ids, is_active=True).select_related('product')
+    }
+
     items = []
     total = Decimal('0.00')
     total_base = Decimal('0.00')
@@ -2537,12 +4145,24 @@ def _quote_payload(request) -> dict:
         iva = amount - base
         return base, iva
 
-    for pid_str, qty in q.items():
-        pid = int(pid_str)
+    for line_key, entry in q.items():
+        pid, rid_from_key = _parse_quote_line_key(line_key)
         p = by_id.get(pid)
         if not p:
             continue
-        unit = p.selling_price
+        qty = entry['qty']
+        discount_type = entry.get('discount_type') or 'percent'
+        discount_value = entry.get('discount_value', entry.get('discount_percent', 0))
+        rental_price_id = entry.get('rental_price_id') or rid_from_key
+        tariff = tariffs.get(rental_price_id) if rental_price_id else None
+
+        list_unit = _quote_base_unit_price(p, rental_price_id=rental_price_id)
+        unit = _quote_unit_price(
+            p,
+            discount_value=discount_value,
+            discount_type=discount_type,
+            rental_price_id=rental_price_id,
+        )
         subtotal = unit * qty
         total += subtotal
         base_subtotal, iva_subtotal = split_iva(subtotal)
@@ -2550,19 +4170,31 @@ def _quote_payload(request) -> dict:
         total_base += base_subtotal
         total_iva += iva_subtotal
 
-        original_unit = p.price
-        discount_unit = (original_unit - unit) if p.has_discount else Decimal('0.00')
+        discount_unit = (list_unit - unit) if unit < list_unit else Decimal('0.00')
         discount_total = discount_unit * qty
+        display_name = p.name
+        period_label = ''
+        if tariff:
+            period_label = tariff.get_period_type_display()
+            display_name = f'{p.name} · {period_label}'
+
         items.append({
             'id': p.id,
-            'name': p.name,
+            'line_key': line_key,
+            'name': display_name,
             'category': p.category.name,
             'image_url': p.image.url if p.image else '',
             'qty': qty,
+            'discount_type': discount_type,
+            'discount_value': float(discount_value),
+            'discount_percent': float(discount_value) if discount_type == 'percent' else 0.0,
+            'rental_price_id': rental_price_id,
+            'period_label': period_label,
+            'list_unit_price': float(list_unit),
             'unit_price': float(unit),
             'unit_base': float(base_unit),
             'unit_iva': float(iva_unit),
-            'original_unit_price': float(original_unit),
+            'original_unit_price': float(p.price),
             'discount_unit': float(discount_unit),
             'discount_total': float(discount_total),
             'subtotal': float(subtotal),
@@ -2583,16 +4215,38 @@ def quotation_ajax_add(request):
     q = _get_quote_session(request)
     ids = request.POST.getlist('products[]') or request.POST.getlist('products') or []
     added = 0
-    for pid in ids:
-        try:
-            pid_int = int(pid)
-        except (ValueError, TypeError):
+    for raw in ids:
+        raw = str(raw).strip()
+        if not raw:
             continue
-        if not Product.objects.filter(id=pid_int, available=True).exists():
+        product_id, rental_price_id = _parse_quote_line_key(raw)
+        if product_id is None:
             continue
-        key = str(pid_int)
+        if not Product.objects.filter(id=product_id, available=True).exists():
+            continue
+        if rental_price_id:
+            if not ProductRentalPrice.objects.filter(
+                id=rental_price_id, product_id=product_id, is_active=True
+            ).exists():
+                continue
+            key = f'{product_id}:{rental_price_id}'
+        else:
+            # Alquileres deben agregarse por tarifa (hora/día/semana/mes)
+            prod = Product.objects.filter(id=product_id, available=True).only('id', 'product_type').first()
+            if not prod:
+                continue
+            if prod.is_rental:
+                continue
+            key = str(product_id)
+            rental_price_id = None
         if key not in q:
-            q[key] = 1
+            q[key] = {
+                'qty': 1,
+                'discount_type': 'percent',
+                'discount_value': 0.0,
+                'discount_percent': 0.0,
+                'rental_price_id': rental_price_id,
+            }
             added += 1
     request.session['quotation'] = q
     request.session.modified = True
@@ -2605,12 +4259,15 @@ def quotation_ajax_remove(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     q = _get_quote_session(request)
-    pid = request.POST.get('product_id')
-    try:
-        pid_int = int(pid)
-    except (ValueError, TypeError):
+    line_key = (request.POST.get('line_key') or request.POST.get('product_id') or '').strip()
+    if not line_key:
         return JsonResponse({'error': 'Invalid product_id'}, status=400)
-    q.pop(str(pid_int), None)
+    # Compat: si llega solo product_id numérico, borra esa clave
+    q.pop(line_key, None)
+    # También limpia claves legacy del producto sin tarifa
+    pid, _ = _parse_quote_line_key(line_key)
+    if pid is not None and ':' not in line_key:
+        q.pop(str(pid), None)
     request.session['quotation'] = q
     request.session.modified = True
     return JsonResponse(_quote_payload(request))
@@ -2620,18 +4277,214 @@ def quotation_ajax_update_qty(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     q = _get_quote_session(request)
-    pid = request.POST.get('product_id')
+    line_key = (request.POST.get('line_key') or request.POST.get('product_id') or '').strip()
     qty = request.POST.get('qty')
     try:
-        pid_int = int(pid)
         qty_int = int(qty)
         if qty_int < 1:
             qty_int = 1
     except (ValueError, TypeError):
         return JsonResponse({'error': 'Invalid data'}, status=400)
-    key = str(pid_int)
-    if key in q:
-        q[key] = qty_int
+    if line_key in q:
+        entry = _normalize_quote_entry(q[line_key])
+        entry['qty'] = qty_int
+        q[line_key] = entry
         request.session['quotation'] = q
         request.session.modified = True
     return JsonResponse(_quote_payload(request))
+
+
+def quotation_ajax_update_discount(request):
+    """Set line discount as percent (0-100) or fixed amount (COP per unit)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    q = _get_quote_session(request)
+    line_key = (request.POST.get('line_key') or request.POST.get('product_id') or '').strip()
+    raw_type = str(request.POST.get('discount_type') or 'percent').strip().lower()
+    discount_type = 'amount' if raw_type in ('amount', 'value', 'fixed', '$', 'cop') else 'percent'
+    discount_raw = request.POST.get('discount_value', request.POST.get('discount_percent', '0'))
+    try:
+        discount = Decimal(str(discount_raw).replace(',', '.'))
+    except (ValueError, TypeError, Exception):
+        return JsonResponse({'error': 'Invalid data'}, status=400)
+    if discount < 0:
+        discount = Decimal('0.00')
+    if discount_type == 'percent' and discount > 100:
+        discount = Decimal('100.00')
+    if line_key in q:
+        entry = _normalize_quote_entry(q[line_key])
+        # Cap amount to list price when possible
+        if discount_type == 'amount':
+            pid, rid = _parse_quote_line_key(line_key)
+            rid = entry.get('rental_price_id') or rid
+            try:
+                product = Product.objects.get(id=pid, available=True)
+                max_amount = _quote_base_unit_price(product, rental_price_id=rid)
+                if discount > max_amount:
+                    discount = max_amount
+            except Product.DoesNotExist:
+                pass
+        entry['discount_type'] = discount_type
+        entry['discount_value'] = float(discount.quantize(Decimal('0.01')))
+        entry['discount_percent'] = entry['discount_value'] if discount_type == 'percent' else 0.0
+        q[line_key] = entry
+        request.session['quotation'] = q
+        request.session.modified = True
+    return JsonResponse(_quote_payload(request))
+
+
+# --- Calculadora de dilución con agua ---
+
+def water_calculator(request):
+    """Hub de calculadoras: dilución (ML) y costos (cálculo en cliente)."""
+    products = DilutionBaseProduct.objects.filter(is_active=True).order_by('sort_order', 'name')
+    return render(request, 'store/water_calculator.html', {'products': products})
+
+
+@staff_member_required
+def dilution_product_list(request):
+    """Listado admin de productos base para la calculadora."""
+    items = DilutionBaseProduct.objects.all().order_by('sort_order', 'name')
+    return render(request, 'store/inventory/dilution_product_list.html', {'items': items})
+
+
+@staff_member_required
+def dilution_product_create(request):
+    """Crear producto base para la calculadora."""
+    if request.method == 'POST':
+        form = DilutionBaseProductForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Producto base agregado a la calculadora.')
+            return redirect('store:dilution_product_list')
+    else:
+        form = DilutionBaseProductForm()
+    return render(request, 'store/inventory/dilution_product_form.html', {
+        'form': form,
+        'title': 'Nuevo producto base',
+    })
+
+
+@staff_member_required
+def dilution_product_edit(request, item_id):
+    """Editar producto base de la calculadora."""
+    item = get_object_or_404(DilutionBaseProduct, id=item_id)
+    if request.method == 'POST':
+        form = DilutionBaseProductForm(request.POST, instance=item)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Producto base actualizado.')
+            return redirect('store:dilution_product_list')
+    else:
+        form = DilutionBaseProductForm(instance=item)
+    return render(request, 'store/inventory/dilution_product_form.html', {
+        'form': form,
+        'title': 'Editar producto base',
+        'item': item,
+    })
+
+
+@staff_member_required
+def dilution_product_delete(request, item_id):
+    """Eliminar producto base de la calculadora."""
+    item = get_object_or_404(DilutionBaseProduct, id=item_id)
+    if request.method == 'POST':
+        name = item.name
+        item.delete()
+        messages.success(request, f'"{name}" eliminado de la calculadora.')
+        return redirect('store:dilution_product_list')
+    return render(request, 'store/inventory/dilution_product_confirm_delete.html', {'item': item})
+
+
+@staff_member_required
+def site_settings_edit(request):
+    """Editar contacto, redes sociales, WhatsApp y métodos de pago del sitio."""
+    settings_obj = SiteSettings.load()
+    payment_methods = PaymentMethod.objects.all().order_by('sort_order', 'id')
+    editing_payment = None
+    payment_form = PaymentMethodForm()
+
+    if request.method == 'GET' and request.GET.get('edit_payment'):
+        try:
+            editing_payment = PaymentMethod.objects.get(id=int(request.GET.get('edit_payment')))
+            payment_form = PaymentMethodForm(instance=editing_payment)
+        except (PaymentMethod.DoesNotExist, ValueError, TypeError):
+            messages.error(request, 'Método de pago no encontrado.')
+            return redirect('store:site_settings_edit')
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or 'save_settings').strip()
+
+        if action == 'add_payment':
+            payment_form = PaymentMethodForm(request.POST, request.FILES)
+            if payment_form.is_valid():
+                payment_form.save()
+                messages.success(request, 'Método de pago agregado.')
+                return redirect('store:site_settings_edit')
+            messages.error(request, 'Revisa los datos del método de pago.')
+            form = SiteSettingsForm(instance=settings_obj)
+            return render(request, 'store/inventory/site_settings_form.html', {
+                'form': form,
+                'settings_obj': settings_obj,
+                'payment_methods': payment_methods,
+                'payment_form': payment_form,
+                'editing_payment': None,
+            })
+
+        if action == 'edit_payment':
+            try:
+                editing_payment = PaymentMethod.objects.get(id=int(request.POST.get('payment_id') or 0))
+            except (PaymentMethod.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'No se pudo actualizar el método de pago.')
+                return redirect('store:site_settings_edit')
+            payment_form = PaymentMethodForm(request.POST, request.FILES, instance=editing_payment)
+            if payment_form.is_valid():
+                payment_form.save()
+                messages.success(request, 'Método de pago actualizado.')
+                return redirect('store:site_settings_edit')
+            messages.error(request, 'Revisa los datos del método de pago.')
+            form = SiteSettingsForm(instance=settings_obj)
+            return render(request, 'store/inventory/site_settings_form.html', {
+                'form': form,
+                'settings_obj': settings_obj,
+                'payment_methods': payment_methods,
+                'payment_form': payment_form,
+                'editing_payment': editing_payment,
+            })
+
+        if action == 'delete_payment':
+            try:
+                item_id = int(request.POST.get('payment_id') or 0)
+                item = PaymentMethod.objects.get(id=item_id)
+                item.delete()
+                messages.success(request, 'Método de pago eliminado.')
+            except (PaymentMethod.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'No se pudo eliminar el método de pago.')
+            return redirect('store:site_settings_edit')
+
+        if action == 'toggle_payment':
+            try:
+                item_id = int(request.POST.get('payment_id') or 0)
+                item = PaymentMethod.objects.get(id=item_id)
+                item.is_active = not item.is_active
+                item.save(update_fields=['is_active', 'updated_at'])
+                messages.success(request, 'Estado del método de pago actualizado.')
+            except (PaymentMethod.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'No se pudo actualizar el método de pago.')
+            return redirect('store:site_settings_edit')
+
+        form = SiteSettingsForm(request.POST, instance=settings_obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Configuración del sitio actualizada.')
+            return redirect('store:site_settings_edit')
+    else:
+        form = SiteSettingsForm(instance=settings_obj)
+
+    return render(request, 'store/inventory/site_settings_form.html', {
+        'form': form,
+        'settings_obj': settings_obj,
+        'payment_methods': payment_methods,
+        'payment_form': payment_form,
+        'editing_payment': editing_payment,
+    })

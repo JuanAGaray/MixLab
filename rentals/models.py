@@ -16,6 +16,7 @@ class Rental(models.Model):
     ]
 
     DURATION_CHOICES = [
+        ('hourly', 'Por hora'),
         ('daily', 'Diario'),
         ('weekly', 'Semanal'),
         ('monthly', 'Mensual'),
@@ -57,20 +58,21 @@ class Rental(models.Model):
         return f"Alquiler #{self.id} - {self.product.name} - {self.user.username}"
 
     def calculate_total(self):
-        """Calculate rental total based on duration"""
-        from datetime import timedelta
-        days = (self.end_date - self.start_date).days + 1
-        
+        """Calculate rental total based on duration type and unit price."""
+        qty = max(1, self.duration_quantity or 1)
+        unit = self.daily_price or Decimal('0.00')
+
+        if self.duration_type == 'hourly':
+            return unit * qty
         if self.duration_type == 'daily':
-            return self.daily_price * days
-        elif self.duration_type == 'weekly':
-            weeks = (days + 6) // 7  # Round up
-            return self.daily_price * 7 * weeks * 0.85  # 15% discount for weekly
-        elif self.duration_type == 'monthly':
-            months = max(1, days // 30)
-            return self.daily_price * 30 * months * 0.75  # 25% discount for monthly
-        
-        return self.daily_price * days
+            return unit * qty
+        if self.duration_type == 'weekly':
+            return unit * qty
+        if self.duration_type == 'monthly':
+            return unit * qty
+
+        days = (self.end_date - self.start_date).days + 1
+        return unit * days
 
 
 class RentalAvailability(models.Model):

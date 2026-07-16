@@ -1,92 +1,119 @@
 {% extends 'base.html' %}
 {% load store_tags %}
 
-{% block title %}Ventas - Cotizaciones pagadas{% endblock %}
+{% block title %}Ventas - MixLab{% endblock %}
 
 {% block extra_css %}
 <style>
+  .sales-page h2 { letter-spacing: -0.02em; }
   .sales-table td, .sales-table th { vertical-align: middle !important; }
+  .sales-card { border: 0; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); }
+  .sales-card .card-header {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.15rem;
+  }
+  .sales-card .section-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    margin: 0 0 0.15rem;
+  }
+  .sales-card .section-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .sales-total {
+    text-align: right;
+  }
+  .sales-total .label {
+    display: block;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+  }
+  .sales-total .value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+  }
   .sales-table tbody tr.quote-paid { background-color: #ecfdf3; }
+  .sales-table tbody tr.quote-overdue { background-color: #fef2f2; }
+  .sales-table tbody tr.quote-unpaid { background-color: #fff7ed; }
   .badge-status {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 999px;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+  }
+  .sales-meta {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+  .filter-card {
+    border: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h2 class="h5 mb-0 fw-normal text-muted">
-            <i class="bi bi-graph-up-arrow me-1"></i> Ventas (cotizaciones pagadas)
-        </h2>
+<div class="container my-5 sales-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h2 class="h4 mb-1">Ventas</h2>
+      <p class="text-muted small mb-0">Pagadas, pendientes y vencidas por falta de pago. Se muestran las últimas 10 de cada grupo.</p>
     </div>
+  </div>
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 sales-table">
-                    <thead class="small text-muted">
-                        <tr>
-                            <th style="min-width:110px;">#</th>
-                            <th style="min-width:120px;">Fecha</th>
-                            <th>Cliente</th>
-                            <th style="min-width:150px;">Ciudad</th>
-                            <th style="min-width:130px;">Creado por</th>
-                            <th class="text-end" style="min-width:140px;">Total</th>
-                            <th style="min-width:150px;">Estado pedido</th>
-                            <th style="width:1px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for q in quotes %}
-                        <tr class="quote-paid">
-                            <td class="fw-semibold">COT-{{ q.id }}</td>
-                            <td>{{ q.created_at|date:"Y-m-d" }}</td>
-                            <td>
-                                <div class="fw-semibold">{{ q.client_name|default:"—" }}</div>
-                                <div class="text-muted small">{{ q.client_email|default:"—" }}</div>
-                            </td>
-                            <td>
-                                <div class="small text-muted">{{ q.client_city|default:"—" }}</div>
-                            </td>
-                            <td>
-                                {% if q.created_by %}
-                                  <span class="small">{{ q.created_by.username }}</span>
-                                {% else %}
-                                  <span class="text-muted small">—</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-end fw-semibold">{{ q.total|pesos_colombianos }}</td>
-                            <td>
-                                <span class="badge bg-success-subtle text-success border badge-status">
-                                    {{ q.get_order_status_display }}
-                                </span>
-                            </td>
-                            <td class="text-end" style="min-width: 120px;">
-                                <div class="d-inline-flex align-items-center gap-1">
-                                    <a href="{% url 'store:quotation_detail' quotation_id=q.id %}" class="btn btn-light btn-sm" title="Ver">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    <a href="{% url 'store:quotation_pdf' quotation_id=q.id %}" class="btn btn-light btn-sm" title="Ver PDF" target="_blank" rel="noopener noreferrer">
-                                        <i class="bi bi-file-earmark-pdf"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
-                                Aún no hay cotizaciones marcadas como <strong>Pago recibido</strong>.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+  <!-- Filtros -->
+  <div class="card filter-card mb-4">
+    <div class="card-body py-3">
+      <form method="get" action="{% url 'store:sales_list' %}" class="row g-3 align-items-end">
+        <div class="col-12 col-md-4 col-lg-3">
+          <label for="id_cliente" class="form-label small text-muted mb-1">Cliente</label>
+          <input type="text" name="cliente" id="id_cliente" class="form-control form-control-sm"
+                 placeholder="Nombre o correo..." value="{{ filter_cliente|default:'' }}">
         </div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label for="id_manager" class="form-label small text-muted mb-1">Creado por</label>
+          <select name="manager" id="id_manager" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for u in managers %}
+              <option value="{{ u.id }}" {% if filter_manager == u.id|stringformat:'s' %}selected{% endif %}>
+                {{ u.get_full_name|default:u.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2 col-lg-2">
+          <label for="id_desde" class="form-label small text-muted mb-1">Desde</label>
+          <input type="date" name="desde" id="id_desde" class="form-control form-control-sm" value="{{ filter_desde|default:'' }}">
+        </div>
+        <div class="col-6 col-md-2 col-lg-2">
+          <label for="id_hasta" class="form-label small text-muted mb-1">Hasta</label>
+          <input type="date" name="hasta" id="id_hasta" class="form-control form-control-sm" value="{{ filter_hasta|default:'' }}">
+        </div>
+        <div class="col-12 col-lg-2 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-funnel"></i> Filtrar
+          </button>
+          <a href="{% url 'store:sales_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        </div>
+      </form>
     </div>
+  </div>
+
+  {% include "store/manager/_sales_section.html" with section=paid title="Cotizaciones pagadas" kicker="Cobradas / despachadas" empty_message="No hay cotizaciones pagadas con estos filtros." row_class="quote-paid" badge_class="bg-success-subtle text-success border" %}
+
+  {% include "store/manager/_sales_section.html" with section=overdue title="Cotizaciones por falta de pago" kicker="Esperando pago y ya vencidas (más de 1 día)" empty_message="No hay cotizaciones vencidas por falta de pago." row_class="quote-overdue" badge_class="bg-danger-subtle text-danger border" %}
+
+  {% include "store/manager/_sales_section.html" with section=unpaid title="Cotizaciones sin pagar" kicker="Aceptadas o esperando pago (aún vigentes)" empty_message="No hay cotizaciones pendientes de pago." row_class="quote-unpaid" badge_class="bg-warning-subtle text-warning-emphasis border" %}
 </div>
 {% endblock %}
-

@@ -1,0 +1,44 @@
+{% if promo_banners %}
+<div class="promo-banner">
+  <div id="promoBannerCarousel"
+       class="carousel slide promo-banner-carousel"
+       data-bs-ride="{% if promo_banners|length > 1 %}carousel{% else %}false{% endif %}"
+       data-bs-interval="7000"
+       data-bs-pause="hover">
+    {% if promo_banners|length > 1 %}
+    <div class="carousel-indicators promo-banner-indicators">
+      {% for banner in promo_banners %}
+      <button type="button"
+              data-bs-target="#promoBannerCarousel"
+              data-bs-slide-to="{{ forloop.counter0 }}"
+              {% if forloop.first %}class="active" aria-current="true"{% endif %}
+              aria-label="Banner {{ forloop.counter }}"></button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="carousel-inner">
+      {% for banner in promo_banners %}
+      <div class="carousel-item{% if forloop.first %} active{% endif %}">
+        {% if banner.link_url %}
+        <a href="{{ banner.link_url }}"
+           class="promo-banner-link"
+           {% if banner.open_in_new_tab %}target="_blank" rel="noopener noreferrer sponsored"{% endif %}
+           aria-label="{{ banner.alt_text|default:banner.title }}">
+          <img src="{{ banner.image.url }}"
+               alt="{{ banner.alt_text|default:banner.title }}"
+               class="promo-banner-image"
+               loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+        </a>
+        {% else %}
+        <img src="{{ banner.image.url }}"
+             alt="{{ banner.alt_text|default:banner.title }}"
+             class="promo-banner-image"
+             loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}

@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}Acta de recepción · COT-{{ quote.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .da-page { --ink:#0f172a; --muted:#475569; --line:#e2e8f0; --soft:#f8fafc; }
+  .da-card { border:1px solid var(--line); border-radius:1rem; background:#fff; box-shadow:0 10px 28px rgba(15,23,42,.05); overflow:hidden; height:100%; }
+  .da-head { padding:.85rem 1.05rem; background:var(--soft); border-bottom:1px solid var(--line); font-weight:800; text-transform:uppercase; font-size:.86rem; color:var(--ink); letter-spacing:.03em; }
+  .da-body { padding:1.05rem; }
+  .sig-wrap { border:1px dashed #94a3b8; border-radius:.8rem; background:#fff; overflow:hidden; }
+  .sig-canvas { width:100%; height:170px; display:block; touch-action:none; cursor:crosshair; background:#fcfcfd; }
+  .sig-toolbar { display:flex; gap:.5rem; padding:.5rem .7rem; border-top:1px solid var(--line); background:var(--soft); }
+  .preview-img { max-height:110px; border-radius:.6rem; border:1px solid var(--line); object-fit:cover; }
+  .photo-slot input[type=file] { font-size:.86rem; }
+  .da-btn { border-radius:999px; font-weight:700; padding:.55rem 1rem; }
+  .video-preview { width:100%; max-height:220px; border-radius:.7rem; border:1px solid var(--line); background:#000; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 da-page">
+  <div class="mb-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}" class="btn btn-link btn-sm text-decoration-none p-0 mb-2" style="color:#475569;font-weight:600;">
+        <i class="bi bi-chevron-left"></i> Volver a COT-{{ quote.id }}
+      </a>
+      <h3 class="h4 fw-bold mb-1" style="color:#0f172a;">Acta de recepción</h3>
+      <div class="small" style="color:#475569;font-weight:500;">
+        Lugar, firmas, fotos y video del estado de la máquina.
+        {% if acta.is_complete %}<span class="badge text-bg-success ms-1">Completa</span>{% else %}<span class="badge text-bg-warning ms-1">Pendiente</span>{% endif %}
+      </div>
+    </div>
+    {% if acta.is_complete %}
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}" class="btn btn-dark da-btn" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-file-earmark-pdf me-1"></i> Ver PDF
+      </a>
+      <a href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}?download=1" class="btn btn-outline-dark da-btn">
+        <i class="bi bi-download me-1"></i> Descargar PDF
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="post" enctype="multipart/form-data" id="acta-form">
+    {% csrf_token %}
+    <input type="hidden" name="representative_signature_data" id="representative_signature_data">
+    <input type="hidden" name="tenant_signature_data" id="tenant_signature_data">
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <div class="da-card">
+          <div class="da-head">Fecha de entrega</div>
+          <div class="da-body">
+            <input type="datetime-local" name="delivered_at" class="form-control"
+                   value="{% if acta.delivered_at %}{{ acta.delivered_at|date:'Y-m-d\\TH:i' }}{% endif %}">
+          </div>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="da-card">
+          <div class="da-head">Dirección de recepción</div>
+          <div class="da-body">
+            <label class="form-label fw-semibold mb-1">Dirección</label>
+            <input type="text" name="reception_location" id="reception_location" class="form-control mb-3"
+                   value="{{ acta.reception_location }}"
+                   placeholder="Ej: Calle 5 #10-20, Bodega 3, Cartagena"
+                   required>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+              <label class="form-label fw-semibold mb-0">Ubicación GPS <span class="text-muted fw-normal">(opcional)</span></label>
+              <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btn-use-location">
+                  <i class="bi bi-geo-alt-fill me-1"></i> Capturar GPS
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-clear-gps">
+                  <i class="bi bi-eraser"></i> Quitar GPS
+                </button>
+              </div>
+            </div>
+            <input type="url" name="reception_maps_url" id="reception_maps_url" class="form-control"
+                   value="{{ acta.reception_maps_url }}"
+                   placeholder="Se completa automáticamente con Google Maps (opcional)"
+                   readonly>
+            <input type="hidden" name="reception_latitude" id="reception_latitude" value="{% if acta.reception_latitude %}{{ acta.reception_latitude }}{% endif %}">
+            <input type="hidden" name="reception_longitude" id="reception_longitude" value="{% if acta.reception_longitude %}{{ acta.reception_longitude }}{% endif %}">
+            <div class="form-text" id="location-status">
+              Escribe la dirección. Si quieres, captura el GPS del celular/PC (opcional) para guardar el enlace de Maps.
+            </div>
+            <div id="location-preview" class="mt-2" {% if not acta.reception_maps_url %}style="display:none;"{% endif %}>
+              <a id="location-maps-link"
+                 href="{% if acta.reception_maps_url %}{{ acta.reception_maps_url }}{% else %}#{% endif %}"
+                 target="_blank" rel="noopener noreferrer" class="small fw-semibold">
+                Abrir ubicación en Google Maps
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="da-card mb-3">
+      <div class="da-head">Observaciones</div>
+      <div class="da-body">
+        <textarea name="delivery_notes" class="form-control" rows="2" placeholder="Estado general, accesorios, observaciones...">{{ acta.delivery_notes }}</textarea>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-lg-6">
+        <div class="da-card">
+          <div class="da-head">Firma del representante</div>
+          <div class="da-body">
+            <label class="form-label fw-semibold">Nombre</label>
+            <input type="text" name="representative_name" class="form-control mb-3" value="{{ acta.representative_name }}" required>
+            {% if acta.representative_signature %}
+            <div class="mb-2"><img src="{{ acta.representative_signature.url }}" class="preview-img" alt="Firma representante"></div>
+            {% endif %}
+            <div class="sig-wrap">
+              <canvas id="sig-rep" class="sig-canvas" width="640" height="170"></canvas>
+              <div class="sig-toolbar">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-clear="sig-rep">Borrar</button>
+                <span class="small text-muted align-self-center">Firma digital</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="da-card">
+          <div class="da-head">Firma del arrendatario</div>
+          <div class="da-body">
+            <label class="form-label fw-semibold">Nombre</label>
+            <input type="text" name="tenant_name" class="form-control mb-3" value="{{ acta.tenant_name }}" required>
+            {% if acta.tenant_signature %}
+            <div class="mb-2"><img src="{{ acta.tenant_signature.url }}" class="preview-img" alt="Firma arrendatario"></div>
+            {% endif %}
+            <div class="sig-wrap">
+              <canvas id="sig-tenant" class="sig-canvas" width="640" height="170"></canvas>
+              <div class="sig-toolbar">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-clear="sig-tenant">Borrar</button>
+                <span class="small text-muted align-self-center">Firma digital</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="da-card mb-3">
+      <div class="da-head">Fotos de la máquina al momento de la entrega</div>
+      <div class="da-body">
+        <div class="row g-3">
+          {% for photo in photo_fields %}
+          <div class="col-md-6 col-lg-4 photo-slot">
+            <label class="form-label fw-bold" style="color:#0f172a;">{{ photo.label }}</label>
+            {% if photo.current %}
+            <div class="mb-2">
+              <img src="{{ photo.current.url }}" class="preview-img w-100" style="max-height:140px;object-fit:cover;" alt="{{ photo.label }}">
+            </div>
+            {% endif %}
+            <input type="file" name="{{ photo.name }}" class="form-control" accept="image/*" capture="environment" {% if not photo.current %}required{% endif %}>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="da-card mb-3">
+      <div class="da-head">Video de recepción</div>
+      <div class="da-body">
+        {% if acta.delivery_video %}
+        <div class="mb-3">
+          <video class="video-preview" controls src="{{ acta.delivery_video.url }}"></video>
+          <div class="small text-muted mt-1">Video actual cargado. Sube otro solo si deseas reemplazarlo.</div>
+        </div>
+        {% endif %}
+        <input type="file" name="delivery_video" class="form-control" accept="video/*" capture="environment" {% if not acta.delivery_video %}required{% endif %}>
+        <div class="form-text">Graba o sube un video corto del equipo al momento de la entrega.</div>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+      <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}" class="btn btn-outline-secondary da-btn">Cancelar</a>
+      <button type="submit" class="btn btn-primary da-btn">
+        <i class="bi bi-check2-circle me-1"></i> Guardar acta de recepción
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  function setupPad(canvasId) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    var ctx = canvas.getContext('2d');
+    var drawing = false;
+    var dirty = false;
+    function pos(e) {
+      var rect = canvas.getBoundingClientRect();
+      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+    function start(e) { e.preventDefault(); drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+    function move(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      var p = pos(e);
+      ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#0f172a';
+      ctx.lineTo(p.x, p.y); ctx.stroke(); dirty = true;
+    }
+    function end() { drawing = false; }
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    canvas.addEventListener('mouseup', end);
+    canvas.addEventListener('mouseleave', end);
+    canvas.addEventListener('touchstart', start, {passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    canvas.addEventListener('touchend', end);
+    return {
+      clear: function () { ctx.clearRect(0, 0, canvas.width, canvas.height); dirty = false; },
+      toDataURL: function () { return dirty ? canvas.toDataURL('image/png') : ''; }
+    };
+  }
+
+  var pads = {
+    'sig-rep': setupPad('sig-rep'),
+    'sig-tenant': setupPad('sig-tenant')
+  };
+  document.querySelectorAll('[data-clear]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-clear');
+      if (pads[id]) pads[id].clear();
+    });
+  });
+
+  document.getElementById('acta-form').addEventListener('submit', function (event) {
+    var rep = pads['sig-rep'] ? pads['sig-rep'].toDataURL() : '';
+    var ten = pads['sig-tenant'] ? pads['sig-tenant'].toDataURL() : '';
+    document.getElementById('representative_signature_data').value = rep;
+    document.getElementById('tenant_signature_data').value = ten;
+    var hasExistingRep = {{ acta.representative_signature|yesno:"true,false" }};
+    var hasExistingTen = {{ acta.tenant_signature|yesno:"true,false" }};
+    if (!rep && !hasExistingRep) {
+      alert('Firma del representante requerida.');
+      event.preventDefault();
+      return false;
+    }
+    if (!ten && !hasExistingTen) {
+      alert('Firma del arrendatario requerida.');
+      event.preventDefault();
+      return false;
+    }
+  });
+
+  // Dirección (obligatoria) + GPS opcional (Maps)
+  var addressInput = document.getElementById('reception_location');
+  var mapsInput = document.getElementById('reception_maps_url');
+  var latInput = document.getElementById('reception_latitude');
+  var lngInput = document.getElementById('reception_longitude');
+  var locationStatus = document.getElementById('location-status');
+  var locationPreview = document.getElementById('location-preview');
+  var locationMapsLink = document.getElementById('location-maps-link');
+  var btnUseLocation = document.getElementById('btn-use-location');
+  var btnClearGps = document.getElementById('btn-clear-gps');
+  var reverseUrl = "{% url 'store:ajax_reverse_geocode' %}";
+
+  function mapsUrlFromCoords(lat, lng) {
+    return 'https://www.google.com/maps?q=' + encodeURIComponent(lat + ',' + lng);
+  }
+
+  function refreshLocationPreview() {
+    var value = (mapsInput.value || '').trim();
+    if (value) {
+      locationPreview.style.display = '';
+      locationMapsLink.href = value;
+    } else {
+      locationPreview.style.display = 'none';
+      locationMapsLink.href = '#';
+    }
+  }
+
+  function setLocationStatus(message, isError) {
+    locationStatus.textContent = message;
+    locationStatus.className = 'form-text' + (isError ? ' text-danger' : '');
+  }
+
+  refreshLocationPreview();
+
+  if (btnClearGps) {
+    btnClearGps.addEventListener('click', function () {
+      mapsInput.value = '';
+      latInput.value = '';
+      lngInput.value = '';
+      refreshLocationPreview();
+      setLocationStatus('GPS quitado. La dirección escrita se mantiene.');
+    });
+  }
+
+  if (btnUseLocation) {
+    btnUseLocation.addEventListener('click', function () {
+      if (!navigator.geolocation) {
+        setLocationStatus('Este dispositivo/navegador no soporta geolocalización. Escribe la dirección manualmente.', true);
+        return;
+      }
+      btnUseLocation.disabled = true;
+      setLocationStatus('Obteniendo GPS… permite el acceso si el navegador lo pide.');
+
+      navigator.geolocation.getCurrentPosition(
+        function (position) {
+          var lat = Number(position.coords.latitude).toFixed(6);
+          var lng = Number(position.coords.longitude).toFixed(6);
+          var url = mapsUrlFromCoords(lat, lng);
+          latInput.value = lat;
+          lngInput.value = lng;
+          mapsInput.value = url;
+          refreshLocationPreview();
+          setLocationStatus('GPS capturado (' + lat + ', ' + lng + '). Buscando dirección aproximada…');
+
+          fetch(reverseUrl + '?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data && data.ok && data.address) {
+                if (!(addressInput.value || '').trim()) {
+                  addressInput.value = data.address;
+                  setLocationStatus('GPS y dirección aproximada listos. Puedes editar la dirección si hace falta.');
+                } else {
+                  setLocationStatus('GPS guardado. La dirección escrita se mantuvo (no se sobrescribió).');
+                }
+              } else {
+                setLocationStatus('GPS guardado. No se pudo completar la dirección automáticamente; escríbela manualmente.');
+              }
+              btnUseLocation.disabled = false;
+            })
+            .catch(function () {
+              setLocationStatus('GPS guardado. No se pudo completar la dirección automáticamente; escríbela manualmente.');
+              btnUseLocation.disabled = false;
+            });
+        },
+        function (error) {
+          var msg = 'No se pudo obtener el GPS. Escribe la dirección manualmente (el GPS es opcional).';
+          if (error && error.code === 1) {
+            msg = 'Permiso de ubicación denegado. Puedes continuar solo con la dirección.';
+          } else if (error && error.code === 2) {
+            msg = 'Ubicación no disponible. Puedes continuar solo con la dirección.';
+          } else if (error && error.code === 3) {
+            msg = 'Tiempo de espera agotado. Puedes continuar solo con la dirección o intentar de nuevo.';
+          }
+          setLocationStatus(msg, true);
+          btnUseLocation.disabled = false;
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 20000,
+          maximumAge: 0
+        }
+      );
+    });
+  }
+})();
+</script>
+{% endblock %}

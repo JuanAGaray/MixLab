@@ -1,0 +1,23 @@
+{% load store_tags %}
+{% if product.is_rental %}
+<div class="ml-cat-rental-prices">
+  {% for tariff in product.rental_prices.all %}
+    {% if tariff.is_active %}
+    <div class="ml-cat-rental-price-row">
+      <span class="ml-cat-rental-period">{{ tariff.get_period_type_display }}</span>
+      <span class="ml-cat-rental-amount">{{ tariff.price|pesos_colombianos }}<small>{{ tariff.period_short_label }}</small></span>
+    </div>
+    {% endif %}
+  {% empty %}
+    <span class="ml-cat-price-current">{{ product.price|pesos_colombianos }}</span>
+  {% endfor %}
+</div>
+{% elif product.has_discount %}
+<span class="ml-cat-price-old">{{ product.price|pesos_colombianos }}</span>
+<span class="ml-cat-price-current">{{ product.promotional_price|pesos_colombianos }}</span>
+{% else %}
+<span class="ml-cat-price-current">{{ product.price|pesos_colombianos }}</span>
+{% endif %}
+{% if product.has_unit_price and not product.is_rental %}
+<div class="ml-cat-unit-price">{{ product.price_per_unit|pesos_colombianos }}{{ product.unit_price_display_suffix }} · {{ product.unit_quantity_display }}</div>
+{% endif %}

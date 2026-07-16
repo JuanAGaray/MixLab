@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+
+{% block title %}Configuración del sitio - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <h2 class="h4 mb-1">Configuración del sitio</h2>
+      <p class="text-muted small mb-4">
+        Estos datos aparecen en el pie de página, el botón de WhatsApp, las redes sociales
+        y los métodos de pago de las cotizaciones.
+      </p>
+
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_settings">
+
+            <h6 class="text-muted text-uppercase small mb-3">Contacto</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label">{{ form.contact_email.label }}</label>
+                {{ form.contact_email }}
+                {% for e in form.contact_email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">{{ form.contact_phone.label }}</label>
+                {{ form.contact_phone }}
+                {% for e in form.contact_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">{{ form.whatsapp_number.label }}</label>
+                {{ form.whatsapp_number }}
+                <div class="form-text">{{ form.whatsapp_number.help_text }}</div>
+                {% for e in form.whatsapp_number.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">{{ form.address_city.label }}</label>
+                {{ form.address_city }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">{{ form.address_country.label }}</label>
+                {{ form.address_country }}
+              </div>
+            </div>
+
+            <h6 class="text-muted text-uppercase small mb-3">Datos legales (contratos de alquiler)</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label">{{ form.company_legal_name.label }}</label>
+                {{ form.company_legal_name }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">{{ form.company_nit.label }}</label>
+                {{ form.company_nit }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">{{ form.company_matricula.label }}</label>
+                {{ form.company_matricula }}
+              </div>
+              <div class="col-12">
+                <label class="form-label">{{ form.company_address.label }}</label>
+                {{ form.company_address }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ form.company_department.label }}</label>
+                {{ form.company_department }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ form.jurisdiction_city.label }}</label>
+                {{ form.jurisdiction_city }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ form.company_rep_name.label }}</label>
+                {{ form.company_rep_name }}
+              </div>
+            </div>
+
+            <h6 class="text-muted text-uppercase small mb-3">WhatsApp · notificaciones n8n</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-12">
+                <div class="form-check mb-2">
+                  {{ form.wa_n8n_enabled }}
+                  <label class="form-check-label" for="{{ form.wa_n8n_enabled.id_for_label }}">
+                    {{ form.wa_n8n_enabled.label }}
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label">{{ form.wa_n8n_webhook_url.label }}</label>
+                {{ form.wa_n8n_webhook_url }}
+                <div class="form-text">{{ form.wa_n8n_webhook_url.help_text }}</div>
+                {% for e in form.wa_n8n_webhook_url.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ form.wa_n8n_phone.label }}</label>
+                {{ form.wa_n8n_phone }}
+                <div class="form-text">{{ form.wa_n8n_phone.help_text }}</div>
+                {% for e in form.wa_n8n_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-12">
+                <div class="alert alert-light border small mb-0">
+                  El webhook recibe JSON: <code>phone</code>, <code>link</code>, <code>message</code>.
+                  Se notifica al crear cotizaciones, al registrar pagos de cotización y al crear gastos/pagos.
+                </div>
+              </div>
+            </div>
+
+            <h6 class="text-muted text-uppercase small mb-3">Redes sociales</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-12">
+                <label class="form-label">{{ form.instagram_url.label }}</label>
+                {{ form.instagram_url }}
+              </div>
+              <div class="col-12">
+                <label class="form-label">{{ form.tiktok_url.label }}</label>
+                {{ form.tiktok_url }}
+              </div>
+              <div class="col-12">
+                <label class="form-label">{{ form.facebook_url.label }}</label>
+                {{ form.facebook_url }}
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Guardar cambios</button>
+              <a href="{% url 'store:inventory_dashboard' %}" class="btn btn-outline-secondary">Volver al inventario</a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Métodos de pago -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h6 class="text-muted text-uppercase small mb-1">Métodos de pago</h6>
+              <p class="text-muted small mb-0">Se muestran en el PDF de cotizaciones. Puedes agregar varios.</p>
+            </div>
+          </div>
+
+          {% if payment_methods %}
+          <div class="table-responsive mb-4">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Logo</th>
+                  <th>Tipo</th>
+                  <th>Banco</th>
+                  <th>A nombre de</th>
+                  <th>Doc.</th>
+                  <th>Cuenta</th>
+                  <th>Estado</th>
+                  <th class="text-end">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for pm in payment_methods %}
+                <tr{% if editing_payment and editing_payment.id == pm.id %} class="table-warning"{% endif %}>
+                  <td style="width:64px;">
+                    {% if pm.bank_logo %}
+                    <img src="{{ pm.bank_logo.url }}" alt="{{ pm.bank_name }}" style="width:42px;height:42px;object-fit:contain;border:1px solid #e2e8f0;border-radius:6px;background:#fff;padding:2px;">
+                    {% else %}
+                    <span class="text-muted small">—</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ pm.get_account_type_display }}</td>
+                  <td>{{ pm.bank_name|default:"—" }}</td>
+                  <td>{{ pm.holder_name }}</td>
+                  <td>{{ pm.document_display }}</td>
+                  <td class="fw-semibold">{{ pm.account_number }}</td>
+                  <td>
+                    {% if pm.is_active %}
+                    <span class="badge text-bg-success">Activo</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary">Inactivo</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end text-nowrap">
+                    <a href="?edit_payment={{ pm.id }}#payment-form"
+                       class="btn btn-sm btn-outline-primary"
+                       title="Editar">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="toggle_payment">
+                      <input type="hidden" name="payment_id" value="{{ pm.id }}">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary" title="Activar/Desactivar">
+                        <i class="bi bi-toggle-{% if pm.is_active %}on{% else %}off{% endif %}"></i>
+                      </button>
+                    </form>
+                    <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este método de pago?');">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_payment">
+                      <input type="hidden" name="payment_id" value="{{ pm.id }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-4">Aún no hay métodos de pago. Agrega el primero abajo.</p>
+          {% endif %}
+
+          <div id="payment-form" class="border rounded-3 p-3 {% if editing_payment %}border-warning bg-warning-subtle{% else %}bg-light{% endif %}">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <h6 class="small fw-semibold mb-0">
+                {% if editing_payment %}
+                Editar método de pago
+                <span class="text-muted fw-normal">· {{ editing_payment.bank_name|default:editing_payment.get_account_type_display }} · {{ editing_payment.account_number }}</span>
+                {% else %}
+                Agregar método de pago
+                {% endif %}
+              </h6>
+              {% if editing_payment %}
+              <a href="{% url 'store:site_settings_edit' %}#payment-form" class="btn btn-sm btn-outline-secondary">Cancelar edición</a>
+              {% endif %}
+            </div>
+
+            {% if payment_form.errors %}
+            <div class="alert alert-danger py-2 small">
+              Corrige los campos marcados e inténtalo de nuevo.
+              {{ payment_form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" class="row g-3">
+              {% csrf_token %}
+              {% if editing_payment %}
+              <input type="hidden" name="action" value="edit_payment">
+              <input type="hidden" name="payment_id" value="{{ editing_payment.id }}">
+              {% else %}
+              <input type="hidden" name="action" value="add_payment">
+              {% endif %}
+
+              <div class="col-md-4">
+                <label class="form-label">{{ payment_form.account_type.label }}</label>
+                {{ payment_form.account_type }}
+                {% for e in payment_form.account_type.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ payment_form.bank_name.label }}</label>
+                {{ payment_form.bank_name }}
+                {% for e in payment_form.bank_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ payment_form.bank_logo.label }}</label>
+                {{ payment_form.bank_logo }}
+                {% if editing_payment and editing_payment.bank_logo %}
+                <div class="form-text">Actual: <a href="{{ editing_payment.bank_logo.url }}" target="_blank" rel="noopener">ver logo</a>. Sube uno nuevo solo si quieres reemplazarlo.</div>
+                {% endif %}
+                {% for e in payment_form.bank_logo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">{{ payment_form.holder_name.label }}</label>
+                {{ payment_form.holder_name }}
+                {% for e in payment_form.holder_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">{{ payment_form.document_type.label }}</label>
+                {{ payment_form.document_type }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ payment_form.document_number.label }}</label>
+                {{ payment_form.document_number }}
+                {% for e in payment_form.document_number.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ payment_form.account_number.label }}</label>
+                {{ payment_form.account_number }}
+                {% for e in payment_form.account_number.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ payment_form.breb_key.label }}</label>
+                {{ payment_form.breb_key }}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">{{ payment_form.sort_order.label }}</label>
+                {{ payment_form.sort_order }}
+              </div>
+              <div class="col-md-2 d-flex align-items-end">
+                <div class="form-check mb-2">
+                  {{ payment_form.is_active }}
+                  <label class="form-check-label" for="{{ payment_form.is_active.id_for_label }}">Activo</label>
+                </div>
+              </div>
+              <div class="col-12">
+                {% if editing_payment %}
+                <button type="submit" class="btn btn-warning btn-sm">
+                  <i class="bi bi-check-lg me-1"></i> Guardar cambios del método
+                </button>
+                <a href="{% url 'store:site_settings_edit' %}" class="btn btn-outline-secondary btn-sm ms-1">Cancelar</a>
+                {% else %}
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-plus-lg me-1"></i> Agregar método de pago
+                </button>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {% if settings_obj.updated_at %}
+      <p class="text-muted small mt-3 mb-0">Última actualización: {{ settings_obj.updated_at|date:"Y-m-d H:i" }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -65,6 +65,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'store.context_processors.cart',
                 'store.context_processors.categories',
+                'store.context_processors.site_settings',
             ],
         },
     },
@@ -76,21 +77,63 @@ WSGI_APPLICATION = 'frozz.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# Usar DATABASE_URL de Supabase si está disponible, sino usar SQLite local
-DATABASES = {
-    'default': {
-         'ENGINE': 'django.db.backends.postgresql',
-          'NAME': 'postgres',
-          'USER': 'postgres.uuldhikxijyhsxxknusl',
-          'HOST': os.environ.get("DB_HOST"),
-          'PASSWORD': os.environ.get("DB_PASSWORD"),
-          'PORT': '5432',
-          'OPTIONS': {
-             'sslmode': 'verify-full',
-             'sslrootcert': os.path.join(BASE_DIR, 'prod-ca-2021.crt'),
-          },
-      }
-}
+def _database_from_url(url: str) -> dict:
+    """Parse postgresql://user:pass@host:port/dbname into Django DATABASES config."""
+    from urllib.parse import urlparse, unquote
+
+    parsed = urlparse(url)
+    return {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': (parsed.path or '/postgres').lstrip('/') or 'postgres',
+        'USER': unquote(parsed.username or 'postgres'),
+        'PASSWORD': unquote(parsed.password or ''),
+        'HOST': parsed.hostname or '',
+        'PORT': str(parsed.port or 5432),
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
+    }
+
+
+_use_sqlite = os.environ.get('USE_SQLITE', '').lower() in ('1', 'true', 'yes')
+# Pooler (IPv4) — recomendado en redes sin IPv6. Supabase → Connect → Session mode
+_database_url_pooler = os.environ.get('DATABASE_URL_POOLER', '').strip()
+_database_url = os.environ.get('DATABASE_URL', '').strip()
+_db_host = os.environ.get('DB_HOST', '').strip()
+_db_password = os.environ.get('DB_PASSWORD', '').strip()
+
+if _use_sqlite:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+elif _database_url_pooler:
+    DATABASES = {'default': _database_from_url(_database_url_pooler)}
+elif _database_url:
+    DATABASES = {'default': _database_from_url(_database_url)}
+elif _db_host and _db_password:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'postgres'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': _db_password,
+            'HOST': _db_host,
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -135,6 +178,32 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Supabase Storage (bucket Mixlaba)
+_db_host_for_supabase = os.environ.get('DB_HOST', '').strip()
+_supabase_project_ref = ''
+if '.supabase.co' in _db_host_for_supabase:
+    _supabase_project_ref = _db_host_for_supabase.replace('db.', '').split('.supabase.co')[0]
+
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip() or (
+    f'https://{_supabase_project_ref}.supabase.co' if _supabase_project_ref else ''
+)
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '').strip()
+SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'Mixlaba').strip()
+
+if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET:
+    _default_file_storage = 'store.storage_backends.SupabaseMediaStorage'
+else:
+    _default_file_storage = 'django.core.files.storage.FileSystemStorage'
+
+STORAGES = {
+    'default': {
+        'BACKEND': _default_file_storage,
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

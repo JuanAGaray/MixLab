@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar producto base - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 text-center">
+          <h2 class="h5 mb-3">¿Eliminar este producto base?</h2>
+          <p class="mb-1 fw-semibold">{{ item.name }}</p>
+          <p class="text-muted small mb-4">Proporción {{ item.ratio_display }} — ya no aparecerá en la calculadora.</p>
+          <form method="post" class="d-flex justify-content-center gap-2">
+            {% csrf_token %}
+            <a href="{% url 'store:dilution_product_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-danger">Eliminar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

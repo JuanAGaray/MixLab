@@ -170,7 +170,7 @@
                             <td class="text-end">{{ q.total|pesos_colombianos }}</td>
                             <td>
                                 <a href="{% url 'store:quotation_detail' quotation_id=q.id %}" class="btn btn-sm btn-light py-0 px-1" title="Ver"><i class="bi bi-eye"></i></a>
-                                <a href="{% url 'store:quotation_pdf' quotation_id=q.id %}" class="btn btn-sm btn-light py-0 px-1" title="PDF" target="_blank"><i class="bi bi-file-earmark-pdf"></i></a>
+                                <a href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=1" class="btn btn-sm btn-light py-0 px-1" title="PDF" target="_blank"><i class="bi bi-file-earmark-pdf"></i></a>
                             </td>
                         </tr>
                         {% endfor %}

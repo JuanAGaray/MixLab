@@ -1,0 +1,372 @@
+{% load store_tags static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Acta de recepción · COT-{{ quote.id }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 12mm 11mm 12mm 11mm;
+    }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      color: #0f172a;
+      line-height: 1.4;
+      margin: 0;
+    }
+    h1 {
+      font-size: 14px;
+      margin: 0 0 4px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h2 {
+      font-size: 11px;
+      margin: 11px 0 5px;
+      border-bottom: 1px solid #94a3b8;
+      padding-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    p, li {
+      margin: 0 0 5px;
+      text-align: justify;
+    }
+    ul { margin: 0 0 6px 16px; padding: 0; }
+    .meta {
+      text-align: center;
+      color: #475569;
+      margin-bottom: 10px;
+      font-size: 9.5px;
+    }
+    .box {
+      border: 1px solid #cbd5e1;
+      padding: 7px 8px;
+      margin: 0 0 8px;
+      background: #f8fafc;
+    }
+    .label {
+      color: #64748b;
+      font-size: 8px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .value {
+      font-weight: 700;
+      font-size: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    .info td { width: 50%; vertical-align: top; padding: 0 4px 0 0; }
+    .photo-grid td {
+      width: 33.33%;
+      vertical-align: top;
+      padding: 4px;
+      text-align: center;
+    }
+    .photo-frame {
+      border: 1px solid #cbd5e1;
+      padding: 4px;
+      background: #fff;
+      min-height: 110px;
+    }
+    .photo-frame img {
+      max-width: 100%;
+      max-height: 130px;
+      height: auto;
+    }
+    .photo-caption {
+      font-size: 8px;
+      color: #475569;
+      margin-top: 3px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .sign-box {
+      border: 1px solid #cbd5e1;
+      padding: 8px;
+      background: #fff;
+      min-height: 110px;
+    }
+    .sign-box img {
+      max-width: 100%;
+      max-height: 75px;
+      height: auto;
+    }
+    .muted { color: #64748b; font-size: 9px; }
+    .equip td, .equip th {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 4px 5px;
+      text-align: left;
+      font-size: 9px;
+      vertical-align: top;
+    }
+    .equip th {
+      background: #0f172a;
+      color: #fff;
+      text-transform: uppercase;
+      font-size: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Acta de recepción y entrega de equipo en arrendamiento</h1>
+  <div class="meta">
+    Documento anexo al contrato de alquiler · Cotización COT-{{ quote.id }}<br>
+    {{ settings.company_legal_name|default:"MIXLAB SAS" }}
+    {% if settings.company_nit %} · NIT {{ settings.company_nit }}{% endif %}
+    {% if settings.company_matricula %} · Matrícula {{ settings.company_matricula }}{% endif %}
+  </div>
+
+  <h2>1. Identificación de las partes</h2>
+  <div class="box">
+    <p style="margin-bottom:6px;">
+      <span class="label">Arrendador / Entregante</span><br>
+      <span class="value">{{ settings.company_legal_name|default:"MIXLAB SAS" }}</span><br>
+      NIT: {{ settings.company_nit|default:"902031074-1" }} ·
+      Tel: {{ settings.contact_phone|default:"—" }} ·
+      Correo: {{ settings.contact_email|default:"—" }}<br>
+      Representante en esta acta:
+      <strong>{{ acta.representative_name|default:settings.company_rep_name|default:"—" }}</strong>
+    </p>
+    <p style="margin:0;">
+      <span class="label">Arrendatario / Receptor</span><br>
+      <span class="value">{{ acta.tenant_name|default:quote.client_name|default:"—" }}</span><br>
+      Tel: {{ quote.client_phone|default:"—" }} ·
+      Correo: {{ quote.client_email|default:"—" }} ·
+      Tipo: {{ quote.display_client_kind }}<br>
+      Ubicación del cliente:
+      {% if quote.display_client_departamento or quote.display_client_city %}
+        {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %} · {% endif %}{{ quote.display_client_city|default:"" }}
+      {% else %}—{% endif %}
+    </p>
+  </div>
+
+  <h2>2. Objeto del acta</h2>
+  <p>
+    El presente documento tiene por objeto dejar constancia formal de la
+    <strong>entrega material</strong> que realiza el ARRENDADOR y de la
+    <strong>recepción a satisfacción</strong> que hace el ARRENDATARIO del(los)
+    equipo(s) relacionado(s) más adelante, en el marco del contrato de arrendamiento
+    de bien mueble derivado de la cotización <strong>COT-{{ quote.id }}</strong>.
+  </p>
+  <p>
+    Este acta forma parte integrante del contrato de alquiler y sirve como prueba
+    del estado, accesorios, lugar, fecha y condiciones en que se realizó la entrega.
+    Las fotografías, el video (si existe) y las firmas electrónicas aquí consignadas
+    tienen pleno valor probatorio entre las partes, de conformidad con la Ley 527 de 1999.
+  </p>
+
+  <h2>3. Lugar, fecha y condiciones de la entrega</h2>
+  <div class="box">
+    <table class="info">
+      <tr>
+        <td>
+          <div class="label">Fecha y hora de entrega</div>
+          <div class="value">
+            {% if acta.delivered_at %}{{ acta.delivered_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+          </div>
+        </td>
+        <td>
+          <div class="label">Dirección de recepción</div>
+          <div class="value">{{ acta.reception_location|default:"—" }}</div>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding-top:6px;">
+          <div class="label">Ubicación GPS (opcional)</div>
+          <div class="value" style="word-break:break-all;">
+            {% if acta.reception_latitude and acta.reception_longitude %}
+              Lat: {{ acta.reception_latitude|stringformat:".6f" }} ·
+              Lng: {{ acta.reception_longitude|stringformat:".6f" }}
+            {% else %}
+              No registrada
+            {% endif %}
+            {% if acta.reception_maps_url %}
+              <br>Enlace: {{ acta.reception_maps_url }}
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <p>
+    El ARRENDATARIO declara que el lugar indicado corresponde al sitio en el cual
+    recibe el equipo y desde el cual inicia su custodia. Cualquier traslado posterior
+    del equipo a otra dirección deberá ser informado al ARRENDADOR, sin perjuicio de
+    las obligaciones de cuidado, uso adecuado y restitución previstas en el contrato.
+  </p>
+
+  <h2>4. Equipos entregados</h2>
+  <p>
+    El ARRENDADOR entrega y el ARRENDATARIO recibe, en perfecto estado de funcionamiento
+    salvo las observaciones que se consignen expresamente, el(los) siguiente(s) bien(es):
+  </p>
+  {% if equipment %}
+  <table class="equip">
+    <thead>
+      <tr>
+        <th>Equipo</th>
+        <th>Marca / modelo / serial</th>
+        <th>Estado / accesorios</th>
+        <th>Cant.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in equipment %}
+      <tr>
+        <td><strong>{{ item.product.name }}</strong></td>
+        <td>
+          Marca: {{ item.product.rental_brand|default:"—" }}<br>
+          Modelo: {{ item.product.rental_model|default:"—" }}<br>
+          Serial: {{ item.product.rental_serial|default:"—" }}
+        </td>
+        <td>
+          {{ item.product.rental_condition|default:"Buen estado de funcionamiento" }}<br>
+          <span class="muted">{{ item.product.rental_accessories|default:"Accesorios según inventario visual de esta acta" }}</span>
+        </td>
+        <td>{{ item.quantity }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No se encontraron equipos de alquiler asociados a la cotización.</p>
+  {% endif %}
+
+  <h2>5. Estado del equipo al momento de la entrega</h2>
+  <p>Al momento de suscribir la presente acta, las partes verifican y dejan constancia de:</p>
+  <ul>
+    <li>Estado general externo e interno del equipo (carcazas, tapas, plásticos, parte frontal y trasera).</li>
+    <li>Funcionamiento aparente de botones, paneles de control e iluminación.</li>
+    <li>Estado del radiador u otros componentes visibles de enfriamiento/ventilación.</li>
+    <li>Existencia y cantidad de accesorios, recipientes, tanques, mangueras u otros elementos entregados junto con el equipo.</li>
+    <li>Ausencia de daños relevantes distintos de los que se consignen en las observaciones de esta acta.</li>
+  </ul>
+  {% if acta.delivery_notes %}
+  <p><strong>Observaciones particulares consignadas al momento de la entrega:</strong></p>
+  <div class="box">{{ acta.delivery_notes|linebreaksbr }}</div>
+  {% else %}
+  <p>
+    <strong>Observaciones:</strong> Sin novedades adicionales. El ARRENDATARIO declara
+    recibir el equipo en buen estado de conservación y funcionamiento, sin daños,
+    rayones graves, faltantes ni irregularidades distintas de las propias del uso normal
+    previamente aceptadas.
+  </p>
+  {% endif %}
+
+  <h2>6. Registro fotográfico y audiovisual</h2>
+  <p>
+    Como evidencia del estado del bien al momento de la entrega, las partes anexan
+    el siguiente registro fotográfico obligatorio (tapas y plásticos, iluminación,
+    botones, radiador, parte trasera y parte delantera)
+    {% if acta.delivery_video %}y un <strong>video de recepción</strong> debidamente cargado
+    y asociado a este expediente{% else %} (sin video anexo){% endif %}.
+    Dicho material se entiende incorporado a esta acta y podrá ser usado para
+    contrastar el estado del equipo al momento de su devolución.
+  </p>
+  <table class="photo-grid">
+    {% for photo in photos %}
+      {% if forloop.counter0|divisibleby:3 %}<tr>{% endif %}
+      <td>
+        <div class="photo-frame">
+          {% if photo.image %}<img src="{{ photo.image.url }}" alt="{{ photo.label }}">{% endif %}
+        </div>
+        <div class="photo-caption">{{ photo.label }}</div>
+      </td>
+      {% if forloop.counter|divisibleby:3 or forloop.last %}</tr>{% endif %}
+    {% empty %}
+    <tr><td colspan="3" class="muted">Sin fotos registradas.</td></tr>
+    {% endfor %}
+  </table>
+  <p class="muted">
+    Video de recepción:
+    {% if acta.delivery_video %}Adjunto / registrado en el sistema.{% else %}No aportado.{% endif %}
+  </p>
+
+  <h2>7. Declaraciones del arrendatario</h2>
+  <p>Con la firma de la presente acta, el ARRENDATARIO declara de manera expresa que:</p>
+  <ul>
+    <li>Recibe el(los) equipo(s) a su entera satisfacción, en las condiciones descritas.</li>
+    <li>Ha inspeccionado el equipo personalmente o por medio de persona autorizada.</li>
+    <li>Conoce el funcionamiento básico y las instrucciones de uso recomendadas por el ARRENDADOR.</li>
+    <li>Asume la custodia, el cuidado y la responsabilidad por daños, hurto, pérdida, mal uso o negligencia a partir de la fecha y hora de esta entrega.</li>
+    <li>Se obliga a devolver el equipo en las mismas condiciones de recepción, salvo el deterioro por uso normal y diligente.</li>
+    <li>Acepta que cualquier daño no reportado en este acta se presumirá ocurrido durante la tenencia del ARRENDATARIO, salvo prueba en contrario.</li>
+  </ul>
+
+  <h2>8. Declaraciones del arrendador</h2>
+  <p>El ARRENDADOR declara que:</p>
+  <ul>
+    <li>Entrega el equipo en estado operativo y apto para el uso arrendado.</li>
+    <li>Ha puesto a disposición del ARRENDATARIO la información necesaria para su correcta operación.</li>
+    <li>Conserva copia de este acta, del registro fotográfico y del video (si existe) como soporte del contrato.</li>
+  </ul>
+
+  <h2>9. Responsabilidad posterior a la entrega</h2>
+  <p>
+    A partir de la suscripción de esta acta, el ARRENDATARIO será responsable
+    frente al ARRENDADOR por la integridad, seguridad y correcto uso del equipo,
+    incluyendo daños parciales o totales, desaparición, hurto, deterioro anormal,
+    pérdida de accesorios y costos de reparación o reposición. Lo anterior sin
+    perjuicio de las cláusulas de depósito, mantenimiento, cláusula penal y demás
+    obligaciones contenidas en el contrato principal de arrendamiento.
+  </p>
+  <p>
+    Si al momento de la devolución se advirtieran daños, faltantes o alteraciones
+    no registradas en esta acta, el ARRENDADOR podrá cobrar al ARRENDATARIO
+    (y a su codeudor, si lo hubiere) el valor de reparación o el valor comercial
+    de reposición, según corresponda.
+  </p>
+
+  <h2>10. Validez de firmas y aceptación</h2>
+  <p>
+    Las partes aceptan que las firmas capturadas digitalmente en esta acta tienen
+    la misma fuerza vinculante que una firma manuscrita para los efectos de este
+    acuerdo, de conformidad con la normativa colombiana aplicable a mensajes de
+    datos y firma electrónica. La suscripción del presente documento implica la
+    aceptación íntegra de su contenido.
+  </p>
+  <p>
+    En constancia de lo anterior, se firma la presente acta de recepción y entrega
+    en la fecha indicada, en el lugar de recepción señalado.
+    {% if acta.completed_at %}
+    Registro digital de completitud: {{ acta.completed_at|date:"d/m/Y H:i" }}.
+    {% endif %}
+  </p>
+
+  <h2>11. Firmas</h2>
+  <table class="info">
+    <tr>
+      <td style="padding-right:6px;">
+        <div class="sign-box">
+          <div class="label">Por el arrendador</div>
+          <div class="value" style="margin:4px 0 6px;">{{ acta.representative_name|default:"—" }}</div>
+          {% if acta.representative_signature %}
+          <img src="{{ acta.representative_signature.url }}" alt="Firma representante">
+          {% endif %}
+          <div class="muted" style="margin-top:6px;">Firma digital del representante</div>
+        </div>
+      </td>
+      <td style="padding-left:6px;">
+        <div class="sign-box">
+          <div class="label">Por el arrendatario / receptor</div>
+          <div class="value" style="margin:4px 0 6px;">{{ acta.tenant_name|default:"—" }}</div>
+          {% if acta.tenant_signature %}
+          <img src="{{ acta.tenant_signature.url }}" alt="Firma arrendatario">
+          {% endif %}
+          <div class="muted" style="margin-top:6px;">Firma digital del receptor</div>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <p class="muted" style="margin-top:10px;">
+    Documento generado electrónicamente por MIXLAB / Frozz a partir de la cotización COT-{{ quote.id }}.
+    Conservar junto con el contrato de arrendamiento y los soportes audiovisuales de la entrega.
+  </p>
+</body>
+</html>

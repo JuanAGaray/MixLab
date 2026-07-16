@@ -1,0 +1,374 @@
+{% load store_tags static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Contrato de Arrendamiento de Bien Mueble · COT{{ quote.id }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 14mm 12mm;
+    }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      color: #0f172a;
+      line-height: 1.4;
+      margin: 0;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 4px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+    }
+    h2 {
+      font-size: 11px;
+      margin: 12px 0 5px;
+      border-bottom: 1px solid #94a3b8;
+      padding-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+    p, li {
+      margin: 0 0 5px;
+      text-align: justify;
+    }
+    .meta {
+      text-align: center;
+      color: #475569;
+      margin-bottom: 12px;
+      font-size: 9.5px;
+    }
+    .box {
+      border: 1px solid #cbd5e1;
+      padding: 7px 8px;
+      margin: 0 0 8px;
+      background: #f8fafc;
+    }
+    .label {
+      color: #64748b;
+      font-size: 8px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .value {
+      font-weight: 700;
+      font-size: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .equip th {
+      background: #0f172a;
+      color: #fff;
+      font-size: 8px;
+      text-align: left;
+      padding: 5px 6px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .equip td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 5px 6px;
+      vertical-align: top;
+      font-size: 9px;
+    }
+    .clause {
+      margin-bottom: 7px;
+    }
+    .clause strong {
+      display: inline;
+    }
+    .sign-table td {
+      width: 33%;
+      padding-top: 28px;
+      text-align: center;
+      vertical-align: top;
+    }
+    .sign-line {
+      border-top: 1px solid #0f172a;
+      margin: 0 8px;
+      padding-top: 5px;
+      font-size: 9px;
+    }
+    .muted {
+      color: #475569;
+      font-size: 9px;
+    }
+    .footer {
+      margin-top: 10px;
+      font-size: 7.5px;
+      color: #64748b;
+      text-align: center;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+    }
+    ul {
+      margin: 3px 0 6px 18px;
+      padding: 0;
+    }
+    .highlight-box {
+      background: #fef9e7;
+      border: 1px solid #f59e0b;
+      padding: 6px 8px;
+      margin: 6px 0;
+    }
+    .clause-number {
+      font-weight: 700;
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Contrato de Arrendamiento de Bien Mueble</h1>
+  <p class="meta">
+    Cotización COT-{{ quote.id }} · {{ today|date:"d/m/Y" }} ·
+    {{ settings.company_legal_name|default:"MIXLAB SAS" }}
+  </p>
+
+  <!-- IDENTIFICACIÓN DE LAS PARTES -->
+  <h2>1. Identificación de las partes</h2>
+  <div class="box">
+    <p><span class="label">Arrendador</span><br>
+      <span class="value">{{ settings.company_legal_name|default:"MIXLAB SAS" }}</span><br>
+      NIT: {{ settings.company_nit|default:"902031074-1" }}
+      {% if settings.company_matricula %} · Matrícula mercantil No. {{ settings.company_matricula }}{% endif %}<br>
+      {% if settings.company_rep_name %}Representante legal: {{ settings.company_rep_name }}<br>{% endif %}
+      Domicilio: {{ settings.company_address|default:"Barrio Ciudad Bicentenario, Conjunto Residencial Parques de Bolívar 2" }}<br>
+      Municipio: {{ settings.address_city|default:"Cartagena" }}{% if settings.company_department %}, {{ settings.company_department }}{% endif %}<br>
+      Tel: {{ settings.contact_phone|default:"3128104046" }} ·
+      Correo: {{ settings.contact_email|default:"juandam594@gmail.com" }}
+    </p>
+    <p style="margin:0;"><span class="label">Arrendatario</span><br>
+      <span class="value">{{ quote.display_client_name|default:"—" }}</span><br>
+      Tipo: {{ quote.display_client_kind }} ·
+      Tel: {{ quote.display_client_phone|default:"—" }} ·
+      Correo: {{ quote.display_client_email|default:"—" }}<br>
+      Ubicación:
+      {% if quote.display_client_departamento or quote.display_client_city %}
+        {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %} · {% endif %}{{ quote.display_client_city|default:"" }}
+      {% else %}—{% endif %}
+      <br><span class="muted">Documento de identidad / NIT: ___________________________ (completar al firmar)</span>
+    </p>
+    <p style="margin-top:6px; border-top:1px dashed #cbd5e1; padding-top:6px;">
+      <span class="label">Codeudor (Fiador Solidario)</span><br>
+      <span class="value">________________________________________</span><br>
+      C.C. / NIT: ______________________ · Teléfono: ________________<br>
+      Dirección: __________________________________________________<br>
+      Correo electrónico: __________________________________________
+    </p>
+    <p class="muted" style="margin-top:4px;">
+      El codeudor se obliga solidaria e incondicionalmente como garante de todas las obligaciones del arrendatario derivadas del presente contrato, incluyendo el pago del canon, los daños, la cláusula penal y cualquier otra suma adeudada, renunciando al beneficio de excusión.
+    </p>
+  </div>
+
+  <!-- OBJETO -->
+  <h2>2. Objeto del contrato</h2>
+  <p>El ARRENDADOR, en virtud del presente contrato, entrega en arrendamiento al ARRENDATARIO, quien recibe a su entera satisfacción, el(los) siguiente(s) bien(es) mueble(s), cuyas características y valor comercial se detallan a continuación, con fundamento en la cotización COT-{{ quote.id }}:</p>
+  <table class="equip">
+    <thead>
+      <tr>
+        <th>Equipo</th>
+        <th>Marca / Modelo / Serial</th>
+        <th>Estado / Accesorios</th>
+        <th>Valor comercial</th>
+        <th>Canon cotizado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eq in equipment %}
+      <tr>
+        <td><strong>{{ eq.product.name }}</strong><br>Cant. {{ eq.item.quantity }} · {{ eq.period_label }}</td>
+        <td>
+          Marca: {{ eq.product.rental_brand|default:"—" }}<br>
+          Modelo: {{ eq.product.rental_model|default:"—" }}<br>
+          Serial: {{ eq.product.rental_serial|default:"—" }}
+        </td>
+        <td>
+          {{ eq.product.rental_condition|default:"Buen estado" }}<br>
+          <span class="muted">{{ eq.product.rental_accessories|default:"Accesorios: ver inventario de entrega" }}</span>
+        </td>
+        <td>
+          {% if eq.commercial_value %}{{ eq.commercial_value|pesos_colombianos }}{% else %}Por definir{% endif %}
+        </td>
+        <td>
+          {{ eq.item.unit_price|pesos_colombianos }}
+          {% if eq.item.list_unit_price and eq.item.list_unit_price > eq.item.unit_price %}
+          <br><span class="muted">Lista: {{ eq.item.list_unit_price|pesos_colombianos }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">El estado detallado, inventario de accesorios y registro fotográfico se dejarán consignados en el acta de entrega que suscribirán las partes, la cual forma parte integrante de este contrato.</p>
+
+  <!-- VALOR COMERCIAL -->
+  <h2>3. Valor comercial de los equipos</h2>
+  <p>El valor comercial indicado para cada equipo corresponde al precio de reposición a nuevo. Dicho valor servirá como base para determinar el depósito de garantía, el monto asegurado, y la indemnización en caso de pérdida total, hurto, daño irreparable o cualquier otra circunstancia que impida la devolución del bien en las condiciones pactadas. Las partes declaran aceptar expresamente este valor como parámetro objetivo.</p>
+
+  <!-- CANON DE ARRENDAMIENTO -->
+  <h2>4. Canon de arrendamiento y forma de pago</h2>
+  {% for eq in equipment %}
+  <p><strong>{{ eq.product.name }}</strong> — Tarifas vigentes:</p>
+  <ul>
+    {% for t in eq.tariffs %}
+    <li>{{ t.get_period_type_display }}: {{ t.price|pesos_colombianos }}</li>
+    {% empty %}
+    <li>Según cotización: {{ eq.item.unit_price|pesos_colombianos }} ({{ eq.period_label }})</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  <p>El canon de arrendamiento correspondiente al periodo de vigencia del contrato es el señalado en la cotización COT-{{ quote.id }}. El ARRENDATARIO se obliga a pagar el canon de manera oportuna, en los plazos y condiciones establecidos. El pago se realizará mediante transferencia bancaria o consignación en las cuentas que el ARRENDADOR indique por escrito. El canon incluye el IVA cuando así lo exija la normativa aplicable. La falta de pago en la fecha acordada dará lugar a la aplicación de intereses moratorios y a las demás acciones previstas en la ley y en este contrato.</p>
+
+  <!-- DEPÓSITO DE GARANTÍA -->
+  <h2>5. Depósito de garantía</h2>
+  <p>
+    El ARRENDADOR podrá exigir, a su entera discreción, un depósito de garantía equivalente al <strong>ocho por ciento (8%)</strong> del valor comercial de cada equipo arrendado, o la suma que de común acuerdo fijen las partes. Dicho depósito tiene como finalidad garantizar el cumplimiento de las obligaciones del ARRENDATARIO, incluyendo el pago de cánones, la reparación de daños, la reposición de accesorios faltantes y cualquier otro concepto adeudado.
+  </p>
+  <p>
+    El depósito será devuelto dentro de los diez (10) días hábiles siguientes a la terminación del contrato y a la verificación del estado del equipo, deducidos los valores que correspondan por daños, faltantes, mora o incumplimientos. Si el depósito resultare insuficiente, el ARRENDATARIO y su codeudor responderán por el saldo.
+  </p>
+  {% if deposit_examples %}
+  <p>A título de referencia, con los valores comerciales registrados:</p>
+  <ul>
+    {% for eq in deposit_examples %}
+    <li>
+      <strong>{{ eq.product.name }}</strong>:
+      valor comercial {{ eq.commercial_value|pesos_colombianos }}
+      → depósito (8%): <strong>{{ eq.deposit_8pct|pesos_colombianos }}</strong>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Si al momento de la firma del contrato no consta el valor comercial, el monto del depósito se fijará en el acta de entrega.</p>
+  {% endif %}
+  <p>El depósito no constituye un límite a la responsabilidad del ARRENDATARIO, quien seguirá obligado por la totalidad de los daños y perjuicios que excedan su monto.</p>
+
+  <!-- GARANTÍAS ADICIONALES -->
+  <h2>6. Garantías adicionales (Codeudor, pagaré y fotocopias)</h2>
+  <div class="highlight-box">
+    <p><strong>Codeudor solidario:</strong> El ARRENDATARIO y el CODEUDOR se obligan solidariamente frente al ARRENDADOR por la totalidad de las obligaciones derivadas del presente contrato, incluyendo el pago de cánones, daños, cláusula penal, gastos de cobranza y cualquier otra suma. El CODEUDOR renuncia expresamente al beneficio de excusión, orden y división.</p>
+    <p><strong>Pagaré en blanco con carta de instrucciones:</strong> El ARRENDATARIO y el CODEUDOR suscribirán, al momento de la firma del contrato, un pagaré en blanco con carta de instrucciones, el cual podrá ser diligenciado por el ARRENDADOR para hacer efectivas las sumas adeudadas en caso de incumplimiento.</p>
+    <p><strong>Fotocopias de cédulas de ciudadanía / NIT:</strong> El ARRENDATARIO y el CODEUDOR deberán entregar fotocopia legible de sus respectivos documentos de identidad (cédula de ciudadanía, cédula de extranjería o NIT), junto con el certificado de existencia y representación legal cuando se trate de personas jurídicas. Dicha documentación se anexará al presente contrato y formará parte integrante del mismo.</p>
+  </div>
+
+  <!-- ENTREGA DEL EQUIPO -->
+  <h2>7. Entrega del equipo y acta de recepción</h2>
+  <p>La entrega se documentará en un acta suscrita por ambas partes, en la que constarán el estado físico y funcional del equipo, el inventario de accesorios, el horómetro (si aplica), y el registro fotográfico. El ARRENDATARIO declara haber recibido el equipo en el estado descrito y se obliga a devolverlo en las mismas condiciones, salvo el desgaste normal derivado de un uso adecuado y conforme a su destinación.</p>
+
+  <!-- OBLIGACIONES DEL ARRENDATARIO -->
+  <h2>8. Obligaciones del arrendatario</h2>
+  <ul>
+    <li>Utilizar el equipo exclusivamente para el fin para el cual fue diseñado, conforme al manual de operación, y bajo la supervisión de personal capacitado.</li>
+    <li>Abstenerse de realizar modificaciones, reparaciones, aperturas o intervenciones técnicas sin autorización previa y escrita del ARRENDADOR.</li>
+    <li>Mantener el equipo en condiciones óptimas de limpieza y cuidado, utilizando únicamente insumos autorizados por el ARRENDADOR.</li>
+    <li>No subarrendar, ceder, gravar ni disponer del equipo en forma alguna sin la autorización expresa y escrita del ARRENDADOR.</li>
+    <li>Permitir al ARRENDADOR, o a quien este designe, el acceso al equipo para realizar inspecciones y mantenimientos en horarios razonables.</li>
+    <li>Devolver el equipo en la fecha y lugar acordados, en el estado en que fue recibido, asumiendo los costos de transporte y logística cuando corresponda.</li>
+  </ul>
+
+  <!-- MANTENIMIENTO -->
+  <h2>9. Mantenimiento preventivo y correctivo</h2>
+  <p>
+    El mantenimiento técnico es obligatorio y será ejecutado exclusivamente por el ARRENDADOR o por personal técnico autorizado por este. El ARRENDATARIO se prohíbe terminantemente intervenir el equipo.
+  </p>
+  <p>
+    El mantenimiento preventivo se realizará a partir del tercer (3.er) mes de arrendamiento y, posteriormente, cada seis (6) meses, con un valor de <strong>$45.000 COP</strong> por servicio, que será asumido por el ARRENDATARIO. Dicho mantenimiento incluye cambio de empaques, grasa alimenticia, limpieza interna, revisión del sistema de transmisión, condensador y evaporador, y nivel de refrigerante.
+  </p>
+  <p>
+    El mantenimiento correctivo derivado de daños causados por mal uso, golpes, caídas, líquidos, aperturas no autorizadas o negligencia del ARRENDATARIO será cubierto por este. El ARRENDADOR presentará un presupuesto y, si el costo de reparación supera el 70% del valor comercial del equipo, se declarará pérdida total y el ARRENDATARIO deberá pagar el valor comercial total.
+  </p>
+
+  <!-- DAÑOS Y PÉRDIDA -->
+  <h2>10. Daños, robo o pérdida total</h2>
+  <p>Todo daño ocasionado por causa atribuible al ARRENDATARIO será reparado por este. En caso de hurto, pérdida, extravío o apropiación indebida, el ARRENDATARIO deberá informar de inmediato al ARRENDADOR, presentar la denuncia penal ante las autoridades competentes dentro de las 24 horas siguientes, y entregar copia de la misma. El ARRENDATARIO será responsable por el valor comercial del equipo, sin perjuicio de las acciones legales a que haya lugar.</p>
+
+  <!-- PROHIBICIONES -->
+  <h2>11. Prohibiciones</h2>
+  <p>Al ARRENDATARIO le está prohibido vender, empeñar, prestar, modificar, cambiar etiquetas, retirar seriales, o realizar cualquier acto que pueda afectar la identidad o propiedad del equipo.</p>
+
+  <!-- TRANSPORTE -->
+  <h2>12. Responsabilidad por transporte</h2>
+  <p>Salvo pacto escrito en contrario, si el ARRENDATARIO o sus dependientes transportan el equipo, asumen la responsabilidad desde el momento de la entrega. Si el ARRENDADOR realiza el transporte, la responsabilidad se transferirá al ARRENDATARIO al momento de la recepción del equipo y la suscripción del acta correspondiente.</p>
+
+  <!-- MORA -->
+  <h2>13. Mora en la devolución</h2>
+  <p>La devolución del equipo fuera del plazo pactado dará lugar a un cobro equivalente al canon diario vigente por cada día de retraso. Dicho cobro no excluye la aplicación de la cláusula penal ni las demás acciones legales.</p>
+
+  <!-- TERMINACIÓN -->
+  <h2>14. Terminación del contrato</h2>
+  <p>El contrato terminará por las siguientes causales: (i) vencimiento del plazo pactado; (ii) mutuo acuerdo; (iii) incumplimiento de cualquiera de las obligaciones por parte del ARRENDATARIO; (iv) falta de pago del canon; (v) uso indebido del equipo; (vi) fraude o información falsa; (vii) daños reiterados. En cualquiera de estos casos, el ARRENDADOR podrá exigir la restitución inmediata del equipo.</p>
+
+  <!-- CLÁUSULA PENAL -->
+  <h2>15. Cláusula penal</h2>
+  <p>En caso de incumplimiento total o parcial del ARRENDATARIO, este pagará al ARRENDADOR una cláusula penal equivalente al valor de un (1) canon mensual del equipo arrendado (o el canon cotizado si no existe tarifa mensual), sin perjuicio de la indemnización de perjuicios adicionales, el pago de daños, faltantes, costas y gastos de cobranza judicial o extrajudicial.</p>
+
+  <!-- JURISDICCIÓN -->
+  <h2>16. Jurisdicción y ley aplicable</h2>
+  <p>Las partes se someten a la jurisdicción de los jueces de la ciudad de {{ settings.jurisdiction_city|default:settings.address_city|default:"Cartagena" }}, República de Colombia, y a las leyes de la República de Colombia, renunciando a cualquier otro fuero que pudiera corresponderles.</p>
+
+  <!-- HABEAS DATA -->
+  <h2>17. Tratamiento de datos personales y consulta en centrales de riesgo</h2>
+  <p>El ARRENDATARIO y el CODEUDOR autorizan al ARRENDADOR de manera expresa e inequívoca para que, conforme a la Ley 1581 de 2012 y sus decretos reglamentarios, realice el tratamiento de sus datos personales, incluyendo la consulta y reporte a centrales de riesgo, con fines de evaluación crediticia, cobranza y cumplimiento del contrato.</p>
+
+  <!-- FIRMA DIGITAL -->
+  <h2>18. Firma digital y validez</h2>
+  <p>Las partes podrán suscribir el presente contrato de forma manuscrita, digital o electrónica. De conformidad con la Ley 527 de 1999, los mensajes de datos y la firma electrónica tienen plena validez jurídica cuando se cumplen los requisitos legales aplicables.</p>
+
+  <!-- ANEXOS -->
+  <h2>19. Anexos</h2>
+  <p>Forman parte integral del presente contrato los siguientes documentos, que se entregan junto con este:</p>
+  <ul>
+    <li>Acta de entrega del equipo (con inventario, estado y fotografías).</li>
+    <li>Fotocopias de cédulas de ciudadanía / NIT del ARRENDATARIO y del CODEUDOR.</li>
+    <li>Pagaré en blanco con carta de instrucciones.</li>
+    <li>Certificado de existencia y representación legal (si el ARRENDATARIO o CODEUDOR son personas jurídicas).</li>
+  </ul>
+
+  <!-- FIRMAS -->
+  <h2>20. Firmas</h2>
+  <p>El presente contrato se firma a los {{ today|date:"d" }} días del mes de {{ today|date:"F" }} de {{ today|date:"Y" }}, en la ciudad de {{ settings.address_city|default:"Cartagena" }}.</p>
+
+  <table class="sign-table">
+    <tr>
+      <td>
+        <div class="sign-line">
+          <strong>ARRENDADOR</strong><br>
+          {{ settings.company_legal_name|default:"MIXLAB SAS" }}<br>
+          NIT {{ settings.company_nit|default:"902031074-1" }}<br>
+          {% if settings.company_rep_name %}{{ settings.company_rep_name }}{% else %}Firma / Representante legal{% endif %}
+        </div>
+      </td>
+      <td>
+        <div class="sign-line">
+          <strong>ARRENDATARIO</strong><br>
+          {{ quote.display_client_name|default:"Nombre completo" }}<br>
+          C.C. / NIT: ________________<br>
+          Teléfono: ________________
+        </div>
+      </td>
+      <td>
+        <div class="sign-line">
+          <strong>CODEUDOR (Fiador Solidario)</strong><br>
+          Nombre: _____________________<br>
+          C.C. / NIT: ________________<br>
+          Teléfono: ________________
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <p class="footer">
+    Normativa de referencia: Código Civil; Código de Comercio; Ley 527 de 1999 (firma electrónica); Ley 1581 de 2012 (habeas data); Ley 1480 de 2011 (protección al consumidor, cuando aplique).<br>
+    MixLab · Contrato vinculado a COT-{{ quote.id }} · Generado el {{ today|date:"d/m/Y H:i" }}
+  </p>
+</body>
+</html>

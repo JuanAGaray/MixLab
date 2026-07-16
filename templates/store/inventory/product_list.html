@@ -80,9 +80,30 @@
                                 {{ product.stock }}
                                 {% endif %}
                             </td>
-                            <td class="small">{{ product.purchase_cost|pesos_colombianos }}</td>
                             <td class="small">
-                                {% if product.has_discount %}
+                                {% if product.is_rental %}
+                                <span class="text-muted">—</span>
+                                {% else %}
+                                {{ product.purchase_cost|pesos_colombianos }}
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if product.is_rental %}
+                                    {% with tariffs=product.rental_prices.all %}
+                                    {% if tariffs %}
+                                        {% for tariff in tariffs %}
+                                        {% if forloop.counter <= 2 %}
+                                        <div>{{ tariff.get_period_type_display }}: {{ tariff.price|pesos_colombianos }}</div>
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% if tariffs.count > 2 %}
+                                        <small class="text-muted">+{{ tariffs.count|add:"-2" }} tarifa{{ tariffs.count|add:"-2"|pluralize:"s" }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-warning">Sin tarifas</span>
+                                    {% endif %}
+                                    {% endwith %}
+                                {% elif product.has_discount %}
                                 <span class="text-decoration-line-through text-muted">{{ product.price|pesos_colombianos }}</span>
                                 <span class="text-primary">{{ product.promotional_price|pesos_colombianos }}</span>
                                 <small class="text-danger">-{{ product.discount_percentage }}%</small>

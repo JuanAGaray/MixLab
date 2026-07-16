@@ -1,0 +1,55 @@
+{% if sidebar_banners %}
+<aside class="site-page-sidebar d-none d-lg-block" aria-label="Publicidad lateral">
+  <div class="sidebar-ad-panel">
+    <div id="sidebarAdCarousel"
+         class="carousel slide sidebar-ad-carousel"
+         data-bs-ride="{% if sidebar_banners|length > 1 %}carousel{% else %}false{% endif %}"
+         data-bs-interval="6000"
+         data-bs-pause="hover">
+      {% if sidebar_banners|length > 1 %}
+      <div class="carousel-indicators sidebar-ad-indicators">
+        {% for banner in sidebar_banners %}
+        <button type="button"
+                data-bs-target="#sidebarAdCarousel"
+                data-bs-slide-to="{{ forloop.counter0 }}"
+                {% if forloop.first %}class="active" aria-current="true"{% endif %}
+                aria-label="Publicidad {{ forloop.counter }}"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="carousel-inner">
+        {% for banner in sidebar_banners %}
+        <div class="carousel-item{% if forloop.first %} active{% endif %}">
+          {% if banner.link_url %}
+          <a href="{{ banner.link_url }}"
+             class="sidebar-ad-link"
+             {% if banner.open_in_new_tab %}target="_blank" rel="noopener noreferrer sponsored"{% endif %}
+             aria-label="{{ banner.alt_text|default:banner.title }}">
+            <img src="{{ banner.image.url }}"
+                 alt="{{ banner.alt_text|default:banner.title }}"
+                 class="sidebar-ad-image"
+                 loading="lazy">
+          </a>
+          {% else %}
+          <img src="{{ banner.image.url }}"
+               alt="{{ banner.alt_text|default:banner.title }}"
+               class="sidebar-ad-image"
+               loading="lazy">
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if sidebar_banners|length > 1 %}
+      <button class="carousel-control-prev sidebar-ad-control" type="button" data-bs-target="#sidebarAdCarousel" data-bs-slide="prev" aria-label="Anterior">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+      </button>
+      <button class="carousel-control-next sidebar-ad-control" type="button" data-bs-target="#sidebarAdCarousel" data-bs-slide="next" aria-label="Siguiente">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</aside>
+{% endif %}

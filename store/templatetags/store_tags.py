@@ -1,5 +1,6 @@
 from django import template
 from django.utils import timezone
+import json
 
 register = template.Library()
 
@@ -33,6 +34,53 @@ def pesos_colombianos(value):
         return f"${formatted}"
     except (ValueError, TypeError):
         return f"${value}"
+
+
+@register.filter
+def whatsapp_url(phone):
+    """Build a wa.me URL from a phone number (defaults to Colombia +57)."""
+    if not phone:
+        return '#'
+    digits = ''.join(ch for ch in str(phone) if ch.isdigit())
+    if not digits:
+        return '#'
+    # Si ya viene con indicativo (p.ej. 57...), úsalo; si es celular local 10 dígitos, anteponer 57
+    if digits.startswith('57') and len(digits) >= 12:
+        pass
+    elif len(digits) == 10:
+        digits = '57' + digits
+    elif digits.startswith('0') and len(digits) == 11:
+        digits = '57' + digits.lstrip('0')
+    return f'https://wa.me/{digits}'
+
+
+@register.filter
+def showcase_rental_prices_json(product):
+    """JSON de tarifas de alquiler para el showcase interactivo."""
+    if not getattr(product, 'is_rental', False):
+        return '[]'
+    items = []
+    for tariff in product.rental_prices.all():
+        if not tariff.is_active:
+            continue
+        items.append({
+            'period': tariff.get_period_type_display(),
+            'price': pesos_colombianos(tariff.price),
+            'suffix': tariff.period_short_label,
+        })
+    return json.dumps(items, ensure_ascii=False)
+
+
+@register.filter
+def showcase_attributes_json(product):
+    """JSON de atributos del producto para el showcase interactivo."""
+    items = []
+    for attr in product.attributes.all():
+        key = (attr.key or '').strip()
+        value = (attr.value or '').strip()
+        if key and value:
+            items.append({'key': key, 'value': value})
+    return json.dumps(items, ensure_ascii=False)
 
 
 @register.filter
@@ -71,6 +119,21 @@ def profile_phone(user):
     except Exception:
         pass
     return ''
+
+
+@register.filter
+def phone_whatsapp_url(phone):
+    """Convierte un teléfono a URL de WhatsApp (wa.me). Vacío si no hay dígitos."""
+    import re
+    try:
+        digits = re.sub(r'\D', '', str(phone or ''))
+        if not digits:
+            return ''
+        if len(digits) == 10 and digits[0] == '3':
+            digits = '57' + digits
+        return 'https://wa.me/' + digits
+    except Exception:
+        return ''
 
 
 @register.filter

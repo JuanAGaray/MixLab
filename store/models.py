@@ -82,12 +82,81 @@ class Product(models.Model):
         help_text='Separadas por comas. Ej: granizadora, hielo, bebida, frío',
         verbose_name='Palabras Clave'
     )
+    accent_color = models.CharField(
+        max_length=7,
+        blank=True,
+        default='',
+        verbose_name='Color de diseño',
+        help_text='Opcional. Hex (#0F6FFF). Se usa como fondo o acento en vitrinas y fichas del producto.',
+    )
+    UNIT_MEASURE_CHOICES = [
+        ('oz', 'Onz'),
+        ('l', 'Litros'),
+        ('unit', 'Unidad'),
+        ('g', 'Gr'),
+        ('kg', 'Kilos'),
+    ]
+    unit_price_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Precio unitario',
+        help_text='Si está activo, se calcula el valor por medida (precio ÷ unidades totales).',
+    )
+    unit_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        verbose_name='Unidades totales',
+        help_text='Cantidad total del producto en la medida elegida (ej. 5 litros, 500 gr).',
+    )
+    unit_measure = models.CharField(
+        max_length=10,
+        choices=UNIT_MEASURE_CHOICES,
+        blank=True,
+        default='l',
+        verbose_name='Unidad de medida',
+    )
     related_products = models.ManyToManyField(
         'self',
         blank=True,
         help_text='Selecciona de 3 a 5 productos relacionados',
         limit_choices_to={'available': True},
         verbose_name='Productos Relacionados'
+    )
+    # Datos para contrato de alquiler (máquinas)
+    rental_brand = models.CharField(max_length=120, blank=True, default='', verbose_name='Marca')
+    rental_model = models.CharField(max_length=120, blank=True, default='', verbose_name='Modelo')
+    rental_serial = models.CharField(max_length=120, blank=True, default='', verbose_name='Número de serie')
+    rental_commercial_value = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Valor comercial',
+        help_text='Referencia para indemnización por pérdida, hurto o daño total.',
+    )
+    rental_condition = models.CharField(
+        max_length=200,
+        blank=True,
+        default='Buen estado de funcionamiento',
+        verbose_name='Estado del equipo',
+    )
+    rental_accessories = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Accesorios incluidos',
+        help_text='Lista de accesorios (cables, tapas, bandejas, manuales, etc.).',
+    )
+    rental_deposit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Depósito / garantía (opcional)',
+        help_text='Opcional. Si el arrendador lo exige, el contrato aplica el 8% del valor comercial.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -129,11 +198,148 @@ class Product(models.Model):
         return self.price
 
     @property
+    def has_unit_price(self):
+        return bool(
+            self.unit_price_enabled
+            and self.unit_quantity
+            and self.unit_quantity > 0
+            and self.selling_price
+        )
+
+    @property
+    def unit_measure_label(self):
+        labels = {
+            'oz': 'Onz',
+            'l': 'Litros',
+            'unit': 'Unidad',
+            'g': 'Gr',
+            'kg': 'Kilos',
+        }
+        return labels.get(self.unit_measure, self.get_unit_measure_display() if self.unit_measure else '')
+
+    @property
+    def unit_measure_singular(self):
+        labels = {
+            'oz': 'Onz',
+            'l': 'Litro',
+            'unit': 'Unidad',
+            'g': 'Gr',
+            'kg': 'Kilo',
+        }
+        return labels.get(self.unit_measure, self.unit_measure_label)
+
+    @property
+    def price_per_unit(self):
+        """Precio de venta (u oferta) ÷ unidades totales."""
+        if not self.has_unit_price:
+            return None
+        price = Decimal(str(self.selling_price))
+        qty = Decimal(str(self.unit_quantity))
+        if qty <= 0:
+            return None
+        return (price / qty).quantize(Decimal('0.01'))
+
+    @property
+    def unit_price_display_suffix(self):
+        """Ej: /Litro, /Onz, /Unidad"""
+        if not self.has_unit_price:
+            return ''
+        label = self.unit_measure_singular
+        return f'/{label}' if label else ''
+
+    @property
+    def unit_quantity_display(self):
+        """Ej: 5 Litros, 500 Gr"""
+        if not self.unit_quantity:
+            return ''
+        qty = self.unit_quantity
+        if qty == qty.to_integral_value():
+            qty_str = str(int(qty))
+        else:
+            qty_str = format(qty.normalize(), 'f').rstrip('0').rstrip('.')
+        label = self.unit_measure_label
+        return f'{qty_str} {label}'.strip()
+
+    @property
     def profit_margin(self):
         """Calculate profit margin percentage"""
         if self.purchase_cost > 0:
             return float(((self.price - self.purchase_cost) / self.purchase_cost) * 100)
         return 0
+
+    @property
+    def is_rental(self):
+        return self.product_type == 'rental'
+
+    def get_rental_price(self, period_type):
+        """Precio de alquiler para un periodo (hora, día, semana, mes)."""
+        entry = self.rental_prices.filter(period_type=period_type, is_active=True).first()
+        return entry.price if entry else None
+
+    def sync_rental_catalog_price(self):
+        """Sincroniza price base del catálogo desde tarifas de alquiler."""
+        if not self.is_rental:
+            return
+        prices = self.rental_prices.filter(is_active=True).order_by('order', 'period_type')
+        if not prices.exists():
+            return
+        preferred = prices.filter(period_type='daily').first() or prices.first()
+        self.price = preferred.price
+        self.purchase_cost = Decimal('0.00')
+        self.promotional_price = None
+        self.save(update_fields=['price', 'purchase_cost', 'promotional_price'])
+
+
+class ProductRentalPrice(models.Model):
+    """Tarifas de alquiler por periodo de tiempo."""
+
+    PERIOD_CHOICES = [
+        ('hourly', 'Por hora'),
+        ('daily', 'Por día'),
+        ('weekly', 'Por semana'),
+        ('monthly', 'Por mes'),
+    ]
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='rental_prices',
+        verbose_name='Producto',
+    )
+    period_type = models.CharField(
+        max_length=20,
+        choices=PERIOD_CHOICES,
+        verbose_name='Periodo',
+    )
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name='Precio',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Tarifa de alquiler'
+        verbose_name_plural = 'Tarifas de alquiler'
+        ordering = ['order', 'period_type']
+        unique_together = [['product', 'period_type']]
+
+    def __str__(self):
+        return f'{self.product.name} — {self.get_period_type_display()}: {self.price}'
+
+    @property
+    def period_short_label(self):
+        labels = {
+            'hourly': '/hora',
+            'daily': '/día',
+            'weekly': '/semana',
+            'monthly': '/mes',
+        }
+        return labels.get(self.period_type, '')
 
 
 class ProductImage(models.Model):
@@ -411,6 +617,7 @@ class Quotation(models.Model):
     QUOTATION_STATUS_CHOICES = [
         ('generada', 'Generada'),
         ('enviada', 'Enviada'),
+        ('cerrada', 'Cerrada'),
         ('vencida', 'Vencida'),
         ('cancelada', 'Cancelada'),
     ]
@@ -419,6 +626,7 @@ class Quotation(models.Model):
         ('sin_respuesta', 'Sin respuesta'),
         ('aceptado', 'Aceptado'),
         ('esperando_pago', 'Esperando pago'),
+        ('pago_parcial', 'Pago parcial'),
         ('pago_recibido', 'Pago recibido'),
         ('enviado', 'Enviado'),
         ('recibido', 'Recibido'),
@@ -471,6 +679,11 @@ class Quotation(models.Model):
         null=True,
         verbose_name='Referencia de pago',
     )
+    stock_deducted = models.BooleanField(
+        default=False,
+        verbose_name='Stock descontado',
+        help_text='Indica si el inventario de esta cotización ya fue restado.',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -483,6 +696,128 @@ class Quotation(models.Model):
     def __str__(self):
         return f'Cotización #{self.id}'
 
+    @property
+    def has_rental_items(self) -> bool:
+        return self.items.filter(product__product_type='rental').exists()
+
+    def _linked_client_profile(self):
+        """Perfil del cliente existente vinculado, si existe."""
+        if not self.existing_client_id:
+            return None
+        try:
+            return self.existing_client.profile
+        except Exception:
+            return None
+
+    def sync_client_snapshot_from_profile(self, *, save: bool = True) -> bool:
+        """
+        Sincroniza datos del cliente existente vinculado.
+        Nombre/correo/teléfono se toman siempre del usuario/perfil actual.
+        Departamento/ciudad se rellenan si la cotización los tiene vacíos.
+        """
+        if not self.existing_client_id:
+            return False
+
+        client = self.existing_client
+        profile = self._linked_client_profile()
+        changed_fields = []
+
+        live_name = (client.get_full_name() or client.username or '').strip()
+        if live_name and (self.client_name or '').strip() != live_name:
+            self.client_name = live_name
+            changed_fields.append('client_name')
+
+        live_email = (client.email or '').strip()
+        if live_email and (self.client_email or '').strip() != live_email:
+            self.client_email = live_email
+            changed_fields.append('client_email')
+
+        if profile:
+            profile_type = (getattr(profile, 'client_type', '') or '').strip()
+            if self.client_kind in ('', 'existing') and profile_type in ('natural', 'empresa'):
+                self.client_kind = profile_type
+                changed_fields.append('client_kind')
+
+            live_phone = (getattr(profile, 'phone', '') or '').strip()
+            if live_phone and (self.client_phone or '').strip() != live_phone:
+                self.client_phone = live_phone
+                changed_fields.append('client_phone')
+
+            profile_depto = (getattr(profile, 'departamento', '') or '').strip()
+            profile_city = (getattr(profile, 'city', '') or '').strip()
+            if (not profile_depto or not profile_city) and getattr(profile, 'default_shipping_address_id', None):
+                addr = profile.default_shipping_address
+                if addr:
+                    profile_depto = profile_depto or (addr.departamento or '').strip()
+                    profile_city = profile_city or (addr.city or '').strip()
+
+            if profile_depto and (self.client_departamento or '').strip() != profile_depto:
+                self.client_departamento = profile_depto
+                changed_fields.append('client_departamento')
+            if profile_city and (self.client_city or '').strip() != profile_city:
+                self.client_city = profile_city
+                changed_fields.append('client_city')
+
+        if changed_fields and save:
+            changed_fields.append('updated_at')
+            self.save(update_fields=list(dict.fromkeys(changed_fields)))
+        return bool(changed_fields)
+
+    @property
+    def display_client_name(self) -> str:
+        """Nombre actual del cliente vinculado, o el guardado en la cotización."""
+        if self.existing_client_id:
+            try:
+                name = (self.existing_client.get_full_name() or self.existing_client.username or '').strip()
+                if name:
+                    return name
+            except Exception:
+                pass
+        return (self.client_name or '').strip()
+
+    @property
+    def display_client_email(self) -> str:
+        if self.existing_client_id:
+            try:
+                email = (self.existing_client.email or '').strip()
+                if email:
+                    return email
+            except Exception:
+                pass
+        return (self.client_email or '').strip()
+
+    @property
+    def display_client_phone(self) -> str:
+        profile = self._linked_client_profile()
+        if profile and (profile.phone or '').strip():
+            return profile.phone.strip()
+        return (self.client_phone or '').strip()
+
+    @property
+    def display_client_kind(self) -> str:
+        """Etiqueta amigable del tipo de cliente (Persona natural / Empresa)."""
+        kind = (self.client_kind or '').strip()
+        if kind in ('natural', 'empresa'):
+            return dict(self.CLIENT_KIND_CHOICES).get(kind, kind)
+        profile = self._linked_client_profile()
+        if profile and (profile.client_type or '') in ('natural', 'empresa'):
+            return profile.get_client_type_display()
+        return self.get_client_kind_display()
+
+    @property
+    def display_client_departamento(self) -> str:
+        profile = self._linked_client_profile()
+        if profile and (profile.departamento or '').strip():
+            return profile.departamento.strip()
+        return (self.client_departamento or '').strip()
+
+    @property
+    def display_client_city(self) -> str:
+        profile = self._linked_client_profile()
+        if profile and (profile.city or '').strip():
+            return profile.city.strip()
+        return (self.client_city or '').strip()
+
 
 class QuotationItem(models.Model):
     """Line items for a quotation"""
@@ -491,6 +826,22 @@ class QuotationItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='quotation_items', verbose_name='Producto')
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)], verbose_name='Cantidad')
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Precio unitario')
+    list_unit_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Precio lista unitario',
+        help_text='Precio de catálogo/tarifa antes del descuento de la línea.',
+    )
+    rental_price = models.ForeignKey(
+        'ProductRentalPrice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quotation_items',
+        verbose_name='Tarifa de alquiler',
+    )
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Subtotal')
 
     class Meta:
@@ -503,6 +854,198 @@ class QuotationItem(models.Model):
     def save(self, *args, **kwargs):
         self.subtotal = (self.unit_price or Decimal('0.00')) * (self.quantity or 1)
         super().save(*args, **kwargs)
+
+
+class RentalContractRequirements(models.Model):
+    """Requisitos previos al contrato: firmas digitales y fotos de cédula."""
+
+    quotation = models.OneToOneField(
+        Quotation,
+        on_delete=models.CASCADE,
+        related_name='rental_requirements',
+        verbose_name='Cotización',
+    )
+    representative_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre representante')
+    representative_signature = models.ImageField(
+        upload_to='quotations/rental_requirements/signatures/',
+        blank=True,
+        null=True,
+        verbose_name='Firma del representante',
+    )
+    tenant_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre arrendatario')
+    tenant_signature = models.ImageField(
+        upload_to='quotations/rental_requirements/signatures/',
+        blank=True,
+        null=True,
+        verbose_name='Firma del arrendatario',
+    )
+    id_front = models.ImageField(
+        upload_to='quotations/rental_requirements/ids/',
+        blank=True,
+        null=True,
+        verbose_name='Cédula (frente)',
+    )
+    id_back = models.ImageField(
+        upload_to='quotations/rental_requirements/ids/',
+        blank=True,
+        null=True,
+        verbose_name='Cédula (reverso)',
+    )
+    notes = models.TextField(blank=True, default='', verbose_name='Notas')
+    completed_at = models.DateTimeField(blank=True, null=True, verbose_name='Completado en')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Requisitos de contrato de alquiler'
+        verbose_name_plural = 'Requisitos de contratos de alquiler'
+
+    def __str__(self):
+        return f'Requisitos COT-{self.quotation_id}'
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(
+            self.representative_signature
+            and self.tenant_signature
+            and self.id_front
+            and self.id_back
+        )
+
+
+class RentalDeliveryActa(models.Model):
+    """Acta de recepción/entrega del equipo con firmas y fotos del estado."""
+
+    quotation = models.OneToOneField(
+        Quotation,
+        on_delete=models.CASCADE,
+        related_name='delivery_acta',
+        verbose_name='Cotización',
+    )
+    representative_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre representante')
+    representative_signature = models.ImageField(
+        upload_to='quotations/delivery_acta/signatures/',
+        blank=True,
+        null=True,
+        verbose_name='Firma del representante',
+    )
+    tenant_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre arrendatario')
+    tenant_signature = models.ImageField(
+        upload_to='quotations/delivery_acta/signatures/',
+        blank=True,
+        null=True,
+        verbose_name='Firma del arrendatario',
+    )
+    photo_covers = models.ImageField(
+        upload_to='quotations/delivery_acta/photos/',
+        blank=True,
+        null=True,
+        verbose_name='Tapas y plásticos',
+    )
+    photo_lighting = models.ImageField(
+        upload_to='quotations/delivery_acta/photos/',
+        blank=True,
+        null=True,
+        verbose_name='Iluminación',
+    )
+    photo_buttons = models.ImageField(
+        upload_to='quotations/delivery_acta/photos/',
+        blank=True,
+        null=True,
+        verbose_name='Botones',
+    )
+    photo_radiator = models.ImageField(
+        upload_to='quotations/delivery_acta/photos/',
+        blank=True,
+        null=True,
+        verbose_name='Radiador',
+    )
+    photo_rear = models.ImageField(
+        upload_to='quotations/delivery_acta/photos/',
+        blank=True,
+        null=True,
+        verbose_name='Parte trasera',
+    )
+    photo_front = models.ImageField(
+        upload_to='quotations/delivery_acta/photos/',
+        blank=True,
+        null=True,
+        verbose_name='Parte delantera',
+    )
+    reception_location = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='Dirección de recepción',
+        help_text='Dirección escrita del lugar donde se entrega/recibe el equipo.',
+    )
+    reception_maps_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='Ubicación GPS (Google Maps)',
+        help_text='Opcional. Enlace de Google Maps con la ubicación GPS.',
+    )
+    reception_latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        blank=True,
+        null=True,
+        verbose_name='Latitud',
+    )
+    reception_longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        blank=True,
+        null=True,
+        verbose_name='Longitud',
+    )
+    delivery_video = models.FileField(
+        upload_to='quotations/delivery_acta/videos/',
+        blank=True,
+        null=True,
+        verbose_name='Video de recepción',
+    )
+    delivery_notes = models.TextField(blank=True, default='', verbose_name='Observaciones de entrega')
+    delivered_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de entrega')
+    completed_at = models.DateTimeField(blank=True, null=True, verbose_name='Completado en')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Acta de recepción de alquiler'
+        verbose_name_plural = 'Actas de recepción de alquiler'
+
+    def __str__(self):
+        return f'Acta recepción COT-{self.quotation_id}'
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(
+            (self.representative_name or '').strip()
+            and self.representative_signature
+            and (self.tenant_name or '').strip()
+            and self.tenant_signature
+            and (self.reception_location or '').strip()
+            and self.delivery_video
+            and self.photo_covers
+            and self.photo_lighting
+            and self.photo_buttons
+            and self.photo_radiator
+            and self.photo_rear
+            and self.photo_front
+        )
+
+    def photo_items(self):
+        """Lista de fotos etiquetadas para formularios/PDF."""
+        return [
+            ('photo_covers', 'Tapas y plásticos', self.photo_covers),
+            ('photo_lighting', 'Iluminación', self.photo_lighting),
+            ('photo_buttons', 'Botones', self.photo_buttons),
+            ('photo_radiator', 'Radiador', self.photo_radiator),
+            ('photo_rear', 'Parte trasera', self.photo_rear),
+            ('photo_front', 'Parte delantera', self.photo_front),
+        ]
 
 
 class FavoriteProduct(models.Model):
@@ -519,3 +1062,453 @@ class FavoriteProduct(models.Model):
 
     def __str__(self):
         return f"{self.user.username} ❤️ {self.product.name}"
+
+
+class DilutionBaseProduct(models.Model):
+    """Producto base para la calculadora de dilución con agua (ML)."""
+
+    name = models.CharField(max_length=200, verbose_name='Nombre')
+    slug = models.SlugField(
+        max_length=220,
+        unique=True,
+        blank=True,
+        verbose_name='Enlace para compartir',
+        help_text='Se genera automáticamente. Ej: base-granizado → /calculadora/#base-granizado',
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name='Descripción / instrucciones',
+        help_text='Opcional: notas de preparación para mostrar en la calculadora.',
+    )
+    water_ml_per_base_ml = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0'))],
+        verbose_name='ML de agua por cada 1 ML de producto base',
+        help_text='Ejemplo: proporción 1:4 → ingresa 4 (por cada 1 ml de base, 4 ml de agua).',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Producto base (calculadora)'
+        verbose_name_plural = 'Productos base (calculadora)'
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = self._generate_unique_slug()
+        super().save(*args, **kwargs)
+
+    def _generate_unique_slug(self) -> str:
+        base = slugify(self.name) or 'producto'
+        slug = base
+        counter = 1
+        qs = DilutionBaseProduct.objects.all()
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        while qs.filter(slug=slug).exists():
+            slug = f'{base}-{counter}'
+            counter += 1
+        return slug
+
+    @property
+    def ratio_display(self) -> str:
+        w = self.water_ml_per_base_ml
+        if w == w.to_integral_value():
+            return f'1 : {int(w)}'
+        return f'1 : {w}'
+
+    def calculate_water_ml(self, base_ml: Decimal) -> Decimal:
+        base = base_ml if isinstance(base_ml, Decimal) else Decimal(str(base_ml))
+        return (base * self.water_ml_per_base_ml).quantize(Decimal('0.01'))
+
+    def calculate_total_ml(self, base_ml: Decimal) -> Decimal:
+        base = base_ml if isinstance(base_ml, Decimal) else Decimal(str(base_ml))
+        return (base + self.calculate_water_ml(base)).quantize(Decimal('0.01'))
+
+
+class SiteSettings(models.Model):
+    """Configuración global del sitio (singleton): contacto, redes y banner."""
+
+    contact_email = models.EmailField(
+        default='juandam594@gmail.com',
+        verbose_name='Correo de contacto',
+    )
+    contact_phone = models.CharField(
+        max_length=30,
+        default='3128104046',
+        verbose_name='Teléfono (visualización)',
+    )
+    whatsapp_number = models.CharField(
+        max_length=20,
+        default='573128104046',
+        verbose_name='WhatsApp (solo dígitos con código país)',
+        help_text='Ej: 573045379501 — se usa para el botón flotante y enlaces wa.me',
+    )
+    wa_n8n_webhook_url = models.URLField(
+        blank=True,
+        default='https://n8n.kodeuniverse.com/webhook/3348dc35-81fc-40cf-aae1-47f29e1caeb7',
+        verbose_name='Webhook n8n (WhatsApp)',
+        help_text='URL de producción del webhook n8n que envía mensajes a WhatsApp.',
+    )
+    wa_n8n_phone = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        verbose_name='Teléfono o Group ID (n8n)',
+        help_text='Número de WhatsApp o ID de grupo que recibe las notificaciones automatizadas.',
+    )
+    wa_n8n_enabled = models.BooleanField(
+        default=True,
+        verbose_name='Activar notificaciones WhatsApp (n8n)',
+    )
+    address_city = models.CharField(
+        max_length=100,
+        default='Cartagena',
+        verbose_name='Ciudad',
+    )
+    address_country = models.CharField(
+        max_length=100,
+        default='Colombia',
+        verbose_name='País',
+    )
+    instagram_url = models.URLField(
+        blank=True,
+        default='https://www.instagram.com/mixlab_co',
+        verbose_name='URL de Instagram',
+    )
+    tiktok_url = models.URLField(
+        blank=True,
+        default='https://www.tiktok.com/@mixlab_co',
+        verbose_name='URL de TikTok',
+    )
+    facebook_url = models.URLField(blank=True, verbose_name='URL de Facebook')
+    # Datos legales para contratos de alquiler (Registro Mercantil)
+    company_legal_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='MIXLAB SAS',
+        verbose_name='Razón social (arrendador)',
+    )
+    company_nit = models.CharField(
+        max_length=40,
+        blank=True,
+        default='902031074-1',
+        verbose_name='NIT del arrendador',
+    )
+    company_address = models.CharField(
+        max_length=255,
+        blank=True,
+        default='Barrio Ciudad Bicentenario, Conjunto Residencial Parques de Bolívar 2',
+        verbose_name='Dirección del arrendador',
+    )
+    company_department = models.CharField(
+        max_length=100,
+        blank=True,
+        default='Bolívar',
+        verbose_name='Departamento',
+    )
+    company_matricula = models.CharField(
+        max_length=40,
+        blank=True,
+        default='10006865',
+        verbose_name='Matrícula mercantil',
+        help_text='Número de matrícula en Cámara de Comercio.',
+    )
+    company_rep_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Representante legal',
+    )
+    jurisdiction_city = models.CharField(
+        max_length=100,
+        blank=True,
+        default='Cartagena',
+        verbose_name='Ciudad de jurisdicción',
+        help_text='Ciudad cuyos jueces conocerán controversias del contrato.',
+    )
+    promo_banner_text = models.CharField(
+        max_length=300,
+        blank=True,
+        default='',
+        verbose_name='Texto del banner promocional',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuración del sitio'
+        verbose_name_plural = 'Configuración del sitio'
+
+    def __str__(self):
+        return 'Configuración del sitio'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def display_address(self) -> str:
+        return f'{self.address_city}, {self.address_country}'
+
+    @property
+    def whatsapp_url(self) -> str:
+        import re
+        digits = re.sub(r'\D', '', self.whatsapp_number or '')
+        return f'https://wa.me/{digits}' if digits else ''
+
+    @property
+    def social_links(self) -> list:
+        links = []
+        if self.instagram_url:
+            links.append(self.instagram_url)
+        if self.tiktok_url:
+            links.append(self.tiktok_url)
+        if self.facebook_url:
+            links.append(self.facebook_url)
+        return links
+
+
+class FinanceRecord(models.Model):
+    """Registro de gastos y pagos (caja) con notificación opcional a WhatsApp."""
+
+    TYPE_CHOICES = [
+        ('gasto', 'Gasto'),
+        ('pago', 'Pago'),
+    ]
+    CATEGORY_CHOICES = [
+        ('operacion', 'Operación'),
+        ('inventario', 'Inventario / insumos'),
+        ('alquiler', 'Alquiler / local'),
+        ('nomina', 'Nómina'),
+        ('servicios', 'Servicios'),
+        ('cliente', 'Pago de cliente'),
+        ('proveedor', 'Pago a proveedor'),
+        ('otro', 'Otro'),
+    ]
+
+    record_type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        verbose_name='Tipo',
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name='Monto',
+    )
+    description = models.CharField(max_length=255, verbose_name='Descripción')
+    category = models.CharField(
+        max_length=30,
+        choices=CATEGORY_CHOICES,
+        default='otro',
+        verbose_name='Categoría',
+    )
+    notes = models.TextField(blank=True, default='', verbose_name='Notas')
+    receipt = models.ImageField(
+        upload_to='finance/receipts/',
+        blank=True,
+        null=True,
+        verbose_name='Comprobante',
+    )
+    related_quotation = models.ForeignKey(
+        Quotation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='finance_records',
+        verbose_name='Cotización relacionada',
+    )
+    recorded_at = models.DateField(verbose_name='Fecha del movimiento')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='finance_records',
+        verbose_name='Registrado por',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Gasto / Pago'
+        verbose_name_plural = 'Gastos y pagos'
+        ordering = ['-recorded_at', '-created_at']
+
+    def __str__(self):
+        return f'{self.get_record_type_display()} · {self.amount} · {self.description}'
+
+
+class PaymentMethod(models.Model):
+    """Métodos de pago configurables (bancos / cuentas) para cotizaciones y sitio."""
+
+    ACCOUNT_TYPE_CHOICES = [
+        ('ahorros', 'Ahorros'),
+        ('corriente', 'Corriente'),
+        ('nequi', 'Nequi'),
+        ('daviplata', 'Daviplata'),
+        ('otro', 'Otro'),
+    ]
+
+    DOCUMENT_TYPE_CHOICES = [
+        ('cc', 'C.C.'),
+        ('nit', 'NIT'),
+        ('ce', 'C.E.'),
+        ('otro', 'Otro'),
+    ]
+
+    account_type = models.CharField(
+        max_length=20,
+        choices=ACCOUNT_TYPE_CHOICES,
+        default='ahorros',
+        verbose_name='Tipo de cuenta',
+    )
+    bank_name = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name='Banco / entidad',
+        help_text='Ej: Bancolombia S.A.',
+    )
+    bank_logo = models.ImageField(
+        upload_to='payment_methods/',
+        blank=True,
+        null=True,
+        verbose_name='Logo del banco',
+    )
+    holder_name = models.CharField(
+        max_length=200,
+        verbose_name='A nombre de',
+    )
+    document_type = models.CharField(
+        max_length=10,
+        choices=DOCUMENT_TYPE_CHOICES,
+        default='cc',
+        verbose_name='Tipo doc.',
+    )
+    document_number = models.CharField(
+        max_length=40,
+        verbose_name='NIT o C.C.',
+    )
+    account_number = models.CharField(
+        max_length=60,
+        verbose_name='Número de cuenta',
+    )
+    breb_key = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        verbose_name='Llave BREB (opcional)',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Método de pago'
+        verbose_name_plural = 'Métodos de pago'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        bank = self.bank_name or self.get_account_type_display()
+        return f'{bank} · {self.account_number}'
+
+    @property
+    def document_display(self) -> str:
+        return f'{self.get_document_type_display()} {self.document_number}'.strip()
+
+
+class SidebarBanner(models.Model):
+    """Publicidad en banner lateral del sitio (proporción 2:3)."""
+
+    title = models.CharField(
+        max_length=120,
+        verbose_name='Título (interno)',
+        help_text='Solo para identificarlo en el panel de administración.',
+    )
+    image = models.ImageField(
+        upload_to='banners/sidebar/',
+        verbose_name='Imagen',
+        help_text='Proporción 2:3 (ancho:alto). Se guarda en Supabase (bucket Mixlaba).',
+    )
+    alt_text = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='Texto alternativo',
+        help_text='Descripción breve de la imagen para accesibilidad.',
+    )
+    link_url = models.URLField(
+        blank=True,
+        verbose_name='Enlace (opcional)',
+        help_text='Si se indica, la imagen será clicable.',
+    )
+    open_in_new_tab = models.BooleanField(
+        default=True,
+        verbose_name='Abrir enlace en nueva pestaña',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Banner lateral'
+        verbose_name_plural = 'Banners laterales'
+        ordering = ['sort_order', '-created_at']
+
+    def __str__(self):
+        return self.title
+
+
+class PromoBanner(models.Model):
+    """Imágenes del banner promocional superior del sitio."""
+
+    title = models.CharField(
+        max_length=120,
+        verbose_name='Título (interno)',
+        help_text='Solo para identificarlo en el panel de administración.',
+    )
+    image = models.ImageField(
+        upload_to='promo-banners/',
+        verbose_name='Imagen',
+        help_text='Banner ancho superior. Se guarda en Supabase (bucket Mixlaba).',
+    )
+    alt_text = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='Texto alternativo',
+    )
+    link_url = models.URLField(
+        blank=True,
+        verbose_name='Enlace (opcional)',
+    )
+    open_in_new_tab = models.BooleanField(
+        default=True,
+        verbose_name='Abrir enlace en nueva pestaña',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Banner promocional'
+        verbose_name_plural = 'Banners promocionales'
+        ordering = ['sort_order', '-created_at']
+
+    def __str__(self):
+        return self.title

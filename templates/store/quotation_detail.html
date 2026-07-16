@@ -1,61 +1,414 @@
 {% extends "base.html" %}
 {% load store_tags %}
 
+{% block extra_css %}
+<style>
+  .qd-page {
+    --qd-ink: #0f172a;
+    --qd-muted: #475569;
+    --qd-line: #e2e8f0;
+    --qd-soft: #f8fafc;
+    --qd-accent: #0f6fff;
+    --qd-accent-dark: #0a4fcc;
+  }
+  .qd-back {
+    color: var(--qd-muted) !important;
+    font-weight: 600;
+    font-size: 0.86rem;
+  }
+  .qd-back:hover { color: var(--qd-ink) !important; }
+  .qd-title {
+    color: var(--qd-ink);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .qd-meta {
+    color: var(--qd-muted);
+    font-size: 0.86rem;
+    font-weight: 500;
+  }
+  .qd-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .qd-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.86rem;
+    padding: 0.55rem 1rem;
+    border: 1px solid transparent;
+    text-decoration: none;
+    line-height: 1.1;
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease;
+  }
+  .qd-btn:hover { transform: translateY(-1px); }
+  .qd-btn-dark {
+    background: var(--qd-ink);
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  }
+  .qd-btn-dark:hover {
+    background: #020617;
+    color: #fff !important;
+  }
+  .qd-btn-soft {
+    background: #fff;
+    color: var(--qd-ink) !important;
+    border-color: #cbd5e1;
+  }
+  .qd-btn-soft:hover {
+    background: var(--qd-soft);
+    border-color: #94a3b8;
+    color: var(--qd-ink) !important;
+  }
+  .qd-btn-accent {
+    background: var(--qd-accent);
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(15, 111, 255, 0.25);
+  }
+  .qd-btn-accent:hover {
+    background: var(--qd-accent-dark);
+    color: #fff !important;
+  }
+  .qd-btn-outline-accent {
+    background: #eff6ff;
+    color: var(--qd-accent-dark) !important;
+    border-color: #bfdbfe;
+  }
+  .qd-btn-outline-accent:hover {
+    background: #dbeafe;
+    color: #083c9a !important;
+  }
+  .qd-btn-warn {
+    background: #fbbf24;
+    color: #78350f !important;
+    border-color: #f59e0b;
+    box-shadow: 0 8px 18px rgba(245, 158, 11, 0.28);
+  }
+  .qd-btn-warn:hover {
+    background: #f59e0b;
+    color: #451a03 !important;
+    border-color: #d97706;
+  }
+  .qd-card {
+    border: 1px solid var(--qd-line);
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+  }
+  .qd-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1.15rem;
+    background: var(--qd-soft);
+    border-bottom: 1px solid var(--qd-line);
+  }
+  .qd-card-head h5 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--qd-ink);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .qd-card-body { padding: 1.15rem; }
+  .qd-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.2rem;
+  }
+  .qd-value {
+    color: var(--qd-ink);
+    font-weight: 700;
+    font-size: 0.98rem;
+  }
+  .qd-help {
+    color: var(--qd-muted);
+    font-size: 0.84rem;
+    font-weight: 500;
+  }
+  .qd-file {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+  }
+  .qd-file input[type="file"] {
+    max-width: 280px;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.7rem;
+    padding: 0.45rem 0.65rem;
+    background: #fff;
+    color: var(--qd-ink);
+    font-size: 0.86rem;
+  }
+  .qd-pay-type {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+  .qd-pay-type-option {
+    position: relative;
+    margin: 0;
+  }
+  .qd-pay-type-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .qd-pay-type-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    height: 100%;
+    padding: 0.85rem 0.9rem;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 0.9rem;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .qd-pay-type-card strong {
+    color: var(--qd-ink);
+    font-size: 0.92rem;
+  }
+  .qd-pay-type-card span {
+    color: var(--qd-muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.35;
+  }
+  .qd-pay-type-option input:checked + .qd-pay-type-card {
+    border-color: var(--qd-accent);
+    background: #eff6ff;
+    box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.12);
+  }
+  .qd-pay-type-option input:focus-visible + .qd-pay-type-card {
+    outline: 2px solid var(--qd-accent);
+    outline-offset: 2px;
+  }
+  #paymentProofModal .modal-content {
+    border: none;
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  #paymentProofModal .modal-header {
+    border-bottom: 1px solid var(--qd-line);
+    background: var(--qd-soft);
+  }
+  #paymentProofModal .modal-title {
+    font-weight: 800;
+    color: var(--qd-ink);
+  }
+  #paymentProofModal .modal-footer {
+    border-top: 1px solid var(--qd-line);
+  }
+  .qd-select .form-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+  }
+  .qd-select .form-select {
+    border-radius: 0.7rem;
+    border-color: #cbd5e1;
+    font-weight: 600;
+    color: var(--qd-ink);
+  }
+  .qd-table thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    font-weight: 800;
+    border-bottom-color: var(--qd-line);
+  }
+  .qd-table tbody td {
+    color: var(--qd-ink);
+    vertical-align: middle;
+  }
+  .qd-total-row {
+    background: #f1f5f9 !important;
+  }
+  .qd-total-row td {
+    font-weight: 800;
+    color: var(--qd-ink);
+  }
+  .qd-paid-banner {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #86efac;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  }
+  .qd-paid-banner .qd-card-body {
+    position: relative;
+    z-index: 1;
+  }
+  .qd-paid-watermark {
+    position: absolute;
+    right: 4%;
+    top: 50%;
+    transform: translateY(-50%) rotate(-12deg);
+    font-size: clamp(2.4rem, 8vw, 3.6rem);
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    color: rgba(22, 163, 74, 0.18);
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 0;
+    user-select: none;
+  }
+  .qd-btn-success {
+    background: #16a34a;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
+  }
+  .qd-btn-success:hover {
+    background: #15803d;
+    color: #fff !important;
+  }
+  @media (max-width: 767.98px) {
+    .qd-actions { width: 100%; }
+    .qd-btn { flex: 1 1 auto; }
+    .qd-paid-watermark { font-size: 2rem; right: 2%; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+<div class="container py-4 qd-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-      <a href="{% url 'store:quotation_list' %}" class="btn btn-link btn-sm text-muted text-decoration-none d-inline-flex align-items-center mb-2 p-0">
+      <a href="{% url 'store:quotation_list' %}" class="btn btn-link btn-sm qd-back d-inline-flex align-items-center mb-2 p-0">
         <i class="bi bi-chevron-left me-1"></i> Volver al registro
       </a>
-      <h3 class="mb-1">
-        COT{{ quote.id }} - {{ quote.created_at|date:"Y-m-d" }} - {{ quote.client_name|default:"Sin cliente" }}
+      <h3 class="qd-title h4">
+        COT-{{ quote.id }} · {{ quote.display_client_name|default:"Sin cliente" }}
+        {% if is_fully_paid %}
+          <span class="badge text-bg-success align-middle ms-1">Pagado</span>
+        {% endif %}
+        {% if is_quote_closed %}
+          <span class="badge text-bg-secondary align-middle ms-1">Cerrada</span>
+        {% endif %}
       </h3>
-      <div class="text-muted small">
-        Creada: {{ quote.created_at|date:"Y-m-d H:i" }}
-        · Vence: {{ expires_at|date:"Y-m-d H:i" }}
+      <div class="qd-meta mt-1">
+        Creada: {{ quote.created_at|date:"d/m/Y H:i" }}
+        · Vence: {{ expires_at|date:"d/m/Y H:i" }}
         {% if quote.created_by %} · Por: {{ quote.created_by.username }}{% endif %}
+        · Estado cotización: {{ quote.get_quotation_status_display }}
+        · Pedido: {{ quote.get_order_status_display }}
       </div>
     </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-dark" href="{% url 'store:quotation_pdf' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
-        <i class="bi bi-file-earmark-pdf me-1"></i> Ver PDF
+    <div class="qd-actions">
+      <a class="qd-btn qd-btn-dark" href="{% url 'store:quotation_pdf' quotation_id=quote.id %}?iva=1" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-file-earmark-pdf"></i> PDF con IVA
       </a>
+      <a class="qd-btn qd-btn-soft" href="{% url 'store:quotation_pdf' quotation_id=quote.id %}?iva=0" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-file-earmark-text"></i> PDF sin IVA
+      </a>
+      {% if is_fully_paid %}
+      <a class="qd-btn qd-btn-success" href="{% url 'store:quotation_invoice_download' quotation_id=quote.id %}?iva=1">
+        <i class="bi bi-receipt"></i> Descargar factura
+      </a>
+      {% endif %}
+      {% if quote.has_rental_items %}
+      <a class="qd-btn qd-btn-accent" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-pen"></i> Contrato de alquiler
+      </a>
+      <a class="qd-btn qd-btn-outline-accent" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}?download=1">
+        <i class="bi bi-download"></i> Descargar contrato
+      </a>
+      {% if rental_requirements and rental_requirements.is_complete %}
+      <a class="qd-btn qd-btn-dark" href="{% url 'store:quotation_rental_requirements' quotation_id=quote.id %}">
+        <i class="bi bi-check2-circle"></i>
+        Requisitos
+        <span class="badge text-bg-success ms-1">OK</span>
+      </a>
+      {% else %}
+      <a class="qd-btn qd-btn-warn" href="{% url 'store:quotation_rental_requirements' quotation_id=quote.id %}">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Requisitos
+      </a>
+      {% endif %}
+      {% if delivery_acta and delivery_acta.is_complete %}
+      <a class="qd-btn qd-btn-dark" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-file-earmark-pdf"></i> Ver acta de recepción
+      </a>
+      <a class="qd-btn qd-btn-soft" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}?download=1">
+        <i class="bi bi-download"></i> Descargar acta de recepción
+      </a>
+      {% else %}
+      <a class="qd-btn qd-btn-warn" href="{% url 'store:quotation_delivery_acta' quotation_id=quote.id %}">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Acta de recepción
+      </a>
+      {% endif %}
+      {% endif %}
     </div>
   </div>
 
-  <div class="card mb-3" id="payment-proof-section">
-    <div class="card-body">
-      <h5 class="mb-3">Datos del cliente</h5>
+  {% if is_fully_paid %}
+  <div class="qd-card qd-paid-banner mb-3">
+    <div class="qd-paid-watermark" aria-hidden="true">PAGADO</div>
+    <div class="qd-card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <div class="fw-bold" style="color:#166534;">Cotización cerrada · Pago total recibido</div>
+        <div class="qd-help mb-0">El documento incluye marca de agua «PAGADO». Puedes descargar la factura.</div>
+      </div>
+      <a class="qd-btn qd-btn-success" href="{% url 'store:quotation_invoice_download' quotation_id=quote.id %}?iva=1">
+        <i class="bi bi-download"></i> Descargar factura
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="qd-card mb-3">
+    <div class="qd-card-head">
+      <h5>Datos del cliente</h5>
+    </div>
+    <div class="qd-card-body">
       <div class="row g-3">
         <div class="col-md-6">
-          <div class="small text-muted">Tipo</div>
-          <div class="fw-semibold">{{ quote.get_client_kind_display }}</div>
+          <div class="qd-label">Tipo</div>
+          <div class="qd-value">{{ quote.display_client_kind }}</div>
         </div>
         <div class="col-md-6">
-          <div class="small text-muted">Nombre</div>
-          <div class="fw-semibold">{{ quote.client_name|default:"—" }}</div>
+          <div class="qd-label">Nombre</div>
+          <div class="qd-value">{{ quote.display_client_name|default:"—" }}</div>
         </div>
         <div class="col-md-6">
-          <div class="small text-muted">Correo</div>
-          <div>{{ quote.client_email|default:"—" }}</div>
+          <div class="qd-label">Correo</div>
+          <div class="qd-value">{{ quote.display_client_email|default:"—" }}</div>
         </div>
         <div class="col-md-6">
-          <div class="small text-muted">Teléfono</div>
-          <div>{{ quote.client_phone|default:"—" }}</div>
+          <div class="qd-label">Teléfono</div>
+          <div class="qd-value">{{ quote.display_client_phone|default:"—" }}</div>
         </div>
         <div class="col-md-6">
-          <div class="small text-muted">Departamento</div>
-          <div>{{ quote.client_departamento|default:"—" }}</div>
+          <div class="qd-label">Departamento</div>
+          <div class="qd-value">{{ quote.display_client_departamento|default:"—" }}</div>
         </div>
         <div class="col-md-6">
-          <div class="small text-muted">Ciudad</div>
-          <div>{{ quote.client_city|default:"—" }}</div>
+          <div class="qd-label">Ciudad</div>
+          <div class="qd-value">{{ quote.display_client_city|default:"—" }}</div>
         </div>
         {% if quote.notes %}
         <div class="col-12">
-          <div class="small text-muted">Notas</div>
-          <div>{{ quote.notes|linebreaksbr }}</div>
+          <div class="qd-label">Notas</div>
+          <div class="qd-value fw-normal">{{ quote.notes|linebreaksbr }}</div>
         </div>
         {% endif %}
       </div>
@@ -63,34 +416,99 @@
   </div>
 
   {% if request.user.is_staff %}
-  <div class="card mb-3">
-    <div class="card-body">
-      <h5 class="mb-3">Referencia de pago</h5>
+  <div class="qd-card mb-3" id="payment-proof-section">
+    <div class="qd-card-head d-flex align-items-center justify-content-between gap-2 flex-wrap">
+      <h5 class="mb-0">Referencia de pago</h5>
+      {% if quote.order_status == 'pago_parcial' %}
+        <span class="badge text-bg-warning">Pago parcial</span>
+      {% elif quote.order_status == 'pago_recibido' %}
+        <span class="badge text-bg-success">Pago total</span>
+      {% endif %}
+    </div>
+    <div class="qd-card-body">
       {% if quote.payment_proof %}
         <div class="mb-3">
           <a href="{{ quote.payment_proof.url }}" target="_blank" rel="noopener noreferrer" class="d-inline-block">
-            <img src="{{ quote.payment_proof.url }}" alt="Referencia de pago" class="img-thumbnail" style="max-height: 200px;">
+            <img src="{{ quote.payment_proof.url }}" alt="Referencia de pago" class="img-thumbnail" style="max-height: 200px; border-radius: 0.8rem;">
           </a>
-          <div class="small text-muted mt-1">Comprobante subido. Puedes subir otro para reemplazar.</div>
+          <div class="qd-help mt-2">
+            Comprobante subido
+            {% if quote.order_status == 'pago_parcial' %}
+              (pago parcial). Puedes subir otro para reemplazar y cambiar el tipo.
+            {% elif quote.order_status == 'pago_recibido' %}
+              (pago total). Puedes subir otro para reemplazar.
+            {% else %}
+              . Puedes subir otro para reemplazar.
+            {% endif %}
+          </div>
         </div>
       {% else %}
-        <p class="text-muted small mb-2">Para marcar esta cotización como &quot;Pago recibido&quot; debe subir una referencia de pago (comprobante).</p>
+        <p class="qd-help mb-3">Sube la referencia de pago e indica si es <strong>parcial</strong> o <strong>total</strong>. El estado del pedido se actualizará automáticamente.</p>
       {% endif %}
-      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
-        {% csrf_token %}
-        <div class="col-auto">
-          <input type="file" name="payment_proof" class="form-control form-control-sm" accept="image/*,.pdf" required>
-        </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-outline-primary btn-sm">Subir referencia de pago</button>
-        </div>
-      </form>
+      <button type="button" class="qd-btn qd-btn-dark" data-bs-toggle="modal" data-bs-target="#paymentProofModal">
+        <i class="bi bi-cloud-upload"></i>
+        {% if quote.payment_proof %}Reemplazar referencia{% else %}Subir referencia{% endif %}
+      </button>
     </div>
   </div>
-  <div class="card mb-3">
-    <div class="card-body">
-      <h5 class="mb-3">Estado</h5>
-      <form method="post" class="row g-3 align-items-end">
+
+  <div class="modal fade" id="paymentProofModal" tabindex="-1" aria-labelledby="paymentProofModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="post" enctype="multipart/form-data" id="paymentProofForm">
+          {% csrf_token %}
+          <div class="modal-header">
+            <h5 class="modal-title" id="paymentProofModalLabel">Referencia de pago</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="qd-help mb-3">
+              Adjunta el comprobante e indica el tipo de pago. El estado de la cotización se actualizará solo:
+              <strong>parcial → Pago parcial</strong>, <strong>total → Pago recibido</strong>.
+            </p>
+
+            <label class="form-label fw-bold">Tipo de pago</label>
+            <div class="qd-pay-type mb-3" role="radiogroup" aria-label="Tipo de pago">
+              <label class="qd-pay-type-option">
+                <input type="radio" name="payment_type" value="parcial"
+                       {% if quote.order_status == 'pago_parcial' %}checked{% endif %} required>
+                <span class="qd-pay-type-card">
+                  <strong><i class="bi bi-pie-chart me-1"></i> Parcial</strong>
+                  <span>Abono o cuota. Estado: Pago parcial.</span>
+                </span>
+              </label>
+              <label class="qd-pay-type-option">
+                <input type="radio" name="payment_type" value="total"
+                       {% if quote.order_status != 'pago_parcial' %}checked{% endif %} required>
+                <span class="qd-pay-type-card">
+                  <strong><i class="bi bi-check2-circle me-1"></i> Total</strong>
+                  <span>Pago completo. Estado: Pago recibido.</span>
+                </span>
+              </label>
+            </div>
+
+            <label class="form-label fw-bold" for="payment_proof_input">Comprobante</label>
+            <input class="form-control" type="file" name="payment_proof" id="payment_proof_input"
+                   accept="image/*,.pdf" required>
+            <div class="qd-help mt-2">Imagen o PDF del comprobante bancario / transferencia.</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="qd-btn qd-btn-dark">
+              <i class="bi bi-cloud-upload"></i> Subir y actualizar estado
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="qd-card mb-3">
+    <div class="qd-card-head">
+      <h5>Estado</h5>
+    </div>
+    <div class="qd-card-body">
+      <form method="post" class="row g-3 align-items-end qd-select">
         {% csrf_token %}
         <div class="col-md-6">
           <label class="form-label">Estado de la cotización</label>
@@ -106,30 +524,35 @@
             {% for value,label in quote.ORDER_STATUS_CHOICES %}
               <option value="{{ value }}"
                       {% if value == quote.order_status %}selected{% endif %}
-                      {% if not quote.payment_proof and value in 'pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+                      {% if not quote.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
                   {{ label }}
               </option>
             {% endfor %}
           </select>
           {% if not quote.payment_proof %}
-            <div class="form-text small">
-              Sube una referencia de pago arriba para poder marcar estados como &quot;Pago recibido&quot;, &quot;Enviado&quot; o &quot;Recibido&quot;.
+            <div class="qd-help mt-2">
+              Sube una referencia de pago arriba para poder marcar &quot;Pago parcial&quot;, &quot;Pago recibido&quot;, &quot;Enviado&quot; o &quot;Recibido&quot;.
             </div>
           {% endif %}
         </div>
         <div class="col-12 d-flex justify-content-end">
-          <button type="submit" class="btn btn-outline-primary">Guardar estados</button>
+          <button type="submit" class="qd-btn qd-btn-accent">
+            <i class="bi bi-check2-circle"></i> Guardar estados
+          </button>
         </div>
       </form>
     </div>
   </div>
   {% endif %}
 
-  <div class="card">
-    <div class="card-body">
-      <h5 class="mb-3">Productos</h5>
+  <div class="qd-card">
+    <div class="qd-card-head">
+      <h5>Productos</h5>
+      <span class="qd-help mb-0">Total {{ quote.total|pesos_colombianos }}</span>
+    </div>
+    <div class="qd-card-body">
       <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle qd-table mb-3">
           <thead>
             <tr>
               <th>Producto</th>
@@ -152,39 +575,51 @@
                   </div>
                   {% endif %}
                   <div>
-                    <div class="fw-semibold">{{ it.product.name }}</div>
-                    <div class="text-muted small">{{ it.product.category.name }}</div>
+                    <div class="fw-bold" style="color:#0f172a;">{{ it.product.name }}</div>
+                    <div class="qd-help">{{ it.product.category.name }}</div>
                     {% if it.discount_unit and it.discount_unit > 0 %}
-                      <div class="small text-muted">
+                      <div class="small" style="color:#b45309;">
                         Precio original: <span class="text-decoration-line-through">{{ it.original_unit_price|pesos_colombianos }}</span>
-                        · Descuento: <strong>{{ it.discount_unit|pesos_colombianos }}</strong>
+                        · Desc. <strong>{{ it.discount_unit|pesos_colombianos }}</strong>
                       </div>
                     {% endif %}
                   </div>
                 </div>
               </td>
-              <td class="text-end">{{ it.quantity }}</td>
+              <td class="text-end fw-semibold">{{ it.quantity }}</td>
               <td class="text-end">{{ it.base_subtotal|pesos_colombianos }}</td>
               <td class="text-end">{{ it.iva_subtotal|pesos_colombianos }}</td>
-              <td class="text-end fw-semibold">{{ it.subtotal|pesos_colombianos }}</td>
+              <td class="text-end fw-bold">{{ it.subtotal|pesos_colombianos }}</td>
             </tr>
             {% endfor %}
           </tbody>
           <tfoot>
-            <tr class="table-light">
-              <td colspan="2" class="text-end"><strong>Totales</strong></td>
-              <td class="text-end"><strong>{{ total_base|pesos_colombianos }}</strong></td>
-              <td class="text-end"><strong>{{ total_iva|pesos_colombianos }}</strong></td>
-              <td class="text-end"><strong>{{ quote.total|pesos_colombianos }}</strong></td>
+            <tr class="qd-total-row">
+              <td colspan="2" class="text-end">Totales</td>
+              <td class="text-end">{{ total_base|pesos_colombianos }}</td>
+              <td class="text-end">{{ total_iva|pesos_colombianos }}</td>
+              <td class="text-end">{{ quote.total|pesos_colombianos }}</td>
             </tr>
           </tfoot>
         </table>
       </div>
-      <div class="small text-muted">
-        Nota: todos nuestros productos ya incluyen IVA. Cotización válida por 1 día.
+      <div class="qd-help">
+        Nota: todos los precios ya incluyen IVA. Cotización válida por 1 día.
       </div>
     </div>
   </div>
 </div>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.location.hash === '#payment-proof-section') {
+      var modalEl = document.getElementById('paymentProofModal');
+      if (modalEl && window.bootstrap) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+    }
+  });
+</script>
+{% endblock %}

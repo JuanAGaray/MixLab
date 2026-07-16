@@ -26,14 +26,17 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # CharField sin índice evita el *_like duplicado al pasar luego a unique.
         migrations.AddField(
             model_name='dilutionbaseproduct',
             name='slug',
-            field=models.SlugField(
+            field=models.CharField(
                 blank=True,
+                default='',
                 max_length=220,
                 verbose_name='Enlace para compartir',
             ),
+            preserve_default=False,
         ),
         migrations.RunPython(populate_slugs, migrations.RunPython.noop),
         migrations.AlterField(

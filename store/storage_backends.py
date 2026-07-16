@@ -1,4 +1,4 @@
-"""Almacenamiento de medios en Supabase Storage (bucket Mixlaba)."""
+"""Almacenamiento de medios en Supabase Storage (todo lo de media/)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 import requests
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage, Storage
 from django.utils.deconstruct import deconstructible
@@ -22,21 +23,42 @@ def _supabase_configured() -> bool:
     )
 
 
+def _allow_local_media_fallback() -> bool:
+    """Solo permitir disco local en desarrollo local (no Vercel/Lambda)."""
+    if getattr(settings, 'FORCE_SUPABASE_MEDIA', False):
+        return False
+    if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+        return False
+    if str(getattr(settings, 'BASE_DIR', '')).replace('\\', '/').startswith('/var/task'):
+        return False
+    return bool(getattr(settings, 'DEBUG', False))
+
+
 @deconstructible
 class SupabaseMediaStorage(Storage):
     """Sube archivos al bucket de Supabase y devuelve la URL pública."""
 
     def __init__(self, bucket: str | None = None, base_url: str | None = None, service_key: str | None = None):
-        self.bucket = bucket or settings.SUPABASE_STORAGE_BUCKET
-        self.base_url = (base_url or settings.SUPABASE_URL).rstrip('/')
-        self.service_key = service_key or settings.SUPABASE_SERVICE_ROLE_KEY
-        self._fallback = FileSystemStorage(
-            location=settings.MEDIA_ROOT,
-            base_url=settings.MEDIA_URL,
-        )
+        self.bucket = bucket or getattr(settings, 'SUPABASE_STORAGE_BUCKET', '')
+        self.base_url = (base_url or getattr(settings, 'SUPABASE_URL', '') or '').rstrip('/')
+        self.service_key = service_key or getattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', '')
+        self._fallback = None
+        if _allow_local_media_fallback():
+            self._fallback = FileSystemStorage(
+                location=settings.MEDIA_ROOT,
+                base_url=settings.MEDIA_URL,
+            )
 
     def _use_fallback(self) -> bool:
-        return not (self.base_url and self.service_key and self.bucket)
+        if self.base_url and self.service_key and self.bucket:
+            return False
+        if self._fallback is not None:
+            return True
+        raise ImproperlyConfigured(
+            'Supabase Storage no está configurado. Define SUPABASE_URL, '
+            'SUPABASE_SERVICE_ROLE_KEY y SUPABASE_STORAGE_BUCKET. '
+            'En Vercel/producción no se permite guardar en disco local (/var/task/media).'
+        )
 
     def _normalize_name(self, name: str) -> str:
         return name.replace('\\', '/').lstrip('/')
@@ -91,8 +113,17 @@ class SupabaseMediaStorage(Storage):
         if self._use_fallback():
             return self._fallback._save(name, content)
 
-        data = content.read()
-        content_type = getattr(content, 'content_type', None) or mimetypes.guess_type(name)[0] or 'application/octet-stream'
+        data = content.read() if hasattr(content, 'read') else content
+        if hasattr(content, 'seek'):
+            try:
+                content.seek(0)
+            except Exception:
+                pass
+        content_type = (
+            getattr(content, 'content_type', None)
+            or mimetypes.guess_type(name)[0]
+            or 'application/octet-stream'
+        )
         response = requests.post(
             self._upload_url(name),
             headers=self._headers(content_type=content_type, upsert=True),
@@ -100,7 +131,15 @@ class SupabaseMediaStorage(Storage):
             timeout=60,
         )
         if response.status_code not in (200, 201):
-            response.raise_for_status()
+            # Mensaje más claro para debugging en producción
+            detail = ''
+            try:
+                detail = response.text[:500]
+            except Exception:
+                pass
+            raise OSError(
+                f'Error subiendo a Supabase Storage ({response.status_code}): {detail or response.reason}'
+            )
         return name
 
     def get_available_name(self, name: str, max_length: int | None = None) -> str:
@@ -109,9 +148,13 @@ class SupabaseMediaStorage(Storage):
         unique_name = f'{base}-{uuid.uuid4().hex[:10]}{ext}'
         candidate = f'{directory}/{unique_name}' if directory else unique_name
         if max_length and len(candidate) > max_length:
-            trim = max_length - len(unique_name) - 1
-            directory = directory[:max(trim, 0)]
+            overflow = len(candidate) - max_length
+            # recortar el base del nombre, no el directorio
+            keep = max(len(base) - overflow, 1)
+            unique_name = f'{base[:keep]}-{uuid.uuid4().hex[:10]}{ext}'
             candidate = f'{directory}/{unique_name}' if directory else unique_name
+            if len(candidate) > max_length:
+                candidate = candidate[-max_length:]
         return candidate
 
     def save(self, name, content, max_length=None):

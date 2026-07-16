@@ -3145,25 +3145,50 @@ def _quotation_pdf_context(quote: Quotation, iva_mode: str = 'with_iva', doc_typ
 
 
 def _pdf_link_callback(uri, rel):
-    """Resolve static/media URIs for xhtml2pdf."""
+    """Resolve static/media URIs for xhtml2pdf (incluye URLs públicas de Supabase)."""
     from django.conf import settings
     from django.contrib.staticfiles import finders
     from urllib.parse import unquote, urlparse
+    import tempfile
 
     raw = unquote(uri or '')
-    # Descarta query/hash si vienen
-    raw = urlparse(raw).path or raw
+    parsed = urlparse(raw)
 
-    if raw.startswith(settings.MEDIA_URL):
-        path = os.path.join(settings.MEDIA_ROOT, raw.replace(settings.MEDIA_URL, '', 1))
-    elif raw.startswith(settings.STATIC_URL):
-        path = finders.find(raw.replace(settings.STATIC_URL, '', 1))
-    elif raw.startswith('/static/'):
-        path = finders.find(raw.replace('/static/', '', 1))
-    elif raw.startswith('/media/'):
-        path = os.path.join(settings.MEDIA_ROOT, raw.replace('/media/', '', 1))
+    # URL absoluta (Supabase Storage u otra CDN)
+    if parsed.scheme in ('http', 'https'):
+        try:
+            import requests
+            resp = requests.get(raw, timeout=20)
+            resp.raise_for_status()
+            suffix = os.path.splitext(parsed.path)[1] or '.bin'
+            fd, tmp_path = tempfile.mkstemp(prefix='pdfimg_', suffix=suffix)
+            with os.fdopen(fd, 'wb') as fh:
+                fh.write(resp.content)
+            return tmp_path
+        except Exception:
+            return uri
+
+    path_only = parsed.path or raw
+
+    if path_only.startswith(settings.MEDIA_URL):
+        # Si media está en Supabase, reconstruir URL pública
+        rel_name = path_only.replace(settings.MEDIA_URL, '', 1).lstrip('/')
+        supabase_url = getattr(settings, 'SUPABASE_URL', '') or ''
+        bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', '') or ''
+        if supabase_url and bucket and getattr(settings, 'USE_SUPABASE_MEDIA', False):
+            return _pdf_link_callback(
+                f'{supabase_url.rstrip("/")}/storage/v1/object/public/{bucket}/{rel_name}',
+                rel,
+            )
+        path = os.path.join(settings.MEDIA_ROOT, rel_name)
+    elif path_only.startswith(settings.STATIC_URL):
+        path = finders.find(path_only.replace(settings.STATIC_URL, '', 1))
+    elif path_only.startswith('/static/'):
+        path = finders.find(path_only.replace('/static/', '', 1))
+    elif path_only.startswith('/media/'):
+        path = os.path.join(settings.MEDIA_ROOT, path_only.replace('/media/', '', 1))
     else:
-        path = raw
+        path = path_only
     if not path:
         return uri
     if isinstance(path, (list, tuple)):
@@ -3172,15 +3197,20 @@ def _pdf_link_callback(uri, rel):
 
 
 def _quotation_pdf_cache_path(quote: Quotation, iva_mode: str = 'with_iva', doc_type: str = 'cotizacion') -> str:
-    """Disk cache path for generated quotation PDF."""
+    """Disk cache path for generated quotation PDF (local media o /tmp en serverless)."""
     from django.conf import settings
 
     mode = _normalize_pdf_iva_mode(iva_mode)
     kind = 'fac' if doc_type == 'factura' else 'cot'
     paid = 'pagado' if _quotation_is_fully_paid(quote) or quote.order_status in _fully_paid_statuses() else 'abierto'
     stamp = quote.updated_at.strftime('%Y%m%d%H%M%S') if quote.updated_at else '0'
-    folder = os.path.join(settings.MEDIA_ROOT, 'quotations', 'pdf_cache')
-    os.makedirs(folder, exist_ok=True)
+    folder = str(getattr(settings, 'PDF_CACHE_ROOT', None) or os.path.join(settings.MEDIA_ROOT, 'quotations', 'pdf_cache'))
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError:
+        # Último recurso en entornos read-only
+        folder = os.path.join('/tmp', 'frozz_pdf_cache')
+        os.makedirs(folder, exist_ok=True)
     return os.path.join(folder, f'COT{quote.id}-{stamp}-{mode}-{kind}-{paid}.pdf')
 
 

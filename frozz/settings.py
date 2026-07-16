@@ -179,19 +179,30 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Supabase Storage (bucket Mixlaba)
+# Supabase Storage — TODO el media (avatars, productos, comprobantes, etc.)
+# En Vercel/Lambda el disco es read-only: obligatorio configurar estas variables.
 _db_host_for_supabase = os.environ.get('DB_HOST', '').strip()
 _supabase_project_ref = ''
-if '.supabase.co' in _db_host_for_supabase:
+if '.supabase.co' in _db_host_for_supabase and 'pooler.supabase.com' not in _db_host_for_supabase:
     _supabase_project_ref = _db_host_for_supabase.replace('db.', '').split('.supabase.co')[0]
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip() or (
     f'https://{_supabase_project_ref}.supabase.co' if _supabase_project_ref else ''
 )
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '').strip()
-SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'Mixlaba').strip()
+SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'Mixlab').strip()
 
-if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET:
+# En serverless (Vercel) siempre forzar Supabase; en local se permite fallback a disco si falta la key.
+_on_serverless = bool(
+    os.environ.get('VERCEL')
+    or os.environ.get('AWS_LAMBDA_FUNCTION_NAME')
+    or str(BASE_DIR).replace('\\', '/').startswith('/var/task')
+)
+FORCE_SUPABASE_MEDIA = os.environ.get('FORCE_SUPABASE_MEDIA', '').lower() in ('1', 'true', 'yes') or _on_serverless
+USE_SUPABASE_MEDIA = bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET)
+
+if FORCE_SUPABASE_MEDIA or USE_SUPABASE_MEDIA:
+    # Siempre el backend de Supabase: si falta la key, falla con mensaje claro (no escribe en /var/task/media).
     _default_file_storage = 'store.storage_backends.SupabaseMediaStorage'
 else:
     _default_file_storage = 'django.core.files.storage.FileSystemStorage'
@@ -204,6 +215,13 @@ STORAGES = {
         'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     },
 }
+
+# Cache temporal de PDFs: en serverless usar /tmp (escribible)
+if _on_serverless:
+    PDF_CACHE_ROOT = Path('/tmp') / 'frozz_pdf_cache'
+else:
+    PDF_CACHE_ROOT = Path(os.environ.get('PDF_CACHE_ROOT', str(MEDIA_ROOT / 'quotations' / 'pdf_cache')))
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

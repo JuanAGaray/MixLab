@@ -19,6 +19,8 @@ from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Count, Min, Max, Sum, Prefetch
 from django.core.paginator import Paginator
 from django.core.files.base import ContentFile
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from decimal import Decimal
 
 from .models import (
@@ -3463,7 +3465,7 @@ def _save_data_url_image(field, data_url, filename_prefix):
 
 @staff_member_required
 def quotation_rental_requirements(request, quotation_id):
-    """Captura requisitos del contrato: firmas digitales + fotos de cédula."""
+    """Captura datos del cliente, firmas digitales y fotos de cédula."""
     q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
     if not q.has_rental_items:
         messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
@@ -3477,6 +3479,65 @@ def quotation_rental_requirements(request, quotation_id):
         req.representative_name = settings_obj.company_rep_name or settings_obj.company_legal_name or 'MIXLAB SAS'
 
     if request.method == 'POST':
+        client_document = (request.POST.get('client_document') or '').strip()
+        client_email = (request.POST.get('client_email') or '').strip()
+        client_phone = (request.POST.get('client_phone') or '').strip()
+
+        errors = []
+        if not client_document:
+            errors.append('El número de cédula / documento es obligatorio.')
+        if not client_email:
+            errors.append('El correo del cliente es obligatorio.')
+        else:
+            try:
+                validate_email(client_email)
+            except ValidationError:
+                errors.append('Ingresa un correo electrónico válido.')
+        if not client_phone:
+            errors.append('El teléfono del cliente es obligatorio.')
+        if q.existing_client_id and len(client_phone) > 20:
+            errors.append('El teléfono debe tener máximo 20 caracteres.')
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, 'store/quotation_rental_requirements.html', {
+                'quote': q,
+                'req': req,
+                'posted_client_document': client_document,
+                'posted_client_email': client_email,
+                'posted_client_phone': client_phone,
+            })
+
+        # La cotización conserva una copia y, si hay cliente vinculado,
+        # actualizamos también su usuario/perfil para que ningún PDF la sobrescriba.
+        q.client_document = client_document
+        q.client_email = client_email
+        q.client_phone = client_phone
+        q.save(update_fields=[
+            'client_document',
+            'client_email',
+            'client_phone',
+            'updated_at',
+        ])
+        if q.existing_client_id:
+            client = q.existing_client
+            if (client.email or '').strip() != client_email:
+                client.email = client_email
+                client.save(update_fields=['email'])
+            profile = q._linked_client_profile()
+            if profile:
+                profile_fields = []
+                if (profile.phone or '').strip() != client_phone:
+                    profile.phone = client_phone
+                    profile_fields.append('phone')
+                if (getattr(profile, 'document_number', '') or '').strip() != client_document:
+                    profile.document_number = client_document
+                    profile_fields.append('document_number')
+                if profile_fields:
+                    profile_fields.append('updated_at')
+                    profile.save(update_fields=profile_fields)
+
         req.representative_name = (request.POST.get('representative_name') or '').strip()
         req.tenant_name = (request.POST.get('tenant_name') or '').strip() or (q.client_name or '')
         req.notes = (request.POST.get('notes') or '').strip()

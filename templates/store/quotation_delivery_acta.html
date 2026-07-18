@@ -12,9 +12,11 @@
   .sig-canvas { width:100%; height:170px; display:block; touch-action:none; cursor:crosshair; background:#fcfcfd; }
   .sig-toolbar { display:flex; gap:.5rem; padding:.5rem .7rem; border-top:1px solid var(--line); background:var(--soft); }
   .preview-img { max-height:110px; border-radius:.6rem; border:1px solid var(--line); object-fit:cover; }
-  .photo-slot input[type=file] { font-size:.86rem; }
+  .photo-slot .form-label { margin-bottom:.45rem; }
+  .da-cam-btn { border-radius:999px; font-weight:700; }
   .da-btn { border-radius:999px; font-weight:700; padding:.55rem 1rem; }
   .video-preview { width:100%; max-height:220px; border-radius:.7rem; border:1px solid var(--line); background:#000; }
+  .photo-preview { width:100%; max-height:140px; object-fit:cover; border-radius:.6rem; border:1px solid var(--line); background:#f8fafc; }
 </style>
 {% endblock %}
 
@@ -100,6 +102,33 @@
     </div>
 
     <div class="da-card mb-3">
+      <div class="da-head">Datos del arrendatario</div>
+      <div class="da-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="small text-muted">Nombre</div>
+            <div class="fw-semibold">{{ quote.display_client_name|default:"—" }}</div>
+          </div>
+          <div class="col-md-3">
+            <div class="small text-muted">Cédula / documento</div>
+            <div class="fw-semibold">{{ quote.display_client_document|default:"—" }}</div>
+          </div>
+          <div class="col-md-3">
+            <div class="small text-muted">Correo</div>
+            <div class="fw-semibold text-break">{{ quote.display_client_email|default:"—" }}</div>
+          </div>
+          <div class="col-md-3">
+            <div class="small text-muted">Teléfono</div>
+            <div class="fw-semibold">{{ quote.display_client_phone|default:"—" }}</div>
+          </div>
+        </div>
+        <div class="form-text mt-2">
+          Estos datos se administran desde los requisitos del contrato.
+        </div>
+      </div>
+    </div>
+
+    <div class="da-card mb-3">
       <div class="da-head">Observaciones</div>
       <div class="da-body">
         <textarea name="delivery_notes" class="form-control" rows="2" placeholder="Estado general, accesorios, observaciones...">{{ acta.delivery_notes }}</textarea>
@@ -150,16 +179,30 @@
     <div class="da-card mb-3">
       <div class="da-head">Fotos de la máquina al momento de la entrega</div>
       <div class="da-body">
+        <p class="small text-muted mb-3">En cada ángulo puedes <strong>tomar una foto</strong> con la cámara o <strong>elegirla de la galería</strong> del celular.</p>
         <div class="row g-3">
           {% for photo in photo_fields %}
-          <div class="col-md-6 col-lg-4 photo-slot">
+          <div class="col-md-6 col-lg-4 photo-slot" data-photo-slot="{{ photo.name }}">
             <label class="form-label fw-bold" style="color:#0f172a;">{{ photo.label }}</label>
-            {% if photo.current %}
             <div class="mb-2">
-              <img src="{{ photo.current.url }}" class="preview-img w-100" style="max-height:140px;object-fit:cover;" alt="{{ photo.label }}">
+              {% if photo.current %}
+              <img src="{{ photo.current.url }}" class="photo-preview" id="preview-{{ photo.name }}" alt="{{ photo.label }}">
+              {% else %}
+              <img src="" class="photo-preview" id="preview-{{ photo.name }}" alt="{{ photo.label }}" style="display:none;">
+              {% endif %}
             </div>
-            {% endif %}
-            <input type="file" name="{{ photo.name }}" class="form-control" accept="image/*" capture="environment" {% if not photo.current %}required{% endif %}>
+            <div class="d-flex flex-wrap gap-2 mb-1">
+              <button type="button" class="btn btn-primary btn-sm da-cam-btn" data-target="{{ photo.name }}_camera">
+                <i class="bi bi-camera-fill me-1"></i> Tomar foto
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm da-cam-btn" data-target="{{ photo.name }}_gallery">
+                <i class="bi bi-image me-1"></i> Galería
+              </button>
+            </div>
+            <input type="file" name="{{ photo.name }}" id="{{ photo.name }}_camera" class="d-none"
+                   accept="image/*" capture="environment"
+                   {% if not photo.current %}data-required="1"{% endif %}>
+            <input type="file" id="{{ photo.name }}_gallery" class="d-none" accept="image/*">
           </div>
           {% endfor %}
         </div>
@@ -171,12 +214,25 @@
       <div class="da-body">
         {% if acta.delivery_video %}
         <div class="mb-3">
-          <video class="video-preview" controls src="{{ acta.delivery_video.url }}"></video>
-          <div class="small text-muted mt-1">Video actual cargado. Sube otro solo si deseas reemplazarlo.</div>
+          <video class="video-preview" id="preview-delivery_video" controls src="{{ acta.delivery_video.url }}"></video>
+          <div class="small text-muted mt-1">Video actual cargado. Puedes grabar o elegir otro para reemplazarlo.</div>
         </div>
+        {% else %}
+        <video class="video-preview mb-3" id="preview-delivery_video" controls style="display:none;"></video>
         {% endif %}
-        <input type="file" name="delivery_video" class="form-control" accept="video/*" capture="environment" {% if not acta.delivery_video %}required{% endif %}>
-        <div class="form-text">Graba o sube un video corto del equipo al momento de la entrega.</div>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <button type="button" class="btn btn-primary btn-sm da-cam-btn" data-target="delivery_video_camera">
+            <i class="bi bi-camera-video-fill me-1"></i> Grabar video
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm da-cam-btn" data-target="delivery_video_gallery">
+            <i class="bi bi-folder2-open me-1"></i> Galería
+          </button>
+        </div>
+        <input type="file" name="delivery_video" id="delivery_video_camera" class="d-none"
+               accept="video/*" capture="environment"
+               {% if not acta.delivery_video %}data-required="1"{% endif %}>
+        <input type="file" id="delivery_video_gallery" class="d-none" accept="video/*">
+        <div class="form-text">Graba con la cámara o selecciona un video corto de la galería del dispositivo.</div>
       </div>
     </div>
 
@@ -258,7 +314,98 @@
       event.preventDefault();
       return false;
     }
+
+    var photoNames = [
+      {% for photo in photo_fields %}'{{ photo.name }}'{% if not forloop.last %}, {% endif %}{% endfor %}
+    ];
+    for (var i = 0; i < photoNames.length; i++) {
+      var name = photoNames[i];
+      var cam = document.getElementById(name + '_camera');
+      var gal = document.getElementById(name + '_gallery');
+      var needed = cam && cam.getAttribute('data-required') === '1';
+      var hasFile = (cam && cam.files && cam.files.length) ||
+                    (gal && gal.getAttribute('name') === name && gal.files && gal.files.length);
+      if (needed && !hasFile) {
+        alert('Falta la foto «' + name.replace('photo_', '') + '». Usa “Tomar foto” o “Galería”.');
+        event.preventDefault();
+        return false;
+      }
+    }
+
+    var videoCam = document.getElementById('delivery_video_camera');
+    var videoGal = document.getElementById('delivery_video_gallery');
+    var hasVideoFile = (videoCam && videoCam.files && videoCam.files.length) ||
+                       (videoGal && videoGal.getAttribute('name') === 'delivery_video' && videoGal.files && videoGal.files.length);
+    var needsVideo = videoCam && videoCam.getAttribute('data-required') === '1';
+    if (needsVideo && !hasVideoFile) {
+      alert('Video de recepción requerido. Usa “Grabar video” o “Galería”.');
+      event.preventDefault();
+      return false;
+    }
   });
+
+  // Cámara / galería (fotos y video)
+  document.querySelectorAll('.da-cam-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-target');
+      var input = document.getElementById(id);
+      if (input) input.click();
+    });
+  });
+
+  function bindMediaCapture(fieldName, kind) {
+    var cameraInput = document.getElementById(fieldName + '_camera');
+    var galleryInput = document.getElementById(fieldName + '_gallery');
+    var preview = document.getElementById('preview-' + fieldName);
+    if (!cameraInput || !galleryInput) return;
+
+    function showPreview(file) {
+      if (!file || !preview) return;
+      var url = URL.createObjectURL(file);
+      if (kind === 'video') {
+        preview.src = url;
+        preview.style.display = '';
+        try { preview.load(); } catch (e) {}
+      } else {
+        preview.src = url;
+        preview.style.display = '';
+      }
+    }
+
+    function transferToCameraInput(file) {
+      if (!file) return;
+      try {
+        var dt = new DataTransfer();
+        dt.items.add(file);
+        cameraInput.files = dt.files;
+        cameraInput.setAttribute('name', fieldName);
+        galleryInput.removeAttribute('name');
+      } catch (e) {
+        galleryInput.name = fieldName;
+        cameraInput.removeAttribute('name');
+      }
+      showPreview(file);
+    }
+
+    cameraInput.addEventListener('change', function () {
+      if (cameraInput.files && cameraInput.files[0]) {
+        cameraInput.setAttribute('name', fieldName);
+        galleryInput.removeAttribute('name');
+        showPreview(cameraInput.files[0]);
+      }
+    });
+
+    galleryInput.addEventListener('change', function () {
+      if (galleryInput.files && galleryInput.files[0]) {
+        transferToCameraInput(galleryInput.files[0]);
+      }
+    });
+  }
+
+  {% for photo in photo_fields %}
+  bindMediaCapture('{{ photo.name }}', 'image');
+  {% endfor %}
+  bindMediaCapture('delivery_video', 'video');
 
   // Dirección (obligatoria) + GPS opcional (Maps)
   var addressInput = document.getElementById('reception_location');

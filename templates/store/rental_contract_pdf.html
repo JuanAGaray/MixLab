@@ -151,11 +151,11 @@
       Tipo: {{ quote.display_client_kind }} ·
       Tel: {{ quote.display_client_phone|default:"—" }} ·
       Correo: {{ quote.display_client_email|default:"—" }}<br>
+      Documento de identidad / NIT: <strong>{{ quote.display_client_document|default:"—" }}</strong><br>
       Ubicación:
       {% if quote.display_client_departamento or quote.display_client_city %}
         {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %} · {% endif %}{{ quote.display_client_city|default:"" }}
       {% else %}—{% endif %}
-      <br><span class="muted">Documento de identidad / NIT: ___________________________ (completar al firmar)</span>
     </p>
     <p style="margin-top:6px; border-top:1px dashed #cbd5e1; padding-top:6px;">
       <span class="label">Codeudor (Fiador Solidario)</span><br>

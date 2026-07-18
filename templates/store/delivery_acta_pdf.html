@@ -135,9 +135,10 @@
     <p style="margin:0;">
       <span class="label">Arrendatario / Receptor</span><br>
       <span class="value">{{ acta.tenant_name|default:quote.client_name|default:"—" }}</span><br>
-      Tel: {{ quote.client_phone|default:"—" }} ·
-      Correo: {{ quote.client_email|default:"—" }} ·
+      Documento: <strong>{{ quote.display_client_document|default:"—" }}</strong> ·
       Tipo: {{ quote.display_client_kind }}<br>
+      Tel: {{ quote.display_client_phone|default:"—" }} ·
+      Correo: {{ quote.display_client_email|default:"—" }}<br>
       Ubicación del cliente:
       {% if quote.display_client_departamento or quote.display_client_city %}
         {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %} · {% endif %}{{ quote.display_client_city|default:"" }}

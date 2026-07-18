@@ -27,7 +27,7 @@
       </a>
       <h3 class="h4 fw-bold mb-1" style="color:#0f172a;">Requisitos del contrato</h3>
       <div class="small" style="color:#475569;font-weight:500;">
-        Firmas digitales (representante y arrendatario) + fotos de la cédula.
+        Datos de identificación, contacto, firmas digitales y fotos de la cédula.
         {% if req.is_complete %}<span class="badge text-bg-success ms-1">Completo</span>{% else %}<span class="badge text-bg-warning ms-1">Pendiente</span>{% endif %}
       </div>
     </div>
@@ -37,6 +37,57 @@
     {% csrf_token %}
     <input type="hidden" name="representative_signature_data" id="representative_signature_data">
     <input type="hidden" name="tenant_signature_data" id="tenant_signature_data">
+
+    <div class="rq-card mb-3">
+      <div class="rq-head">Identificación y contacto del arrendatario</div>
+      <div class="rq-body">
+        <p class="small text-muted mb-3">
+          Estos datos se actualizarán en el cliente y se usarán automáticamente
+          en la cotización, el contrato de alquiler y el acta de recepción.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="client_document">Número de cédula / documento</label>
+            <input
+              type="text"
+              name="client_document"
+              id="client_document"
+              class="form-control"
+              maxlength="30"
+              autocomplete="off"
+              value="{{ posted_client_document|default:quote.display_client_document }}"
+              placeholder="Ej: 1.234.567.890"
+              required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="client_email">Correo electrónico</label>
+            <input
+              type="email"
+              name="client_email"
+              id="client_email"
+              class="form-control"
+              maxlength="254"
+              autocomplete="email"
+              value="{{ posted_client_email|default:quote.display_client_email }}"
+              placeholder="cliente@correo.com"
+              required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="client_phone">Número de teléfono</label>
+            <input
+              type="tel"
+              name="client_phone"
+              id="client_phone"
+              class="form-control"
+              maxlength="20"
+              autocomplete="tel"
+              value="{{ posted_client_phone|default:quote.display_client_phone }}"
+              placeholder="Ej: 300 123 4567"
+              required>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="row g-3">
       <div class="col-lg-6">

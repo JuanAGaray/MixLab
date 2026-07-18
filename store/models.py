@@ -655,6 +655,12 @@ class Quotation(models.Model):
     client_name = models.CharField(max_length=200, blank=True, verbose_name='Nombre/Razón social')
     client_email = models.EmailField(blank=True, verbose_name='Correo')
     client_phone = models.CharField(max_length=30, blank=True, verbose_name='Teléfono')
+    client_document = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        verbose_name='Número de cédula / documento',
+    )
     client_departamento = models.CharField(max_length=100, blank=True, verbose_name='Departamento')
     client_city = models.CharField(max_length=100, blank=True, verbose_name='Ciudad')
 
@@ -743,6 +749,11 @@ class Quotation(models.Model):
                 self.client_phone = live_phone
                 changed_fields.append('client_phone')
 
+            live_document = (getattr(profile, 'document_number', '') or '').strip()
+            if live_document and (self.client_document or '').strip() != live_document:
+                self.client_document = live_document
+                changed_fields.append('client_document')
+
             profile_depto = (getattr(profile, 'departamento', '') or '').strip()
             profile_city = (getattr(profile, 'city', '') or '').strip()
             if (not profile_depto or not profile_city) and getattr(profile, 'default_shipping_address_id', None):
@@ -792,6 +803,13 @@ class Quotation(models.Model):
         if profile and (profile.phone or '').strip():
             return profile.phone.strip()
         return (self.client_phone or '').strip()
+
+    @property
+    def display_client_document(self) -> str:
+        profile = self._linked_client_profile()
+        if profile and (getattr(profile, 'document_number', '') or '').strip():
+            return profile.document_number.strip()
+        return (self.client_document or '').strip()
 
     @property
     def display_client_kind(self) -> str:
@@ -910,6 +928,9 @@ class RentalContractRequirements(models.Model):
             and self.tenant_signature
             and self.id_front
             and self.id_back
+            and self.quotation.display_client_document
+            and self.quotation.display_client_email
+            and self.quotation.display_client_phone
         )
 
 

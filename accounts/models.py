@@ -58,6 +58,12 @@ class UserProfile(models.Model):
     ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     phone = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')  # Stores comma-separated phones
+    document_number = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        verbose_name='Número de cédula / documento',
+    )
     client_type = models.CharField(
         max_length=20,
         choices=CLIENT_TYPE_CHOICES,

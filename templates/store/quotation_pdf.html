@@ -551,6 +551,12 @@
               </span>
             </td>
           </tr>
+          <tr>
+            <td colspan="2">
+              <span class="field-label">Cédula / documento</span>
+              <span class="field-value">{{ quote.display_client_document|default:"—" }}</span>
+            </td>
+          </tr>
         </table>
         {% if quote.notes %}
         <div class="notes"><strong>Notas:</strong> {{ quote.notes }}</div>

@@ -199,6 +199,26 @@
     outline: 2px solid var(--qd-accent);
     outline-offset: 2px;
   }
+  .qd-pay-summary {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    padding: 0.85rem 1rem;
+    display: grid;
+    gap: 0.45rem;
+  }
+  .qd-pay-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    font-size: 0.9rem;
+  }
+  .qd-pay-summary-balance {
+    border-top: 1px dashed #cbd5e1;
+    padding-top: 0.45rem;
+    margin-top: 0.15rem;
+  }
   #paymentProofModal .modal-content {
     border: none;
     border-radius: 1rem;
@@ -445,6 +465,22 @@
               . Puedes subir otro para reemplazar.
             {% endif %}
           </div>
+          {% if quote.order_status == 'pago_parcial' and quote.partial_payment_amount %}
+          <div class="qd-pay-summary mt-3">
+            <div class="qd-pay-summary-row">
+              <span>Total cotización</span>
+              <strong>{{ quote.total|pesos_colombianos }}</strong>
+            </div>
+            <div class="qd-pay-summary-row">
+              <span>Abono registrado</span>
+              <strong class="text-success">{{ quote.partial_payment_amount|pesos_colombianos }}</strong>
+            </div>
+            <div class="qd-pay-summary-row qd-pay-summary-balance">
+              <span>Saldo pendiente</span>
+              <strong class="text-warning">{{ quote.remaining_balance|pesos_colombianos }}</strong>
+            </div>
+          </div>
+          {% endif %}
         </div>
       {% else %}
         <p class="qd-help mb-3">Sube la referencia de pago e indica si es <strong>parcial</strong> o <strong>total</strong>. El estado del pedido se actualizará automáticamente.</p>
@@ -474,7 +510,7 @@
             <label class="form-label fw-bold">Tipo de pago</label>
             <div class="qd-pay-type mb-3" role="radiogroup" aria-label="Tipo de pago">
               <label class="qd-pay-type-option">
-                <input type="radio" name="payment_type" value="parcial"
+                <input type="radio" name="payment_type" value="parcial" id="payment_type_parcial"
                        {% if quote.order_status == 'pago_parcial' %}checked{% endif %} required>
                 <span class="qd-pay-type-card">
                   <strong><i class="bi bi-pie-chart me-1"></i> Parcial</strong>
@@ -482,13 +518,34 @@
                 </span>
               </label>
               <label class="qd-pay-type-option">
-                <input type="radio" name="payment_type" value="total"
+                <input type="radio" name="payment_type" value="total" id="payment_type_total"
                        {% if quote.order_status != 'pago_parcial' %}checked{% endif %} required>
                 <span class="qd-pay-type-card">
                   <strong><i class="bi bi-check2-circle me-1"></i> Total</strong>
                   <span>Pago completo. Estado: Pago recibido.</span>
                 </span>
               </label>
+            </div>
+
+            <div id="partialAmountWrap" class="mb-3" hidden>
+              <label class="form-label fw-bold" for="partial_payment_amount">Valor del pago parcial</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number"
+                       class="form-control"
+                       name="partial_payment_amount"
+                       id="partial_payment_amount"
+                       step="0.01"
+                       min="0.01"
+                       max="{{ quote.total }}"
+                       inputmode="decimal"
+                       placeholder="Ej: 150000"
+                       value="{% if quote.partial_payment_amount %}{{ quote.partial_payment_amount }}{% endif %}">
+              </div>
+              <div class="qd-help mt-2">
+                Total de la cotización: <strong>{{ quote.total|pesos_colombianos }}</strong>.
+                El abono debe ser mayor a 0 y menor al total.
+              </div>
             </div>
 
             <label class="form-label fw-bold" for="payment_proof_input">Comprobante</label>
@@ -623,6 +680,47 @@
       if (modalEl && window.bootstrap) {
         window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
       }
+    }
+
+    var form = document.getElementById('paymentProofForm');
+    var amountWrap = document.getElementById('partialAmountWrap');
+    var amountInput = document.getElementById('partial_payment_amount');
+    var quoteTotal = parseFloat('{{ quote.total|default:"0" }}') || 0;
+
+    function syncPartialAmount() {
+      if (!form || !amountWrap || !amountInput) return;
+      var parcial = form.querySelector('input[name="payment_type"][value="parcial"]');
+      var isPartial = parcial && parcial.checked;
+      amountWrap.hidden = !isPartial;
+      amountInput.required = !!isPartial;
+      if (!isPartial) {
+        amountInput.value = '';
+      }
+    }
+
+    if (form) {
+      form.querySelectorAll('input[name="payment_type"]').forEach(function (radio) {
+        radio.addEventListener('change', syncPartialAmount);
+      });
+      syncPartialAmount();
+
+      form.addEventListener('submit', function (e) {
+        var parcial = form.querySelector('input[name="payment_type"][value="parcial"]');
+        if (!(parcial && parcial.checked)) return;
+        var raw = (amountInput.value || '').trim().replace(',', '.');
+        var amount = parseFloat(raw);
+        if (!raw || isNaN(amount) || amount <= 0) {
+          e.preventDefault();
+          alert('Indica el valor del pago parcial (mayor a 0).');
+          amountInput.focus();
+          return;
+        }
+        if (quoteTotal > 0 && amount >= quoteTotal) {
+          e.preventDefault();
+          alert('El abono debe ser menor al total. Si ya pagó todo, elige pago Total.');
+          amountInput.focus();
+        }
+      });
     }
   });
 </script>

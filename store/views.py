@@ -3024,11 +3024,33 @@ def quotation_detail(request, quotation_id):
 
         previous_status = q.order_status
         new_status = 'pago_parcial' if payment_type == 'parcial' else 'pago_recibido'
+        quote_total = Decimal(str(q.total or 0))
+        partial_amount = None
+
+        if payment_type == 'parcial':
+            raw_amount = (request.POST.get('partial_payment_amount') or '').strip().replace(',', '.')
+            try:
+                partial_amount = Decimal(raw_amount)
+            except Exception:
+                partial_amount = None
+            if partial_amount is None or partial_amount <= 0:
+                messages.error(request, 'Indica el valor del pago parcial (mayor a 0).')
+                return redirect('store:quotation_detail', quotation_id=q.id)
+            if quote_total > 0 and partial_amount >= quote_total:
+                messages.error(
+                    request,
+                    f'El abono debe ser menor al total ({quote_total}). '
+                    'Si ya pagó todo, elige pago Total.',
+                )
+                return redirect('store:quotation_detail', quotation_id=q.id)
 
         q.payment_proof = request.FILES['payment_proof']
         q.order_status = new_status
-        update_fields = ['payment_proof', 'order_status', 'updated_at']
-        if payment_type == 'total':
+        update_fields = ['payment_proof', 'order_status', 'updated_at', 'partial_payment_amount']
+        if payment_type == 'parcial':
+            q.partial_payment_amount = partial_amount
+        else:
+            q.partial_payment_amount = None
             if _close_quotation_on_full_payment(q):
                 update_fields.append('quotation_status')
         q.save(update_fields=update_fields)
@@ -3051,7 +3073,9 @@ def quotation_detail(request, quotation_id):
         if payment_type == 'parcial':
             messages.success(
                 request,
-                'Referencia de pago parcial subida. Estado actualizado a «Pago parcial».',
+                f'Referencia de pago parcial subida por {_wa_money(partial_amount)}. '
+                f'Saldo pendiente: {_wa_money(q.remaining_balance)}. '
+                'Estado actualizado a «Pago parcial».',
             )
         else:
             messages.success(
@@ -4050,6 +4074,11 @@ def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia',
         f"Estado pedido: {quote.get_order_status_display()}",
         f"Total: {_wa_money(quote.total)}",
     ]
+    if event == 'pago_parcial' and quote.partial_payment_amount:
+        lines.append(f"Abono: {_wa_money(quote.partial_payment_amount)}")
+        lines.append(f"Saldo: {_wa_money(quote.remaining_balance)}")
+    elif event == 'pago_recibido':
+        lines.append('Pago: Total')
 
     link = ''
     if request is not None:

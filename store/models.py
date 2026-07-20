@@ -699,6 +699,15 @@ class Quotation(models.Model):
         null=True,
         verbose_name='Referencia de pago',
     )
+    partial_payment_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name='Monto de pago parcial',
+        help_text='Abono registrado cuando el estado es pago parcial.',
+    )
     stock_deducted = models.BooleanField(
         default=False,
         verbose_name='Stock descontado',
@@ -719,6 +728,23 @@ class Quotation(models.Model):
     @property
     def has_rental_items(self) -> bool:
         return self.items.filter(product__product_type='rental').exists()
+
+    @property
+    def amount_paid(self) -> Decimal:
+        """Monto abonado: parcial registrado o total si ya está pagado completo."""
+        if self.order_status in ('pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'):
+            return Decimal(str(self.total or 0))
+        if self.partial_payment_amount is not None:
+            return Decimal(str(self.partial_payment_amount))
+        return Decimal('0.00')
+
+    @property
+    def remaining_balance(self) -> Decimal:
+        """Saldo pendiente por pagar."""
+        total = Decimal(str(self.total or 0))
+        paid = self.amount_paid
+        remaining = total - paid
+        return remaining if remaining > 0 else Decimal('0.00')
 
     def _linked_client_profile(self):
         """Perfil del cliente existente vinculado, si existe."""

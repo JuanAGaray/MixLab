@@ -219,7 +219,16 @@ class GuestCheckoutForm(forms.Form):
 
 class ProductForm(forms.ModelForm):
     """Form for creating and editing products"""
-    
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo venta y alquiler (tipos legacy se muestran si el producto ya los tiene)
+        choices = [('sale', 'Venta'), ('rental', 'Alquiler')]
+        current = getattr(self.instance, 'product_type', None)
+        if current and current not in ('sale', 'rental'):
+            choices.append((current, self.instance.get_product_type_display()))
+        self.fields['product_type'].choices = choices
+
     class Meta:
         model = Product
         fields = [

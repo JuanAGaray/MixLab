@@ -8,7 +8,7 @@
 {% block body_class %}home-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/home.css' %}">
+<link rel="stylesheet" href="{% static 'css/home.css' %}?v=lazy-img-2">
 {% endblock %}
 
 {% block content %}
@@ -89,7 +89,8 @@
                     <img src="{{ first.image.url }}"
                          alt="{{ first.name }}"
                          class="ml-cat-stage-img"
-                         data-role="stage-image">
+                         data-role="stage-image"
+                         {% if forloop.first %}fetchpriority="high" decoding="async"{% else %}loading="lazy" decoding="async"{% endif %}>
                     {% else %}
                     <div class="ml-cat-stage-img-placeholder" data-role="stage-image">
                       <i class="bi bi-image"></i>
@@ -148,29 +149,29 @@
                             data-attributes='{{ product|showcase_attributes_json }}'
                             aria-label="{{ product.name }}">
                       {% if product.image %}
-                      <img src="{{ product.image.url }}" alt="">
+                      <img src="{{ product.image.url }}" alt="" loading="lazy" decoding="async" width="56" height="56">
                       {% else %}
                       <span class="ml-cat-thumb-empty"><i class="bi bi-box"></i></span>
                       {% endif %}
                     </button>
                     {% endfor %}
-                  </div>
+                    </div>
                   <button type="button" class="ml-cat-thumb-nav ml-cat-thumb-next" aria-label="Siguiente">
                     <i class="bi bi-chevron-right"></i>
                   </button>
                 </div>
-              </div>
+            </div>
             </div>
             {% endwith %}
             {% endfor %}
-          </div>
+            </div>
         </div>
       </div>
       {% else %}
       <p class="text-center text-muted">No hay categorías con productos disponibles.</p>
       {% endif %}
     </div>
-  </section>
+</section>
 
   <!-- Productos destacados -->
   <section class="ml-section" style="background: #fff;">
@@ -179,20 +180,20 @@
         <h2>Productos destacados</h2>
         <p>Lo mejor de nuestro catálogo, listo para impulsar tu negocio.</p>
       </div>
-      <div class="row g-4">
-        {% for product in featured_products %}
+        <div class="row g-4">
+            {% for product in featured_products %}
         <div class="col-6 col-lg-3">
           <article class="ml-product-card product-card" data-product-id="{{ product.id }}">
             <a href="{% url 'store:product_detail' product.slug %}" class="ml-product-img-wrap">
               {% if product.display_badge %}
               <span class="ml-product-badge {{ product.display_badge_class }}">{{ product.display_badge }}</span>
               {% endif %}
-              {% if product.image %}
-              <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
-              {% else %}
+                        {% if product.image %}
+              <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy" decoding="async" width="400" height="400">
+                        {% else %}
               <i class="bi bi-image" style="font-size: 3rem; color: #cbd5e1;"></i>
-              {% endif %}
-            </a>
+                        {% endif %}
+                    </a>
             <div class="ml-product-body">
               <div class="ml-product-stars" aria-label="4.9 de 5 estrellas">
                 <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-half"></i>
@@ -200,19 +201,19 @@
               </div>
               <a href="{% url 'store:product_detail' product.slug %}" class="ml-product-title">{{ product.name }}</a>
               <div class="mb-2">
-                {% if product.has_discount %}
+                            {% if product.has_discount %}
                 <span class="ml-product-price-old">{{ product.price|pesos_colombianos }}</span>
                 <span class="ml-product-price">{{ product.promotional_price|pesos_colombianos }}</span>
-                {% else %}
+                            {% else %}
                 <span class="ml-product-price">{{ product.price|pesos_colombianos }}</span>
-                {% endif %}
+                            {% endif %}
                 {% if product.has_unit_price %}
                 <div class="small text-muted mt-1">
                   Contiene {{ product.unit_quantity_display }} ·
                   {{ product.price_per_unit|pesos_colombianos }}{{ product.unit_price_display_suffix }}
-                </div>
+                        </div>
                 {% endif %}
-              </div>
+                        </div>
               {% if product.stock > 0 %}
               <div class="ml-product-actions">
                 <button type="button"
@@ -222,23 +223,23 @@
                         data-product-stock="{{ product.stock }}"
                         data-product-cart-quantity="{{ product.cart_quantity }}"
                         {% if product.cart_quantity >= product.stock %}disabled style="opacity:0.6"{% endif %}>
-                  <i class="bi bi-cart-plus"></i> Agregar
-                </button>
+                                <i class="bi bi-cart-plus"></i> Agregar
+                            </button>
                 <a href="{% url 'store:product_detail' product.slug %}" class="ml-btn-secondary">Ver</a>
-              </div>
-              {% else %}
+                        </div>
+                        {% else %}
               <p class="text-muted small mb-0 mt-auto">Agotado</p>
-              {% endif %}
+                        {% endif %}
             </div>
           </article>
-        </div>
-        {% empty %}
+            </div>
+            {% empty %}
         <div class="col-12 text-center text-muted py-5">
           <p>No hay productos destacados disponibles.</p>
           <a href="{% url 'store:product_list' %}" class="ml-btn-primary">Ver catálogo</a>
+            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-      </div>
       <div class="text-center mt-5">
         <a href="{% url 'store:product_list' %}" class="ml-btn-secondary">
           Ver todos los productos <i class="bi bi-arrow-right"></i>
@@ -318,7 +319,7 @@
         </div>
       </div>
     </div>
-  </section>
+</section>
 
 </div>
 
@@ -371,7 +372,7 @@ document.addEventListener('DOMContentLoaded', function () {
           if (color) {
             cta.style.setProperty('--ml-product-accent', color);
             cta.style.background = color;
-          } else {
+            } else {
             cta.style.removeProperty('--ml-product-accent');
             cta.style.background = '';
           }
@@ -519,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function () {
               if (image) {
                 stageImg.src = image;
                 stageImg.style.display = '';
-              } else {
+            } else {
                 stageImg.removeAttribute('src');
                 stageImg.style.display = 'none';
               }
@@ -607,7 +608,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('cartItemUpdated', function (e) {
     const d = e.detail || {};
     if (d.productId) updateProductCardButtons(d.productId, d.cartQuantity, d.productStock);
-  });
+    });
 });
 </script>
 {% endblock %}

@@ -1591,25 +1591,102 @@ def staff_user_toggle_active(request, user_id):
 # Inventory views (staff only)
 @staff_member_required
 def inventory_dashboard(request):
-    """Inventory dashboard"""
+    """Inventory dashboard — secciones Venta y Alquiler."""
     # Cotizaciones ya aceptadas/pagadas que aún no restaron inventario
     _ensure_stock_deducted_for_committed_quotations()
 
-    total_products = Product.objects.count()
-    available_products = Product.objects.filter(available=True).count()
-    low_stock_products = Product.objects.filter(stock__lt=5, stock__gt=0).count()
-    out_of_stock_products = Product.objects.filter(stock=0).count()
-    products = Product.objects.all().order_by('-created_at')
-    paginator = Paginator(products, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
+    # Normalizar tipos legacy (insumo/desechable) a venta
+    Product.objects.filter(product_type__in=('supply', 'disposable')).update(product_type='sale')
+
+    sale_qs = Product.objects.exclude(product_type='rental')
+    rental_qs = Product.objects.filter(product_type='rental')
+
+    def _sale_stats(qs):
+        total = qs.count()
+        available = qs.filter(available=True).count()
+        low_stock = qs.filter(stock__lt=5, stock__gt=0).count()
+        out_of_stock = qs.filter(stock=0).count()
+        sale_value = Decimal('0.00')
+        cost_value = Decimal('0.00')
+        margins = []
+        for p in qs.only('price', 'promotional_price', 'purchase_cost', 'stock'):
+            stock = int(p.stock or 0)
+            if stock <= 0:
+                continue
+            sell = Decimal(str(p.selling_price or 0))
+            cost = Decimal(str(p.purchase_cost or 0))
+            sale_value += sell * stock
+            cost_value += cost * stock
+            if cost > 0:
+                margins.append(((sell - cost) / cost) * Decimal('100'))
+        profit = sale_value - cost_value
+        margin_pct = (profit / cost_value * Decimal('100')) if cost_value > 0 else Decimal('0.00')
+        avg_margin = (sum(margins) / Decimal(len(margins))) if margins else Decimal('0.00')
+        return {
+            'total': total,
+            'available': available,
+            'low_stock': low_stock,
+            'out_of_stock': out_of_stock,
+            'sale_value': sale_value,
+            'cost_value': cost_value,
+            'profit': profit,
+            'margin_pct': margin_pct,
+            'avg_margin_pct': avg_margin,
+        }
+
+    def _rental_stats(qs):
+        total = qs.count()
+        available = qs.filter(available=True).count()
+        unavailable = qs.filter(available=False).count()
+        units = qs.aggregate(s=Sum('stock'))['s'] or 0
+        commercial_value = Decimal('0.00')
+        cost_value = Decimal('0.00')
+        margins = []
+        for p in qs.only('rental_commercial_value', 'purchase_cost', 'stock'):
+            stock = int(p.stock or 0)
+            # Equipos: si stock es 0 pero existe el registro, contar 1 unidad de activo
+            units_count = stock if stock > 0 else 1
+            commercial = Decimal(str(p.rental_commercial_value or 0))
+            cost = Decimal(str(p.purchase_cost or 0))
+            commercial_value += commercial * units_count
+            cost_value += cost * units_count
+            if cost > 0 and commercial > 0:
+                margins.append(((commercial - cost) / cost) * Decimal('100'))
+        difference = commercial_value - cost_value
+        margin_pct = (
+            (difference / cost_value * Decimal('100')) if cost_value > 0 else Decimal('0.00')
+        )
+        avg_margin = (sum(margins) / Decimal(len(margins))) if margins else Decimal('0.00')
+        return {
+            'total': total,
+            'available': available,
+            'unavailable': unavailable,
+            'units': units,
+            'commercial_value': commercial_value,
+            'cost_value': cost_value,
+            'difference': difference,
+            'margin_pct': margin_pct,
+            'avg_margin_pct': avg_margin,
+        }
+
+    sale_stats = _sale_stats(sale_qs)
+    rental_stats = _rental_stats(rental_qs)
+
+    sale_products = sale_qs.select_related('category').order_by('-created_at')
+    rental_products = (
+        rental_qs.select_related('category')
+        .prefetch_related('rental_prices')
+        .order_by('-created_at')
+    )
+
+    sale_page_obj = Paginator(sale_products, 15).get_page(request.GET.get('sale_page'))
+    rental_page_obj = Paginator(rental_products, 15).get_page(request.GET.get('rental_page'))
+
     context = {
-        'total_products': total_products,
-        'available_products': available_products,
-        'low_stock_products': low_stock_products,
-        'out_of_stock_products': out_of_stock_products,
-        'page_obj': page_obj,
+        'sale_stats': sale_stats,
+        'rental_stats': rental_stats,
+        'sale_page_obj': sale_page_obj,
+        'rental_page_obj': rental_page_obj,
     }
     return render(request, 'store/inventory/dashboard.html', context)
 
@@ -2073,8 +2150,18 @@ def inventory_toggle_available(request, product_id):
     page = request.GET.get('page')
     if request.GET.get('next') == 'dashboard':
         url = reverse('store:inventory_dashboard')
-    else:
-        url = reverse('store:inventory_list')
+        params = []
+        sale_page = request.GET.get('sale_page')
+        rental_page = request.GET.get('rental_page')
+        if sale_page and sale_page != '1':
+            params.append(f'sale_page={sale_page}')
+        if rental_page and rental_page != '1':
+            params.append(f'rental_page={rental_page}')
+        if params:
+            url += '?' + '&'.join(params)
+        return redirect(url)
+
+    url = reverse('store:inventory_list')
     if page and page != '1':
         url += f'?page={page}'
     return redirect(url)
@@ -3838,10 +3925,35 @@ def _absolute_url(path_or_url: str, request=None) -> str:
     return value
 
 
+def _wa_money(amount) -> str:
+    """Formato simple de dinero para WhatsApp."""
+    try:
+        return f"${Decimal(amount):.2f}"
+    except Exception:
+        return f"${amount}"
+
+
+def _wa_build_message(title: str, lines: list[str], link: str = '') -> str:
+    """
+    Mensaje WhatsApp ordenado y minimalista.
+    El enlace va dentro del texto (no como campo link separado).
+    """
+    parts = [title.strip()] if title else []
+    for line in lines:
+        text = (line or '').strip()
+        if text:
+            parts.append(text)
+    url = (link or '').strip()
+    if url:
+        parts.append(url)
+    return "\n".join(parts)
+
+
 def _notify_whatsapp_n8n(*, message: str, link: str = '', phone: str = '', request=None) -> bool:
     """
     Envía notificación a WhatsApp vía webhook n8n.
-    Payload esperado por n8n: body.phone, body.link, body.message
+    El enlace se incluye dentro de `message` para un formato limpio
+    (sin preview / campo link separado).
     """
     try:
         settings_obj = SiteSettings.load()
@@ -3862,10 +3974,16 @@ def _notify_whatsapp_n8n(*, message: str, link: str = '', phone: str = '', reque
         logger.warning('[WA-N8N] Falta teléfono / Group ID destino')
         return False
 
+    absolute_link = _absolute_url(link, request=request) if link else ''
+    final_message = (message or '').strip()
+    if absolute_link and absolute_link not in final_message:
+        final_message = _wa_build_message(final_message, [], link=absolute_link)
+
     payload = {
         'phone': target,
-        'link': _absolute_url(link, request=request),
-        'message': (message or '').strip(),
+        # Vacío a propósito: el link ya va dentro de message (estilo pagos).
+        'link': '',
+        'message': final_message,
     }
     try:
         import requests
@@ -3878,29 +3996,30 @@ def _notify_whatsapp_n8n(*, message: str, link: str = '', phone: str = '', reque
 
 
 def _notify_wa_new_quotation(quote: Quotation, *, source: str = '', request=None) -> None:
-    """WhatsApp: nueva cotización (staff, cliente o checkout)."""
+    """WhatsApp: nueva cotización (formato minimalista)."""
     quote.sync_client_snapshot_from_profile(save=True)
-    items = list(quote.items.select_related('product')[:8])
+    items = list(quote.items.select_related('product')[:6])
     lines_items = []
     for it in items:
         name = getattr(it.product, 'name', 'Producto')
-        lines_items.append(f"• {name} x{it.quantity} = {it.subtotal}")
+        lines_items.append(f"• {name} x{it.quantity}")
     more = quote.items.count() - len(items)
     if more > 0:
-        lines_items.append(f"• … y {more} ítem(s) más")
+        lines_items.append(f"• … y {more} más")
 
     source_label = source or ('Cliente registrado' if quote.existing_client_id else 'Cotización')
-    message = "\n".join([
-        f"🧊 *Nueva cotización COT-{quote.id}*",
+    lines = [
+        f"COT-{quote.id}",
         f"Origen: {source_label}",
         f"Cliente: {quote.display_client_name or '—'}",
         f"Tel: {quote.display_client_phone or '—'}",
         f"Correo: {quote.display_client_email or '—'}",
-        f"Ubicación: {quote.display_client_departamento or '—'} · {quote.display_client_city or '—'}",
-        f"Total: ${quote.total}",
-        "Productos:",
-        *(lines_items or ['• Sin ítems']),
-    ])
+        f"Total: {_wa_money(quote.total)}",
+    ]
+    if lines_items:
+        lines.append("Productos:")
+        lines.extend(lines_items)
+
     link = ''
     if request is not None:
         try:
@@ -3909,11 +4028,13 @@ def _notify_wa_new_quotation(quote: Quotation, *, source: str = '', request=None
             link = f"/cotizaciones/{quote.id}/"
     else:
         link = f"/cotizaciones/{quote.id}/"
-    _notify_whatsapp_n8n(message=message, link=link, request=request)
+
+    message = _wa_build_message('🧊 *Nueva cotización*', lines, link=_absolute_url(link, request=request))
+    _notify_whatsapp_n8n(message=message, link='', request=request)
 
 
 def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia', request=None) -> None:
-    """WhatsApp: pago / referencia de cotización."""
+    """WhatsApp: pago / referencia de cotización (formato minimalista)."""
     quote.sync_client_snapshot_from_profile(save=True)
     if event == 'pago_recibido':
         title = '💳 *Pago total de cotización*'
@@ -3921,14 +4042,15 @@ def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia',
         title = '💵 *Pago parcial de cotización*'
     else:
         title = '📎 *Referencia de pago subida*'
-    message = "\n".join([
-        title,
+
+    lines = [
         f"COT-{quote.id}",
         f"Cliente: {quote.display_client_name or '—'}",
         f"Tel: {quote.display_client_phone or '—'}",
         f"Estado pedido: {quote.get_order_status_display()}",
-        f"Total: ${quote.total}",
-    ])
+        f"Total: {_wa_money(quote.total)}",
+    ]
+
     link = ''
     if request is not None:
         try:
@@ -3942,15 +4064,17 @@ def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia',
                 link = getattr(quote.payment_proof, 'url', link) or link
     else:
         link = f"/cotizaciones/{quote.id}/"
-    _notify_whatsapp_n8n(message=message, link=link, request=request)
+
+    message = _wa_build_message(title, lines, link=_absolute_url(link, request=request))
+    _notify_whatsapp_n8n(message=message, link='', request=request)
 
 
 def _notify_wa_finance_record(record: FinanceRecord, request=None) -> None:
-    """WhatsApp: gasto o pago registrado en caja."""
+    """WhatsApp: gasto o pago registrado en caja (formato minimalista)."""
     emoji = '📉' if record.record_type == 'gasto' else '📈'
+    title = f"{emoji} *{record.get_record_type_display()} registrado*"
     lines = [
-        f"{emoji} *{record.get_record_type_display()} registrado*",
-        f"Monto: ${record.amount}",
+        f"Monto: {_wa_money(record.amount)}",
         f"Categoría: {record.get_category_display()}",
         f"Descripción: {record.description}",
         f"Fecha: {record.recorded_at}",
@@ -3975,7 +4099,9 @@ def _notify_wa_finance_record(record: FinanceRecord, request=None) -> None:
                 link = getattr(record.receipt, 'url', link) or link
     else:
         link = '/manager/finanzas/'
-    _notify_whatsapp_n8n(message="\n".join(lines), link=link, request=request)
+
+    message = _wa_build_message(title, lines, link=_absolute_url(link, request=request))
+    _notify_whatsapp_n8n(message=message, link='', request=request)
 
 
 def _notify_telegram_new_quotation(quote: Quotation, is_registered: bool) -> None:

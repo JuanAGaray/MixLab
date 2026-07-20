@@ -29,12 +29,10 @@ class Category(models.Model):
 
 
 class Product(models.Model):
-    """Products for sale, rental, supplies, and disposables"""
+    """Products for sale or rental."""
     PRODUCT_TYPE_CHOICES = [
         ('sale', 'Venta'),
         ('rental', 'Alquiler'),
-        ('supply', 'Insumo'),
-        ('disposable', 'Desechable'),
     ]
 
     name = models.CharField(max_length=200, verbose_name='Nombre')
@@ -170,9 +168,25 @@ class Product(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
+        self.slug = self._ensure_valid_unique_slug()
         super().save(*args, **kwargs)
+
+    def _ensure_valid_unique_slug(self) -> str:
+        """Normaliza el slug (sin espacios) y evita colisiones."""
+        import re
+
+        base = slugify(self.slug or self.name) or slugify(self.name) or 'producto'
+        # Defensa extra: solo caracteres válidos para la URL
+        base = re.sub(r'[^a-zA-Z0-9_-]+', '-', base).strip('-_') or 'producto'
+        slug = base
+        qs = Product.objects.all()
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        counter = 1
+        while qs.filter(slug=slug).exists():
+            slug = f'{base}-{counter}'
+            counter += 1
+        return slug
 
     @property
     def in_stock(self):

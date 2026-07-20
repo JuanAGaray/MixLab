@@ -1679,6 +1679,20 @@ section {
     }
 }
 
+.product-card-media {
+    display: block;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+.product-card-img-mobile {
+    height: 180px !important;
+    width: 100% !important;
+    object-fit: contain !important;
+    object-position: center !important;
+    background: #f8fafc;
+}
+
 @media (min-width: 768px) {
     .product-card-img-mobile {
         height: 200px !important;

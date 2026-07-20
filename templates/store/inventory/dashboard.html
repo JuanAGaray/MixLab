@@ -6,6 +6,42 @@
 
 {% block extra_css %}
 <style>
+.inv-section {
+    margin-bottom: 2.5rem;
+}
+.inv-section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+.inv-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+.inv-section-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+}
+.inv-section-badge.is-sale {
+    background: #e8f1ff;
+    color: #0F6FFF;
+}
+.inv-section-badge.is-rental {
+    background: #f3e8ff;
+    color: #7c3aed;
+}
+
 .stat-bar {
     display: flex;
     flex-direction: row;
@@ -14,7 +50,7 @@
     align-items: center;
     padding: 0.75rem 0;
     border-bottom: 1px solid #dee2e6;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 .stat-item {
     display: flex;
@@ -23,6 +59,52 @@
 }
 .stat-item .stat-value { font-size: 1.25rem; font-weight: 600; }
 .stat-item .stat-label { font-size: 0.8rem; color: #6c757d; }
+
+.money-bar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+.money-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.money-card .money-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 0.2rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.money-card .money-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+}
+.money-card .money-hint {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-top: 0.2rem;
+}
+.money-card.is-profit .money-value { color: #15803d; }
+.money-card.is-cost .money-value { color: #b45309; }
+.money-card.is-sale .money-value { color: #0F6FFF; }
+.money-card.is-margin .money-value { color: #7c3aed; }
+.money-card.is-commercial .money-value { color: #0369a1; }
+
+@media (max-width: 991.98px) {
+    .money-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575.98px) {
+    .money-bar { grid-template-columns: 1fr; }
+}
 
 .inv-table td, .inv-table th { vertical-align: middle !important; }
 .inv-table tbody tr { position: relative; }
@@ -46,147 +128,332 @@
 
 {% block content %}
 <div class="container my-5">
-    <h2 class="h5 mb-4 fw-normal text-muted">Inventario</h2>
-
-    <!-- Statistics -->
-    <div class="stat-bar">
-        <div class="stat-item">
-            <span class="stat-value">{{ total_products }}</span>
-            <span class="stat-label">Total</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value">{{ available_products }}</span>
-            <span class="stat-label">Disponibles</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value">{{ low_stock_products }}</span>
-            <span class="stat-label">Stock bajo</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value">{{ out_of_stock_products }}</span>
-            <span class="stat-label">Agotados</span>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <h2 class="h5 mb-0 fw-normal text-muted">Inventario</h2>
+        <div class="d-flex gap-2">
+            <a href="{% url 'store:inventory_list' %}" class="btn btn-sm btn-outline-secondary">Ver todos</a>
+            <a href="{% url 'store:inventory_create' %}" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus"></i> Nuevo producto
+            </a>
         </div>
     </div>
 
-    <!-- Products Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <a href="{% url 'store:inventory_list' %}" class="text-muted small text-decoration-none">Ver todos</a>
-                <a href="{% url 'store:inventory_create' %}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-plus"></i> Nuevo producto
-                </a>
+    {# ─────────── VENTA ─────────── #}
+    <section class="inv-section" id="venta">
+        <div class="inv-section-header">
+            <h3 class="inv-section-title">
+                <i class="bi bi-bag-check text-primary"></i>
+                Productos de venta
+                <span class="inv-section-badge is-sale">Venta</span>
+            </h3>
+        </div>
+
+        <div class="stat-bar">
+            <div class="stat-item">
+                <span class="stat-value">{{ sale_stats.total }}</span>
+                <span class="stat-label">Total</span>
             </div>
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 inv-table">
-                            <thead class="small text-muted">
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Categoría</th>
-                                    <th>Stock</th>
-                                    <th>Costo compra</th>
-                                    <th>Precio venta</th>
-                                    <th>Estado</th>
-                                    <th style="width: 1px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for product in page_obj %}
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            {% if product.image %}
-                                            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
-                                            {% else %}
-                                            <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
-                                                <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
-                                            </div>
-                                            {% endif %}
-                                            <div>
-                                                <a href="{% url 'store:inventory_detail' product.id %}" class="text-decoration-none text-dark fw-medium">{{ product.name }}</a>
-                                                <br>
-                                                <small class="text-muted">{{ product.get_product_type_display }}</small>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="small">{{ product.category.name }}</td>
-                                    <td class="small">
-                                        {% if product.stock < 5 %}
-                                        <span class="stock-low">{{ product.stock }}</span>
+            <div class="stat-item">
+                <span class="stat-value">{{ sale_stats.available }}</span>
+                <span class="stat-label">Disponibles</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ sale_stats.low_stock }}</span>
+                <span class="stat-label">Stock bajo</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ sale_stats.out_of_stock }}</span>
+                <span class="stat-label">Agotados</span>
+            </div>
+        </div>
+
+        <div class="money-bar">
+            <div class="money-card is-sale">
+                <span class="money-label">Total en inventario</span>
+                <div class="money-value">{{ sale_stats.sale_value|pesos_colombianos }}</div>
+                <div class="money-hint">Precio de venta × stock</div>
+            </div>
+            <div class="money-card is-cost">
+                <span class="money-label">Total de costo</span>
+                <div class="money-value">{{ sale_stats.cost_value|pesos_colombianos }}</div>
+                <div class="money-hint">Costo de compra × stock</div>
+            </div>
+            <div class="money-card is-profit">
+                <span class="money-label">Utilidad aproximada</span>
+                <div class="money-value">{{ sale_stats.profit|pesos_colombianos }}</div>
+                <div class="money-hint">Venta − costo del stock</div>
+            </div>
+            <div class="money-card is-margin">
+                <span class="money-label">Margen promedio total</span>
+                <div class="money-value">{{ sale_stats.margin_pct|floatformat:1 }}%</div>
+                <div class="money-hint">Sobre costo · promedio {{ sale_stats.avg_margin_pct|floatformat:1 }}%</div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 inv-table">
+                        <thead class="small text-muted">
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Categoría</th>
+                                <th>Stock</th>
+                                <th>Costo compra</th>
+                                <th>Precio venta</th>
+                                <th>Estado</th>
+                                <th style="width: 1px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in sale_page_obj %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if product.image %}
+                                        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
                                         {% else %}
-                                        {{ product.stock }}
-                                        {% endif %}
-                                    </td>
-                                    <td class="small">{{ product.purchase_cost|pesos_colombianos }}</td>
-                                    <td class="small">
-                                        {% if product.has_discount %}
-                                        <span class="text-decoration-line-through text-muted">{{ product.price|pesos_colombianos }}</span>
-                                        <span class="text-primary">{{ product.promotional_price|pesos_colombianos }}</span>
-                                        <small class="text-danger">-{{ product.discount_percentage }}%</small>
-                                        {% else %}
-                                        {{ product.price|pesos_colombianos }}
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <form action="{% url 'store:inventory_toggle_available' product.id %}" method="get" class="d-inline">
-                                            <input type="hidden" name="next" value="dashboard">
-                                            {% if request.GET.page %}<input type="hidden" name="page" value="{{ request.GET.page }}">{% endif %}
-                                            <div class="form-check form-switch mb-0">
-                                                <input class="form-check-input" type="checkbox" {% if product.available %}checked{% endif %} onchange="this.form.submit()" title="Activar/Desactivar">
-                                            </div>
-                                        </form>
-                                    </td>
-                                    <td class="text-end" style="min-width: 100px;">
-                                        <div class="row-actions d-inline-flex align-items-center justify-content-end">
-                                            <a href="{% url 'store:inventory_detail' product.id %}" class="btn btn-light btn-sm" title="Ver">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{% url 'store:inventory_edit' product.id %}" class="btn btn-light btn-sm" title="Modificar">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                            <a href="{% url 'store:inventory_duplicate' product.id %}" class="btn btn-light btn-sm" title="Duplicar">
-                                                <i class="bi bi-copy"></i>
-                                            </a>
-                                            <a href="{% url 'store:inventory_delete' product.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar">
-                                                <i class="bi bi-trash"></i>
-                                            </a>
+                                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                            <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
                                         </div>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        No hay productos. <a href="{% url 'store:inventory_create' %}">Crear producto</a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% if page_obj.has_other_pages %}
-                    <nav class="p-3 border-top">
-                        <ul class="pagination pagination-sm mb-0 justify-content-center">
-                            {% if page_obj.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
-                            </li>
-                            {% endif %}
-                            <li class="page-item disabled">
-                                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-                            </li>
-                            {% if page_obj.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </nav>
-                    {% endif %}
+                                        {% endif %}
+                                        <a href="{% url 'store:inventory_detail' product.id %}" class="text-decoration-none text-dark fw-medium">{{ product.name }}</a>
+                                    </div>
+                                </td>
+                                <td class="small">{{ product.category.name }}</td>
+                                <td class="small">
+                                    {% if product.stock < 5 %}
+                                    <span class="stock-low">{{ product.stock }}</span>
+                                    {% else %}
+                                    {{ product.stock }}
+                                    {% endif %}
+                                </td>
+                                <td class="small">{{ product.purchase_cost|pesos_colombianos }}</td>
+                                <td class="small">
+                                    {% if product.has_discount %}
+                                    <span class="text-decoration-line-through text-muted">{{ product.price|pesos_colombianos }}</span>
+                                    <span class="text-primary">{{ product.promotional_price|pesos_colombianos }}</span>
+                                    <small class="text-danger">-{{ product.discount_percentage }}%</small>
+                                    {% else %}
+                                    {{ product.price|pesos_colombianos }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form action="{% url 'store:inventory_toggle_available' product.id %}" method="get" class="d-inline">
+                                        <input type="hidden" name="next" value="dashboard">
+                                        {% if request.GET.sale_page %}<input type="hidden" name="sale_page" value="{{ request.GET.sale_page }}">{% endif %}
+                                        {% if request.GET.rental_page %}<input type="hidden" name="rental_page" value="{{ request.GET.rental_page }}">{% endif %}
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" {% if product.available %}checked{% endif %} onchange="this.form.submit()" title="Activar/Desactivar">
+                                        </div>
+                                    </form>
+                                </td>
+                                <td class="text-end" style="min-width: 100px;">
+                                    <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                                        <a href="{% url 'store:inventory_detail' product.id %}" class="btn btn-light btn-sm" title="Ver"><i class="bi bi-eye"></i></a>
+                                        <a href="{% url 'store:inventory_edit' product.id %}" class="btn btn-light btn-sm" title="Modificar"><i class="bi bi-pencil"></i></a>
+                                        <a href="{% url 'store:inventory_duplicate' product.id %}" class="btn btn-light btn-sm" title="Duplicar"><i class="bi bi-copy"></i></a>
+                                        <a href="{% url 'store:inventory_delete' product.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar"><i class="bi bi-trash"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    No hay productos de venta. <a href="{% url 'store:inventory_create' %}">Crear producto</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
+                {% if sale_page_obj.has_other_pages %}
+                <nav class="p-3 border-top">
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        {% if sale_page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?sale_page={{ sale_page_obj.previous_page_number }}{% if request.GET.rental_page %}&rental_page={{ request.GET.rental_page }}{% endif %}#venta">Anterior</a>
+                        </li>
+                        {% endif %}
+                        <li class="page-item disabled">
+                            <span class="page-link">{{ sale_page_obj.number }} / {{ sale_page_obj.paginator.num_pages }}</span>
+                        </li>
+                        {% if sale_page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?sale_page={{ sale_page_obj.next_page_number }}{% if request.GET.rental_page %}&rental_page={{ request.GET.rental_page }}{% endif %}#venta">Siguiente</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
             </div>
         </div>
-    </div>
+    </section>
+
+    {# ─────────── ALQUILER ─────────── #}
+    <section class="inv-section" id="alquiler">
+        <div class="inv-section-header">
+            <h3 class="inv-section-title">
+                <i class="bi bi-tools" style="color:#7c3aed;"></i>
+                Equipos de alquiler
+                <span class="inv-section-badge is-rental">Alquiler</span>
+            </h3>
+        </div>
+
+        <div class="stat-bar">
+            <div class="stat-item">
+                <span class="stat-value">{{ rental_stats.total }}</span>
+                <span class="stat-label">Equipos</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ rental_stats.available }}</span>
+                <span class="stat-label">Disponibles</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ rental_stats.unavailable }}</span>
+                <span class="stat-label">No disponibles</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ rental_stats.units }}</span>
+                <span class="stat-label">Unidades (stock)</span>
+            </div>
+        </div>
+
+        <div class="money-bar">
+            <div class="money-card is-commercial">
+                <span class="money-label">Valor comercial total</span>
+                <div class="money-value">{{ rental_stats.commercial_value|pesos_colombianos }}</div>
+                <div class="money-hint">Valor comercial × unidades</div>
+            </div>
+            <div class="money-card is-cost">
+                <span class="money-label">Costo de adquisición</span>
+                <div class="money-value">{{ rental_stats.cost_value|pesos_colombianos }}</div>
+                <div class="money-hint">Costo de compra × unidades</div>
+            </div>
+            <div class="money-card is-profit">
+                <span class="money-label">Diferencia (activo)</span>
+                <div class="money-value">{{ rental_stats.difference|pesos_colombianos }}</div>
+                <div class="money-hint">Valor comercial − costo</div>
+            </div>
+            <div class="money-card is-margin">
+                <span class="money-label">Margen sobre costo</span>
+                <div class="money-value">{{ rental_stats.margin_pct|floatformat:1 }}%</div>
+                <div class="money-hint">Promedio por equipo {{ rental_stats.avg_margin_pct|floatformat:1 }}%</div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 inv-table">
+                        <thead class="small text-muted">
+                            <tr>
+                                <th>Equipo</th>
+                                <th>Categoría</th>
+                                <th>Stock</th>
+                                <th>Costo</th>
+                                <th>Valor comercial</th>
+                                <th>Tarifas</th>
+                                <th>Estado</th>
+                                <th style="width: 1px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in rental_page_obj %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if product.image %}
+                                        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
+                                        {% else %}
+                                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                            <i class="bi bi-image text-muted" style="font-size: 0.7rem;"></i>
+                                        </div>
+                                        {% endif %}
+                                        <div>
+                                            <a href="{% url 'store:inventory_detail' product.id %}" class="text-decoration-none text-dark fw-medium">{{ product.name }}</a>
+                                            {% if product.rental_brand or product.rental_model %}
+                                            <br><small class="text-muted">{{ product.rental_brand }} {% if product.rental_model %}· {{ product.rental_model }}{% endif %}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="small">{{ product.category.name }}</td>
+                                <td class="small">{{ product.stock }}</td>
+                                <td class="small">{{ product.purchase_cost|pesos_colombianos }}</td>
+                                <td class="small">
+                                    {% if product.rental_commercial_value %}
+                                    {{ product.rental_commercial_value|pesos_colombianos }}
+                                    {% else %}
+                                    <span class="text-warning">Sin valor</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">
+                                    {% with tariffs=product.rental_prices.all %}
+                                    {% if tariffs %}
+                                        {% for tariff in tariffs %}
+                                        {% if forloop.counter <= 2 %}
+                                        <div>{{ tariff.get_period_type_display }}: {{ tariff.price|pesos_colombianos }}</div>
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% if tariffs|length > 2 %}
+                                        <small class="text-muted">+{{ tariffs|length|add:"-2" }} más</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-warning">Sin tarifas</span>
+                                    {% endif %}
+                                    {% endwith %}
+                                </td>
+                                <td>
+                                    <form action="{% url 'store:inventory_toggle_available' product.id %}" method="get" class="d-inline">
+                                        <input type="hidden" name="next" value="dashboard">
+                                        {% if request.GET.sale_page %}<input type="hidden" name="sale_page" value="{{ request.GET.sale_page }}">{% endif %}
+                                        {% if request.GET.rental_page %}<input type="hidden" name="rental_page" value="{{ request.GET.rental_page }}">{% endif %}
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" {% if product.available %}checked{% endif %} onchange="this.form.submit()" title="Activar/Desactivar">
+                                        </div>
+                                    </form>
+                                </td>
+                                <td class="text-end" style="min-width: 100px;">
+                                    <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                                        <a href="{% url 'store:inventory_detail' product.id %}" class="btn btn-light btn-sm" title="Ver"><i class="bi bi-eye"></i></a>
+                                        <a href="{% url 'store:inventory_edit' product.id %}" class="btn btn-light btn-sm" title="Modificar"><i class="bi bi-pencil"></i></a>
+                                        <a href="{% url 'store:inventory_duplicate' product.id %}" class="btn btn-light btn-sm" title="Duplicar"><i class="bi bi-copy"></i></a>
+                                        <a href="{% url 'store:inventory_delete' product.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar"><i class="bi bi-trash"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    No hay equipos de alquiler. <a href="{% url 'store:inventory_create' %}">Crear equipo</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if rental_page_obj.has_other_pages %}
+                <nav class="p-3 border-top">
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        {% if rental_page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?rental_page={{ rental_page_obj.previous_page_number }}{% if request.GET.sale_page %}&sale_page={{ request.GET.sale_page }}{% endif %}#alquiler">Anterior</a>
+                        </li>
+                        {% endif %}
+                        <li class="page-item disabled">
+                            <span class="page-link">{{ rental_page_obj.number }} / {{ rental_page_obj.paginator.num_pages }}</span>
+                        </li>
+                        {% if rental_page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?rental_page={{ rental_page_obj.next_page_number }}{% if request.GET.sale_page %}&sale_page={{ request.GET.sale_page }}{% endif %}#alquiler">Siguiente</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </section>
 </div>
 {% endblock %}

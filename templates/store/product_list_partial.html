@@ -38,9 +38,9 @@
             <div class="card product-card h-100" style="border: 1px solid var(--gray-200); box-shadow: var(--shadow-lg);">
                 <a href="{% if product.is_rental %}{% url 'rentals:rental_detail' product.id %}{% else %}{% url 'store:product_detail' product.slug %}{% endif %}" class="product-card-media" style="text-decoration: none; color: inherit;">
                     {% if product.image %}
-                    <img src="{{ product.image.url }}" class="card-img-top product-card-img-mobile" alt="{{ product.name }}" style="height: 160px; object-fit: contain; object-position: center; background: #f8fafc;">
+                    <img src="{{ product.image.url }}" class="card-img-top product-card-img-mobile" alt="{{ product.name }}" loading="lazy" decoding="async" width="400" height="200" style="height: 180px; width: 100%; object-fit: contain; object-position: center; background: #f8fafc;">
                     {% else %}
-                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center product-card-img-mobile" style="height: 160px;">
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center product-card-img-mobile" style="height: 180px;">
                         <i class="bi bi-image" style="font-size: 2rem; color: var(--gray-400);"></i>
                     </div>
                     {% endif %}

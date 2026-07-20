@@ -230,6 +230,11 @@ def normatividad(request):
     return render(request, 'store/normatividad.html')
 
 
+def alianza_biztra(request):
+    """Página de alianza MixLab × Biztra."""
+    return render(request, 'store/alianza_biztra.html')
+
+
 def product_list(request):
     """Catálogo de productos (tienda) con filtros y ordenamiento."""
     products = Product.objects.filter(available=True)

@@ -8,6 +8,7 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('privacy/', views.privacy_policy, name='privacy_policy'),
     path('normatividad/', views.normatividad, name='normatividad'),
+    path('alianza-biztra/', views.alianza_biztra, name='alianza_biztra'),
     path('products/', views.product_list, name='product_list'),
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
     path('calculadora/', views.water_calculator, name='water_calculator'),

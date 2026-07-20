@@ -8,7 +8,11 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('privacy/', views.privacy_policy, name='privacy_policy'),
     path('normatividad/', views.normatividad, name='normatividad'),
-    path('alianza-biztra/', views.alianza_biztra, name='alianza_biztra'),
+    path('alianza/', views.alianzas, name='alianzas'),
+    path('alianza/biztra/', views.alianza_biztra, name='alianza_biztra'),
+    path('alianza/drinzz/', views.alianza_drinzz, name='alianza_drinzz'),
+    path('alianza/drinzz/contrato.pdf', views.drinzz_contract_pdf, name='drinzz_contract_pdf'),
+    path('alianza-biztra/', views.alianza_biztra, name='alianza_biztra_legacy'),
     path('products/', views.product_list, name='product_list'),
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
     path('calculadora/', views.water_calculator, name='water_calculator'),
@@ -103,6 +107,7 @@ urlpatterns = [
     path('inventory/calculadora/<int:item_id>/editar/', views.dilution_product_edit, name='dilution_product_edit'),
     path('inventory/calculadora/<int:item_id>/eliminar/', views.dilution_product_delete, name='dilution_product_delete'),
 
-    # Configuración del sitio (contacto, redes, WA)
+    # Configuración del sitio (contacto, redes, WA) y contrato Drinzz
     path('inventory/configuracion-sitio/', views.site_settings_edit, name='site_settings_edit'),
+    path('inventory/contrato-drinzz/', views.drinzz_contract_edit, name='drinzz_contract_edit'),
 ]

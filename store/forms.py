@@ -9,6 +9,7 @@ from .models import (
     PaymentMethod,
     FinanceRecord,
     Quotation,
+    DrinzzContractConfig,
 )
 from accounts.forms import CustomUserCreationForm
 
@@ -920,3 +921,84 @@ class CompanyNameForm(forms.Form):
             'placeholder': 'MIXLAB SAS',
         }),
     )
+
+
+class DrinzzContractConfigForm(forms.ModelForm):
+    """Edición del contrato marco Drinzz (admin)."""
+
+    class Meta:
+        model = DrinzzContractConfig
+        fields = (
+            'operator_brand',
+            'operator_legal_name',
+            'operator_nit',
+            'operator_address',
+            'operator_city',
+            'operator_rep_name',
+            'associate_pct_month1',
+            'operator_pct_month1',
+            'associate_pct',
+            'operator_pct',
+            'billing_threshold',
+            'maintain_bonus_pct',
+            'expenses_assumed',
+            'provides_operators',
+            'estimated_income_min',
+            'estimated_income_max',
+            'contract_duration_months',
+            'renewal_auto',
+            'termination_notice_days',
+            'settlement_days',
+            'jurisdiction_city',
+            'object_clause',
+            'associate_obligations',
+            'operator_obligations',
+            'transparency_clause',
+            'additional_clauses',
+            'disclaimer_income',
+            'version_label',
+            'is_published',
+        )
+        widgets = {
+            'operator_brand': forms.TextInput(attrs={'class': 'form-control'}),
+            'operator_legal_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'operator_nit': forms.TextInput(attrs={'class': 'form-control'}),
+            'operator_address': forms.TextInput(attrs={'class': 'form-control'}),
+            'operator_city': forms.TextInput(attrs={'class': 'form-control'}),
+            'operator_rep_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'associate_pct_month1': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'operator_pct_month1': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'associate_pct': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'operator_pct': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'billing_threshold': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'maintain_bonus_pct': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'expenses_assumed': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'provides_operators': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'estimated_income_min': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'estimated_income_max': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'contract_duration_months': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'renewal_auto': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'termination_notice_days': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'settlement_days': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'jurisdiction_city': forms.TextInput(attrs={'class': 'form-control'}),
+            'object_clause': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'associate_obligations': forms.Textarea(attrs={'class': 'form-control', 'rows': 6}),
+            'operator_obligations': forms.Textarea(attrs={'class': 'form-control', 'rows': 6}),
+            'transparency_clause': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'additional_clauses': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'disclaimer_income': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'version_label': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_published': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        a = cleaned.get('associate_pct')
+        o = cleaned.get('operator_pct')
+        if a is not None and o is not None and (a + o) != 100:
+            self.add_error('operator_pct', 'La suma del reparto por meta debe ser 100%.')
+        a1 = cleaned.get('associate_pct_month1')
+        o1 = cleaned.get('operator_pct_month1')
+        if a1 is not None and o1 is not None and (a1 + o1) != 100:
+            self.add_error('operator_pct_month1', 'La suma del reparto del primer mes debe ser 100%.')
+        return cleaned

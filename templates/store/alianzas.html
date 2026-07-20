@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Alianzas - MixLab{% endblock %}
+{% block meta_description %}Conoce las alianzas estratégicas de MixLab para impulsar tu negocio con más beneficios y herramientas.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .al-page {
+    --al-navy: #0b1f3a;
+    --al-teal: #2ec4b6;
+    --al-ink: #0f172a;
+    --al-muted: #64748b;
+  }
+  .al-hero {
+    background: linear-gradient(135deg, #0b1f3a 0%, #12325a 55%, #0f2748 100%);
+    color: #fff;
+    border-radius: 1.25rem;
+    padding: 2rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (min-width: 768px) {
+    .al-hero { padding: 2.35rem 2.25rem; }
+  }
+  .al-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(46, 196, 182, 0.22);
+    border: 1px solid rgba(159, 240, 230, 0.55);
+    color: #d8fffa;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    margin-bottom: 0.85rem;
+  }
+  .al-hero h1 {
+    font-size: clamp(1.55rem, 3.5vw, 2.15rem);
+    font-weight: 800;
+    margin-bottom: 0.55rem;
+    color: #ffffff !important;
+  }
+  .al-hero p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.92);
+    max-width: 36rem;
+  }
+
+  .al-list {
+    display: grid;
+    gap: 1rem;
+  }
+  .al-card {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid #dbe4ef;
+    border-radius: 1.15rem;
+    padding: 1.15rem 1.2rem;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .al-card:hover {
+    transform: translateY(-2px);
+    border-color: #2ec4b6;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+    color: inherit;
+  }
+  .al-card-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    background: #f8fafc;
+    color: #0b1f3a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+  .al-card-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 0.4rem;
+    display: block;
+  }
+  .al-card-icon.is-biztra {
+    background: #ffffff;
+    border-color: #dbe4ef;
+  }
+  .al-card-icon.is-drinzz {
+    background: #ffffff;
+    border-color: #e2e8f0;
+  }
+  .al-card-body { flex: 1; min-width: 0; }
+  .al-card-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
+    margin-bottom: 0.25rem;
+  }
+  .al-card-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #0b1f3a;
+    margin: 0;
+  }
+  .al-card-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: #d9f7f3;
+    color: #0f766e;
+    border: 1px solid #99e6de;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+  }
+  .al-card-tagline {
+    color: #334155;
+    font-size: 0.92rem;
+    margin: 0 0 0.45rem;
+  }
+  .al-card-benefit {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #0b1f3a;
+    margin: 0;
+  }
+  .al-card-arrow {
+    align-self: center;
+    color: #0b1f3a;
+    font-size: 1.15rem;
+    opacity: 0.75;
+  }
+  .al-card:hover .al-card-arrow {
+    color: #0f766e;
+    opacity: 1;
+  }
+
+  .al-empty {
+    text-align: center;
+    color: #475569;
+    padding: 2rem 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5 al-page">
+  <section class="al-hero">
+    <div class="al-hero-badge"><i class="bi bi-handshake"></i> Alianzas MixLab</div>
+    <h1>Nuestras alianzas</h1>
+    <p>
+      Trabajamos con aliados estratégicos para darte más beneficios,
+      herramientas y crecimiento en tu negocio.
+    </p>
+  </section>
+
+  <div class="al-list">
+    {% for alliance in alliances %}
+    <a href="{% url alliance.url_name %}" class="al-card">
+      <span class="al-card-icon{% if alliance.slug == 'biztra' %} is-biztra{% elif alliance.slug == 'drinzz' %} is-drinzz{% endif %}">
+        {% if alliance.logo %}
+        <img src="{% static alliance.logo %}" alt="{{ alliance.name }}" loading="lazy" decoding="async">
+        {% else %}
+        <i class="bi {{ alliance.icon }}"></i>
+        {% endif %}
+      </span>
+      <div class="al-card-body">
+        <div class="al-card-top">
+          <h2 class="al-card-name">{{ alliance.name }}</h2>
+          {% if alliance.badge %}
+          <span class="al-card-badge">{{ alliance.badge }}</span>
+          {% endif %}
+        </div>
+        <p class="al-card-tagline">{{ alliance.tagline }}</p>
+        {% if alliance.benefit %}
+        <p class="al-card-benefit"><i class="bi bi-gift me-1"></i>{{ alliance.benefit }}</p>
+        {% endif %}
+      </div>
+      <span class="al-card-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% empty %}
+    <div class="al-empty">Pronto anunciaremos nuevas alianzas.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

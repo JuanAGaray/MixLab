@@ -1573,3 +1573,213 @@ class PromoBanner(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class DrinzzContractConfig(models.Model):
+    """
+    Contrato marco de colaboración operativa Drinzz (singleton).
+    Editable por admin: términos comerciales y cláusulas adicionales.
+    """
+
+    operator_brand = models.CharField(
+        max_length=120,
+        default='Drinzz',
+        verbose_name='Marca del operador',
+    )
+    operator_legal_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='MIXLAB SAS',
+        verbose_name='Razón social del operador',
+        help_text='Persona jurídica que opera/representa el modelo Drinzz.',
+    )
+    operator_nit = models.CharField(
+        max_length=40,
+        blank=True,
+        default='902031074-1',
+        verbose_name='NIT del operador',
+    )
+    operator_address = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Dirección del operador',
+    )
+    operator_city = models.CharField(
+        max_length=100,
+        blank=True,
+        default='Cartagena',
+        verbose_name='Ciudad del operador',
+    )
+    operator_rep_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Representante legal del operador',
+    )
+    associate_pct = models.PositiveIntegerField(
+        default=30,
+        verbose_name='% utilidades asociado (meta facturación)',
+        help_text='Porcentaje del asociado cuando la facturación mensual supera el umbral.',
+    )
+    operator_pct = models.PositiveIntegerField(
+        default=70,
+        verbose_name='% utilidades operador (meta facturación)',
+        help_text='Porcentaje del operador cuando la facturación mensual supera el umbral.',
+    )
+    associate_pct_month1 = models.PositiveIntegerField(
+        default=20,
+        verbose_name='% utilidades asociado (primer mes)',
+    )
+    operator_pct_month1 = models.PositiveIntegerField(
+        default=80,
+        verbose_name='% utilidades operador (primer mes)',
+    )
+    billing_threshold = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('6000000.00'),
+        verbose_name='Umbral de facturación mensual (COP)',
+        help_text='Facturación mensual a partir de la cual aplica el reparto 30/70.',
+    )
+    maintain_bonus_pct = models.PositiveIntegerField(
+        default=10,
+        verbose_name='% bonificación por mantener meta',
+        help_text='Si se mantiene facturación sobre el umbral en meses siguientes, la liquidación del asociado sube este porcentaje.',
+    )
+    expenses_assumed = models.TextField(
+        default='Luz (consumo eléctrico del punto), insumos (bases, vasos, tapas y consumibles) y alquiler conforme al esquema del punto.',
+        verbose_name='Gastos asumidos por el operador',
+    )
+    provides_operators = models.BooleanField(
+        default=True,
+        verbose_name='El operador puede colocar personal operador',
+    )
+    estimated_income_min = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('500000.00'),
+        verbose_name='Ingreso estimado mínimo asociado (COP)',
+    )
+    estimated_income_max = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('3500000.00'),
+        verbose_name='Ingreso estimado máximo asociado (COP)',
+    )
+    contract_duration_months = models.PositiveIntegerField(
+        default=12,
+        verbose_name='Duración inicial (meses)',
+    )
+    renewal_auto = models.BooleanField(
+        default=True,
+        verbose_name='Renovación automática',
+    )
+    termination_notice_days = models.PositiveIntegerField(
+        default=30,
+        verbose_name='Días de preaviso para terminación',
+    )
+    settlement_days = models.PositiveIntegerField(
+        default=10,
+        verbose_name='Días hábiles para liquidación de utilidades',
+        help_text='Plazo para liquidar y pagar utilidades del periodo.',
+    )
+    jurisdiction_city = models.CharField(
+        max_length=100,
+        default='Cartagena',
+        verbose_name='Ciudad de jurisdicción',
+    )
+    object_clause = models.TextField(
+        verbose_name='Cláusula de objeto',
+        default=(
+            'El presente contrato tiene por objeto establecer una colaboración operativa '
+            'para la instalación, puesta en marcha y explotación de un punto de venta de '
+            'granizados (bebidas congeladas) dentro de un local comercial del ASOCIADO, '
+            'bajo la marca y modelo operativo Drinzz. El OPERADOR aporta la infraestructura, '
+            'insumos y operación; el ASOCIADO aporta el espacio físico y el flujo de clientes '
+            'del establecimiento.'
+        ),
+    )
+    associate_obligations = models.TextField(
+        verbose_name='Obligaciones del asociado',
+        default=(
+            '1) Facilitar un espacio adecuado, seguro y visible dentro del local para el punto.\n'
+            '2) Permitir el acceso del OPERADOR y su personal para instalación, reposición, '
+            'mantenimiento y operación.\n'
+            '3) No interferir en la operación diaria ni en la calidad del producto.\n'
+            '4) Informar de inmediato cualquier daño, hurto, falla o incidente.\n'
+            '5) Abstenerse de comercializar productos competidores de granizados en el mismo '
+            'espacio durante la vigencia, salvo autorización escrita del OPERADOR.'
+        ),
+    )
+    operator_obligations = models.TextField(
+        verbose_name='Obligaciones del operador',
+        default=(
+            '1) Instalar y mantener la infraestructura del punto de granizados.\n'
+            '2) Asumir los gastos de luz, insumos y alquiler conforme al esquema pactado.\n'
+            '3) Proveer operadores cuando se acuerde para la atención del punto.\n'
+            '4) Reponer insumos y garantizar continuidad operativa razonable.\n'
+            '5) Registrar compras, gastos y ventas del punto de forma automatizada en Biztra, '
+            'garantizando transparencia total en la información operativa y financiera.\n'
+            '6) Liquidar utilidades en los plazos acordados con base en los registros del sistema.'
+        ),
+    )
+    transparency_clause = models.TextField(
+        verbose_name='Cláusula de transparencia (Biztra)',
+        default=(
+            'Todas las compras, gastos y ventas del punto se registrarán de manera automatizada '
+            'a través de la plataforma Biztra, con el fin de garantizar total transparencia '
+            'frente al ASOCIADO. El ASOCIADO podrá conocer, conforme a los accesos y reportes '
+            'habilitados, la información de ventas, costos y liquidaciones del punto. '
+            'Las partes reconocen que Biztra es la fuente operativa de registro para efectos '
+            'de control, seguimiento y liquidación de utilidades.'
+        ),
+        help_text='Se incluye en el contrato PDF y en la página de alianza.',
+    )
+    additional_clauses = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Cláusulas adicionales (editables)',
+        help_text='Texto libre que se insertará al final del contrato, antes de firmas. Una cláusula por párrafo.',
+    )
+    disclaimer_income = models.TextField(
+        verbose_name='Aviso sobre ingresos estimados',
+        default=(
+            'Las cifras de ingreso estimado del ASOCIADO son referenciales, basadas en la '
+            'experiencia de puntos en operación, y no constituyen garantía ni promesa de '
+            'resultados. El rendimiento real depende de ubicación, flujo de clientes, '
+            'horarios, temporada y demás factores del mercado.'
+        ),
+    )
+    version_label = models.CharField(
+        max_length=40,
+        default='v1.0',
+        verbose_name='Versión del contrato',
+    )
+    is_published = models.BooleanField(
+        default=True,
+        verbose_name='Publicar descarga en la página de alianza',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Contrato Drinzz'
+        verbose_name_plural = 'Contrato Drinzz'
+
+    def __str__(self):
+        return f'Contrato Drinzz {self.version_label}'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        if self.associate_pct is not None and (int(self.associate_pct) + int(self.operator_pct or 0)) != 100:
+            self.operator_pct = max(0, 100 - int(self.associate_pct))
+        if self.associate_pct_month1 is not None and (
+            int(self.associate_pct_month1) + int(self.operator_pct_month1 or 0)
+        ) != 100:
+            self.operator_pct_month1 = max(0, 100 - int(self.associate_pct_month1))
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

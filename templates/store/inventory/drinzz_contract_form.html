@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Contrato Drinzz - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5" style="max-width: 920px;">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <a href="{% url 'store:alianza_drinzz' %}" class="text-decoration-none small text-muted">
+        <i class="bi bi-arrow-left"></i> Ver página de alianza
+      </a>
+      <h1 class="h4 mb-0 mt-1">Contrato Drinzz (editable)</h1>
+      <p class="text-muted small mb-0">Modifica los términos comerciales y cláusulas. El PDF se genera con estos datos.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'store:drinzz_contract_pdf' %}?download=1" class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener">
+        <i class="bi bi-file-earmark-pdf"></i> Ver / descargar PDF
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+  {% endfor %}
+  {% endif %}
+
+  <form method="post" class="card border-0 shadow-sm">
+    {% csrf_token %}
+    <div class="card-body p-4">
+      <h2 class="h6 text-uppercase text-muted mb-3">Partes / operador</h2>
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">{{ form.operator_brand.label_tag }}{{ form.operator_brand }}</div>
+        <div class="col-md-4">{{ form.operator_legal_name.label_tag }}{{ form.operator_legal_name }}</div>
+        <div class="col-md-4">{{ form.operator_nit.label_tag }}{{ form.operator_nit }}</div>
+        <div class="col-md-6">{{ form.operator_address.label_tag }}{{ form.operator_address }}</div>
+        <div class="col-md-3">{{ form.operator_city.label_tag }}{{ form.operator_city }}</div>
+        <div class="col-md-3">{{ form.operator_rep_name.label_tag }}{{ form.operator_rep_name }}</div>
+      </div>
+
+      <h2 class="h6 text-uppercase text-muted mb-3">Términos comerciales</h2>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">{{ form.associate_pct_month1.label_tag }}{{ form.associate_pct_month1 }}{% if form.associate_pct_month1.errors %}<div class="text-danger small">{{ form.associate_pct_month1.errors.0 }}</div>{% endif %}</div>
+        <div class="col-md-3">{{ form.operator_pct_month1.label_tag }}{{ form.operator_pct_month1 }}{% if form.operator_pct_month1.errors %}<div class="text-danger small">{{ form.operator_pct_month1.errors.0 }}</div>{% endif %}</div>
+        <div class="col-md-3">{{ form.associate_pct.label_tag }}{{ form.associate_pct }}{% if form.associate_pct.errors %}<div class="text-danger small">{{ form.associate_pct.errors.0 }}</div>{% endif %}</div>
+        <div class="col-md-3">{{ form.operator_pct.label_tag }}{{ form.operator_pct }}{% if form.operator_pct.errors %}<div class="text-danger small">{{ form.operator_pct.errors.0 }}</div>{% endif %}</div>
+        <div class="col-md-4">{{ form.billing_threshold.label_tag }}{{ form.billing_threshold }}</div>
+        <div class="col-md-4">{{ form.maintain_bonus_pct.label_tag }}{{ form.maintain_bonus_pct }}</div>
+        <div class="col-md-4">{{ form.settlement_days.label_tag }}{{ form.settlement_days }}</div>
+        <div class="col-md-3">{{ form.estimated_income_min.label_tag }}{{ form.estimated_income_min }}</div>
+        <div class="col-md-3">{{ form.estimated_income_max.label_tag }}{{ form.estimated_income_max }}</div>
+        <div class="col-md-3">{{ form.contract_duration_months.label_tag }}{{ form.contract_duration_months }}</div>
+        <div class="col-md-3">{{ form.termination_notice_days.label_tag }}{{ form.termination_notice_days }}</div>
+        <div class="col-12">{{ form.expenses_assumed.label_tag }}{{ form.expenses_assumed }}</div>
+        <div class="col-md-4">{{ form.jurisdiction_city.label_tag }}{{ form.jurisdiction_city }}</div>
+        <div class="col-md-4">
+          <div class="form-check mt-4">
+            {{ form.provides_operators }} {{ form.provides_operators.label_tag }}
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check mt-4">
+            {{ form.renewal_auto }} {{ form.renewal_auto.label_tag }}
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check mt-4">
+            {{ form.is_published }} {{ form.is_published.label_tag }}
+          </div>
+        </div>
+      </div>
+
+      <h2 class="h6 text-uppercase text-muted mb-3">Cláusulas jurídicas (editables)</h2>
+      <div class="row g-3 mb-3">
+        <div class="col-12">{{ form.object_clause.label_tag }}{{ form.object_clause }}</div>
+        <div class="col-md-6">{{ form.associate_obligations.label_tag }}{{ form.associate_obligations }}</div>
+        <div class="col-md-6">{{ form.operator_obligations.label_tag }}{{ form.operator_obligations }}</div>
+        <div class="col-12">
+          {{ form.transparency_clause.label_tag }}
+          {{ form.transparency_clause }}
+          <div class="form-text">{{ form.transparency_clause.help_text }}</div>
+        </div>
+        <div class="col-12">{{ form.disclaimer_income.label_tag }}{{ form.disclaimer_income }}</div>
+        <div class="col-12">
+          {{ form.additional_clauses.label_tag }}
+          {{ form.additional_clauses }}
+          <div class="form-text">{{ form.additional_clauses.help_text }}</div>
+        </div>
+        <div class="col-md-4">{{ form.version_label.label_tag }}{{ form.version_label }}</div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <a href="{% url 'store:drinzz_contract_pdf' %}" class="btn btn-light" target="_blank">Vista previa PDF</a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check2"></i> Guardar contrato
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

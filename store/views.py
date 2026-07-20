@@ -30,6 +30,7 @@ from .models import (
     DilutionBaseProduct, SiteSettings, PaymentMethod,
     RentalContractRequirements, RentalDeliveryActa,
     FinanceRecord,
+    DrinzzContractConfig,
 )
 from .forms import (
     ProductForm,
@@ -44,6 +45,7 @@ from .forms import (
     DilutionBaseProductForm,
     SiteSettingsForm,
     PaymentMethodForm,
+    DrinzzContractConfigForm,
 )
 from .models import Quotation, QuotationItem
 
@@ -231,8 +233,45 @@ def normatividad(request):
 
 
 def alianza_biztra(request):
-    """Página de alianza MixLab × Biztra."""
+    """Detalle de alianza MixLab × Biztra."""
     return render(request, 'store/alianza_biztra.html')
+
+
+def alianza_drinzz(request):
+    """Detalle de alianza / modelo Drinzz (punto de granizados)."""
+    contract = DrinzzContractConfig.load()
+    return render(request, 'store/alianza_drinzz.html', {
+        'drinzz_contract': contract,
+    })
+
+
+def alianzas(request):
+    """Listado de alianzas estratégicas de MixLab."""
+    alliances = [
+        {
+            'slug': 'biztra',
+            'name': 'Biztra',
+            'tagline': 'Sistema integral para el control y crecimiento de tu negocio',
+            'badge': 'Nueva alianza',
+            'benefit': '1 mes gratis por compras acumuladas > $490.000',
+            'icon': 'bi-graph-up-arrow',
+            'logo': 'img/logo-biztra-clear.png',
+            'url_name': 'store:alianza_biztra',
+            'active': True,
+        },
+        {
+            'slug': 'drinzz',
+            'name': 'Drinzz',
+            'tagline': 'Toda la infraestructura para un punto de granizados en tu local',
+            'badge': 'Modelo de negocio',
+            'benefit': 'Desde 20/80 · sube a 30/70 + bono 10% · $500.000 a $3.500.000',
+            'icon': 'bi-cup-straw',
+            'logo': 'img/logo-drinzz-clear.png',
+            'url_name': 'store:alianza_drinzz',
+            'active': True,
+        },
+    ]
+    return render(request, 'store/alianzas.html', {'alliances': alliances})
 
 
 def product_list(request):
@@ -4739,3 +4778,95 @@ def site_settings_edit(request):
         'payment_form': payment_form,
         'editing_payment': editing_payment,
     })
+
+
+def _drinzz_contract_additional_paragraphs(contract: DrinzzContractConfig):
+    raw = (contract.additional_clauses or '').strip()
+    if not raw:
+        return []
+    parts = []
+    for block in raw.replace('\r\n', '\n').split('\n'):
+        line = block.strip()
+        if line:
+            parts.append(line)
+    return parts
+
+
+def _build_drinzz_contract_pdf_bytes(contract=None):
+    """Genera PDF del contrato marco Drinzz."""
+    try:
+        from django.template.loader import get_template
+        from xhtml2pdf import pisa
+        from io import BytesIO
+    except ImportError:
+        return None, 'xhtml2pdf no está instalado'
+
+    contract = contract or DrinzzContractConfig.load()
+    site = SiteSettings.load()
+    # Completar datos legales vacíos desde SiteSettings
+    if not (contract.operator_legal_name or '').strip():
+        contract.operator_legal_name = site.company_legal_name
+    if not (contract.operator_nit or '').strip():
+        contract.operator_nit = site.company_nit
+    if not (contract.operator_address or '').strip():
+        contract.operator_address = site.company_address
+    if not (contract.operator_rep_name or '').strip():
+        contract.operator_rep_name = site.company_rep_name
+    if not (contract.operator_city or '').strip():
+        contract.operator_city = site.address_city or site.jurisdiction_city
+
+    template = get_template('store/drinzz_contract_pdf.html')
+    html = template.render({
+        'contract': contract,
+        'settings': site,
+        'additional_paragraphs': _drinzz_contract_additional_paragraphs(contract),
+        'today': timezone.now(),
+        'for_pdf_engine': True,
+    })
+    result = BytesIO()
+    pdf = pisa.pisaDocument(
+        BytesIO(html.encode('utf-8')),
+        result,
+        encoding='utf-8',
+        link_callback=_pdf_link_callback,
+    )
+    if pdf.err:
+        return None, 'Error al generar el PDF del contrato Drinzz'
+    return result.getvalue(), None
+
+
+@staff_member_required
+def drinzz_contract_edit(request):
+    """Admin: editar términos del contrato marco Drinzz."""
+    contract = DrinzzContractConfig.load()
+    if request.method == 'POST':
+        form = DrinzzContractConfigForm(request.POST, instance=contract)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Contrato Drinzz actualizado.')
+            return redirect('store:drinzz_contract_edit')
+    else:
+        form = DrinzzContractConfigForm(instance=contract)
+    return render(request, 'store/inventory/drinzz_contract_form.html', {
+        'form': form,
+        'contract': contract,
+    })
+
+
+def drinzz_contract_pdf(request):
+    """PDF público del contrato marco Drinzz (si está publicado) o staff siempre."""
+    contract = DrinzzContractConfig.load()
+    if not contract.is_published and not (request.user.is_authenticated and request.user.is_staff):
+        return HttpResponse('El contrato no está publicado.', status=404, content_type='text/plain; charset=utf-8')
+
+    pdf_bytes, err = _build_drinzz_contract_pdf_bytes(contract)
+    if not pdf_bytes:
+        return HttpResponse(err or 'No se pudo generar el PDF', status=500, content_type='text/plain; charset=utf-8')
+
+    filename = f"contrato-drinzz-{slugify(contract.version_label) or 'v1'}.pdf"
+    as_download = str(request.GET.get('download') or '') in ('1', 'true', 'yes')
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    response['Content-Length'] = str(len(pdf_bytes))
+    return response

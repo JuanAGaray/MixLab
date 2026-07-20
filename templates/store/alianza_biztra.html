@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Alianza MixLab × Biztra - MixLab{% endblock %}
-{% block meta_description %}Nueva alianza MixLab y Biztra: por compras acumuladas superiores a $490.000 en MixLab llevas gratis 1 mes del sistema Biztra. Más control, eficiencia y crecimiento para tu negocio.{% endblock %}
+{% block meta_description %}Alianza MixLab × Biztra: por compras acumuladas superiores a $490.000 llevas 1 mes gratis del sistema. Control de ventas, inventario, gastos y facturación para tu negocio.{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -22,62 +22,106 @@
     border-radius: 1.25rem;
     padding: 2rem 1.5rem;
     margin-bottom: 1.5rem;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
   }
   @media (min-width: 768px) {
     .bz-hero { padding: 2.5rem 2.5rem; }
   }
   .bz-hero-badge {
+    position: absolute;
+    top: -0.65rem;
+    right: 1rem;
+    z-index: 2;
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: rgba(46, 196, 182, 0.18);
-    border: 1px solid rgba(46, 196, 182, 0.45);
-    color: #9ff0e6;
-    font-size: 0.75rem;
-    font-weight: 700;
+    background: linear-gradient(135deg, #2ec4b6 0%, #1aa89b 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #042f2e;
+    font-size: 0.72rem;
+    font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 0.35rem 0.75rem;
+    padding: 0.4rem 0.9rem;
     border-radius: 999px;
-    margin-bottom: 1rem;
+    margin: 0;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+    white-space: nowrap;
+  }
+  @media (min-width: 768px) {
+    .bz-hero-badge {
+      top: -0.75rem;
+      right: 1.5rem;
+      font-size: 0.78rem;
+      padding: 0.45rem 1rem;
+    }
   }
   .bz-hero h1 {
     font-size: clamp(1.6rem, 4vw, 2.4rem);
     font-weight: 800;
     margin-bottom: 0.75rem;
     line-height: 1.15;
+    color: #ffffff !important;
   }
-  .bz-hero h1 span { color: var(--bz-teal); }
+  .bz-hero h1 span { color: #5eead4 !important; }
   .bz-hero-lead {
     font-size: 1.05rem;
-    opacity: 0.9;
+    color: rgba(255, 255, 255, 0.94);
     max-width: 36rem;
     margin-bottom: 1.5rem;
+  }
+  .bz-hero-lead strong {
+    color: #ffffff;
   }
   .bz-partners {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1.25rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.85rem;
+    padding-right: 7.5rem;
   }
   .bz-partner {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 999px;
-    padding: 0.4rem 0.9rem;
+    gap: 0.65rem;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.32);
+    border-radius: 1rem;
+    padding: 0.55rem 0.95rem 0.55rem 0.55rem;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    color: #ffffff;
   }
-  .bz-partner i { color: var(--bz-teal); }
+  .bz-partner i { color: #5eead4; }
+  .bz-partner-logo-wrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.45);
+    padding: 0.25rem;
+  }
+  .bz-partner-logo-wrap.is-mixlab {
+    background: #fff;
+    padding: 0.35rem;
+  }
+  .bz-partner-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
   .bz-handshake {
-    color: rgba(255,255,255,0.55);
-    font-size: 1.1rem;
+    color: #e0f2fe;
+    font-size: 1.35rem;
+    opacity: 0.9;
   }
 
   .bz-offer {
@@ -99,8 +143,9 @@
     gap: 0.85rem;
   }
   .bz-offer-box.condition {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.28);
+    color: #ffffff;
   }
   .bz-offer-box.benefit {
     background: linear-gradient(135deg, #2ec4b6 0%, #1aa89b 100%);
@@ -118,8 +163,8 @@
     font-size: 1.2rem;
   }
   .bz-offer-box.condition .icon {
-    background: rgba(46, 196, 182, 0.2);
-    color: #9ff0e6;
+    background: rgba(46, 196, 182, 0.25);
+    color: #d8fffa;
   }
   .bz-offer-box.benefit .icon {
     background: rgba(255,255,255,0.35);
@@ -129,7 +174,7 @@
     display: none;
     align-items: center;
     justify-content: center;
-    color: var(--bz-teal);
+    color: #5eead4;
     font-size: 1.5rem;
   }
   @media (min-width: 768px) {
@@ -139,28 +184,60 @@
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.8;
+    opacity: 0.9;
     margin-bottom: 0.2rem;
+    color: inherit;
   }
   .bz-offer-value {
     font-size: 1.05rem;
     font-weight: 800;
     line-height: 1.3;
     margin: 0;
+    color: inherit;
+  }
+  .bz-offer-box.condition .bz-offer-value {
+    color: #ffffff;
   }
 
+  .bz-intro {
+    display: grid;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+    align-items: start;
+  }
+  @media (min-width: 768px) {
+    .bz-intro {
+      grid-template-columns: minmax(260px, 340px) 1fr;
+      gap: 1.75rem;
+      align-items: center;
+    }
+  }
   .bz-banner-wrap {
-    background: #fff;
-    border-radius: 1.25rem;
+    background: #f8fafc;
+    border-radius: 1rem;
     border: 1px solid #e2e8f0;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    margin: 0 auto;
+    max-width: 340px;
+    width: 100%;
+    padding: 0.55rem;
   }
   .bz-banner-wrap img {
     width: 100%;
     height: auto;
+    object-fit: contain;
     display: block;
+    border-radius: 0.65rem;
+  }
+  @media (min-width: 768px) {
+    .bz-banner-wrap {
+      margin: 0;
+      max-width: none;
+    }
+  }
+  .bz-intro-text h2 {
+    margin-top: 0;
   }
 
   .bz-section {
@@ -177,11 +254,17 @@
   .bz-section h2 {
     font-size: 1.25rem;
     font-weight: 800;
-    color: var(--bz-ink);
+    color: #0b1f3a !important;
     margin-bottom: 0.75rem;
   }
+  .bz-section h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0b1f3a !important;
+    margin: 1.1rem 0 0.45rem;
+  }
   .bz-section p {
-    color: var(--bz-muted);
+    color: #334155;
     margin-bottom: 0.85rem;
   }
   .bz-slogan {
@@ -232,6 +315,95 @@
     text-transform: uppercase;
     color: var(--bz-navy);
   }
+  .bz-feature p {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin: 0.35rem 0 0;
+  }
+
+  .bz-info-grid {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+  }
+  @media (min-width: 768px) {
+    .bz-info-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .bz-info-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.1rem 1.05rem;
+  }
+  .bz-info-card h3 {
+    margin-top: 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .bz-info-card h3 i { color: var(--bz-teal-dark); }
+  .bz-info-card p {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+  }
+  .bz-info-card ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #475569;
+    font-size: 0.88rem;
+  }
+  .bz-info-card li { margin-bottom: 0.3rem; }
+
+  .bz-audience {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  @media (min-width: 576px) {
+    .bz-audience { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 992px) {
+    .bz-audience { grid-template-columns: repeat(4, 1fr); }
+  }
+  .bz-audience-item {
+    text-align: center;
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 1rem;
+    padding: 1rem 0.75rem;
+  }
+  .bz-audience-item i {
+    font-size: 1.4rem;
+    color: var(--bz-teal-dark);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .bz-audience-item strong {
+    display: block;
+    font-size: 0.88rem;
+    color: #0b1f3a;
+  }
+
+  .bz-link-drinzz {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    background: linear-gradient(135deg, #0b1f3a 0%, #12325a 100%);
+    color: #fff;
+    border-radius: 1.1rem;
+    padding: 1.15rem 1.25rem;
+    text-decoration: none;
+    margin-bottom: 1.25rem;
+  }
+  .bz-link-drinzz:hover { color: #fff; }
+  .bz-link-drinzz strong { display: block; font-size: 1rem; margin-bottom: 0.2rem; }
+  .bz-link-drinzz span { font-size: 0.86rem; color: rgba(255,255,255,0.85); }
+  .bz-link-drinzz .bz-btn {
+    background: var(--bz-teal);
+    color: #042f2e;
+  }
 
   .bz-steps {
     display: grid;
@@ -262,17 +434,18 @@
   .bz-step h3 {
     font-size: 0.95rem;
     font-weight: 700;
-    color: var(--bz-ink);
+    color: #0b1f3a !important;
     margin-bottom: 0.35rem;
   }
   .bz-step p {
     font-size: 0.86rem;
     margin: 0;
+    color: #334155;
   }
 
   .bz-terms {
     font-size: 0.82rem;
-    color: var(--bz-muted);
+    color: #475569;
   }
   .bz-terms ul {
     padding-left: 1.1rem;
@@ -327,13 +500,29 @@
 {% block content %}
 <div class="container my-4 my-md-5 bz-page">
 
+  <div class="mb-3">
+    <a href="{% url 'store:alianzas' %}" class="text-decoration-none small text-muted">
+      <i class="bi bi-arrow-left"></i> Volver a alianzas
+    </a>
+  </div>
+
   <section class="bz-hero">
-    <div class="bz-partners">
-      <span class="bz-partner"><i class="bi bi-droplet-half"></i> MixLab</span>
-      <span class="bz-handshake"><i class="bi bi-handshake"></i></span>
-      <span class="bz-partner"><i class="bi bi-graph-up-arrow"></i> Biztra</span>
-    </div>
     <div class="bz-hero-badge"><i class="bi bi-stars"></i> Nueva alianza</div>
+    <div class="bz-partners">
+      <span class="bz-partner">
+        <span class="bz-partner-logo-wrap is-mixlab">
+          <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" class="bz-partner-logo">
+        </span>
+        MixLab
+      </span>
+      <span class="bz-handshake" aria-hidden="true"><i class="bi bi-handshake"></i></span>
+      <span class="bz-partner">
+        <span class="bz-partner-logo-wrap">
+          <img src="{% static 'img/logo-biztra-clear.png' %}" alt="Biztra" class="bz-partner-logo">
+        </span>
+        Biztra
+      </span>
+    </div>
     <h1>Nos unimos a <span>Biztra</span></h1>
     <p class="bz-hero-lead">
       Para brindarte más beneficios y herramientas que <strong>impulsan tu negocio</strong>.
@@ -372,49 +561,137 @@
     </div>
   </section>
 
-  <div class="bz-banner-wrap">
-    <img src="{% static 'img/alianza-biztra.png' %}"
-         alt="Alianza MixLab y Biztra: 1 mes gratis del sistema por compras acumuladas superiores a $490.000"
-         loading="lazy"
-         decoding="async">
-  </div>
-
   <section class="bz-section">
-    <h2>¿Qué es Biztra?</h2>
-    <p>
-      Biztra es el <strong>sistema integral</strong> para el control y crecimiento de tu negocio,
-      todo en un solo lugar. Ideal para bares, restaurantes, food trucks y negocios de bebidas
-      que quieren ordenar ventas, inventario y finanzas.
-    </p>
-    <span class="bz-slogan">Más control, más eficiencia, más crecimiento.</span>
+    <div class="bz-intro">
+      <div class="bz-banner-wrap">
+        <img src="{% static 'img/alianza-biztra.png' %}"
+             alt="Alianza MixLab y Biztra: 1 mes gratis del sistema por compras acumuladas superiores a $490.000"
+             loading="lazy"
+             decoding="async">
+      </div>
+      <div class="bz-intro-text">
+        <h2>¿Qué es Biztra?</h2>
+        <p>
+          Biztra es el <strong>sistema integral</strong> para el control y crecimiento de tu negocio,
+          todo en un solo lugar. Te ayuda a ordenar ventas, inventarios, gastos y facturación sin
+          depender de hojas de cálculo dispersas ni cuadernos.
+        </p>
+        <p>
+          Ideal para bares, restaurantes, food trucks, puntos de bebidas y emprendimientos que
+          quieren tomar decisiones con datos claros: qué se vende, qué se gasta y cuánto queda.
+        </p>
+        <span class="bz-slogan">Más control, más eficiencia, más crecimiento.</span>
+      </div>
+    </div>
 
     <div class="bz-features">
       <div class="bz-feature">
         <div class="bz-feature-icon"><i class="bi bi-bar-chart-line"></i></div>
         <strong>Seguimiento</strong>
+        <p>Ventas y métricas al día</p>
       </div>
       <div class="bz-feature">
         <div class="bz-feature-icon"><i class="bi bi-box-seam"></i></div>
-        <strong>Control de inventario</strong>
+        <strong>Inventario</strong>
+        <p>Stock y movimientos</p>
       </div>
       <div class="bz-feature">
         <div class="bz-feature-icon"><i class="bi bi-cash-coin"></i></div>
-        <strong>Control de gastos</strong>
+        <strong>Gastos</strong>
+        <p>Costos bajo control</p>
       </div>
       <div class="bz-feature">
         <div class="bz-feature-icon"><i class="bi bi-receipt"></i></div>
         <strong>Facturación</strong>
+        <p>Registro ordenado</p>
       </div>
     </div>
   </section>
 
   <section class="bz-section">
+    <h2>¿Qué puedes hacer con Biztra?</h2>
+    <p>
+      Con la alianza MixLab × Biztra no solo obtienes insumos de calidad: también tienes una
+      herramienta para operar tu negocio con mayor transparencia y orden.
+    </p>
+    <div class="bz-info-grid">
+      <div class="bz-info-card">
+        <h3><i class="bi bi-graph-up-arrow"></i> Ventas y rendimiento</h3>
+        <ul>
+          <li>Visualiza el comportamiento de tus ventas por día o periodo.</li>
+          <li>Identifica productos o líneas que más aportan a tu caja.</li>
+          <li>Toma decisiones con información actualizada, no a ojo.</li>
+        </ul>
+      </div>
+      <div class="bz-info-card">
+        <h3><i class="bi bi-boxes"></i> Inventario y compras</h3>
+        <ul>
+          <li>Controla entradas, salidas y existencias de insumos.</li>
+          <li>Reduce mermas y faltantes por desorganización.</li>
+          <li>Planifica recompras según el consumo real.</li>
+        </ul>
+      </div>
+      <div class="bz-info-card">
+        <h3><i class="bi bi-wallet2"></i> Gastos y flujo</h3>
+        <ul>
+          <li>Registra gastos operativos (luz, alquiler, insumos, etc.).</li>
+          <li>Separa costos fijos y variables con más claridad.</li>
+          <li>Entiende si tu margen está sano mes a mes.</li>
+        </ul>
+      </div>
+      <div class="bz-info-card">
+        <h3><i class="bi bi-shield-check"></i> Transparencia operativa</h3>
+        <ul>
+          <li>Útil para socios, puntos de venta o alianzas comerciales.</li>
+          <li>Centraliza compras, gastos y ventas en un solo sistema.</li>
+          <li>Facilita reportes claros para liquidaciones o seguimiento.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="bz-section">
+    <h2>¿Para quién es?</h2>
+    <p>Biztra encaja especialmente si operas en el sector de bebidas, food service o retail pequeño/mediano.</p>
+    <div class="bz-audience">
+      <div class="bz-audience-item">
+        <i class="bi bi-cup-straw"></i>
+        <strong>Bares y coctelería</strong>
+      </div>
+      <div class="bz-audience-item">
+        <i class="bi bi-shop"></i>
+        <strong>Restaurantes</strong>
+      </div>
+      <div class="bz-audience-item">
+        <i class="bi bi-truck"></i>
+        <strong>Food trucks</strong>
+      </div>
+      <div class="bz-audience-item">
+        <i class="bi bi-lightning-charge"></i>
+        <strong>Puntos de bebidas</strong>
+      </div>
+    </div>
+  </section>
+
+  <a href="{% url 'store:alianza_drinzz' %}" class="bz-link-drinzz">
+    <div>
+      <strong><i class="bi bi-eye me-1"></i> Transparencia con Biztra en Drinzz</strong>
+      <span>En la alianza Drinzz, compras, gastos y ventas se registran en Biztra para liquidar con claridad.</span>
+    </div>
+    <span class="bz-btn">Ver alianza Drinzz <i class="bi bi-arrow-right"></i></span>
+  </a>
+
+  <section class="bz-section">
     <h2>¿Cómo obtener tu mes gratis?</h2>
+    <p>
+      El beneficio de la alianza es simple: acumula compras en MixLab y activa <strong>1 mes gratis</strong>
+      del sistema Biztra para empezar a ordenar tu operación.
+    </p>
     <div class="bz-steps">
       <div class="bz-step">
         <div class="bz-step-num">1</div>
         <h3>Compra en MixLab</h3>
-        <p>Acumula compras por encima de <strong>$490.000</strong> en productos MixLab.</p>
+        <p>Acumula compras por encima de <strong>$490.000</strong> en productos MixLab (catálogo / pedidos).</p>
       </div>
       <div class="bz-step">
         <div class="bz-step-num">2</div>
@@ -424,7 +701,7 @@
       <div class="bz-step">
         <div class="bz-step-num">3</div>
         <h3>Activa Biztra</h3>
-        <p>Recibe <strong>1 mes gratis</strong> del sistema Biztra para controlar y hacer crecer tu negocio.</p>
+        <p>Recibe <strong>1 mes gratis</strong> del sistema y comienza a registrar ventas, inventario y gastos.</p>
       </div>
     </div>
     <div class="bz-cta">
@@ -441,6 +718,43 @@
   </section>
 
   <section class="bz-section">
+    <h2>Beneficios de la alianza MixLab × Biztra</h2>
+    <div class="bz-info-grid">
+      <div class="bz-info-card">
+        <h3><i class="bi bi-gift"></i> Mes de prueba real</h3>
+        <p>Pruebas el sistema con un mes gratis al cumplir el umbral de compras, sin compromiso inicial de suscripción.</p>
+      </div>
+      <div class="bz-info-card">
+        <h3><i class="bi bi-arrow-left-right"></i> Insumos + software</h3>
+        <p>Combina la calidad de MixLab con una herramienta digital para operar con más orden y visión de negocio.</p>
+      </div>
+      <div class="bz-info-card">
+        <h3><i class="bi bi-people"></i> Acompañamiento</h3>
+        <p>Puedes escribirnos por WhatsApp para validar tu acumulado y orientarte en la activación del beneficio.</p>
+      </div>
+      <div class="bz-info-card">
+        <h3><i class="bi bi-rocket-takeoff"></i> Enfoque en crecimiento</h3>
+        <p>La alianza está pensada para negocios del sector que quieren profesionalizar su operación y escalar.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="bz-section">
+    <h2>Preguntas frecuentes</h2>
+    <h3>¿Las compras deben ser en una sola factura?</h3>
+    <p>No. Pueden ser <strong>compras acumuladas</strong> hasta superar los $490.000 en MixLab.</p>
+    <h3>¿Qué incluye el mes gratis?</h3>
+    <p>El acceso al <strong>sistema Biztra</strong> durante 1 mes, sujeto a validación y a los términos vigentes de Biztra.</p>
+    <h3>¿Cómo demuestro que cumplí el monto?</h3>
+    <p>Envíanos tus datos y los <strong>soportes de compra</strong> (facturas o comprobantes) por WhatsApp o correo.</p>
+    <h3>¿Sirve si tengo un punto asociado o alianza (ej. Drinzz)?</h3>
+    <p>
+      Sí. Biztra también se usa para dar <strong>transparencia</strong> en compras, gastos y ventas.
+      Revisa el detalle en la <a href="{% url 'store:alianza_drinzz' %}">alianza Drinzz</a>.
+    </p>
+  </section>
+
+  <section class="bz-section">
     <h2>Términos y condiciones</h2>
     <div class="bz-terms">
       <ul>
@@ -448,6 +762,7 @@
         <li>El beneficio consiste en <strong>1 mes gratis</strong> del sistema Biztra.</li>
         <li>MixLab y Biztra se reservan el derecho de validar compras y solicitar soportes.</li>
         <li>La activación del mes gratuito está sujeta a disponibilidad y a los términos vigentes de Biztra.</li>
+        <li>El beneficio no es transferible ni acumulable con otras promociones, salvo indicación expresa.</li>
         <li>Esta alianza busca impulsar el crecimiento de negocios del sector de bebidas y food service.</li>
       </ul>
       <p class="mt-3 mb-0">

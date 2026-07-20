@@ -101,10 +101,9 @@
             <!-- Desktop nav -->
             <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarNavDesktop">
                 <ul class="navbar-nav navbar-nav-center navbar-nav-left">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'store:home' %}">Inicio</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:product_list' %}">Productos</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:water_calculator' %}">Calculadora</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'store:alianza_biztra' %}">Alianza Biztra</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'store:alianzas' %}">Alianza</a></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Categorías</a>
                         <ul class="dropdown-menu dropdown-menu-premium" aria-labelledby="navbarDropdown">
@@ -123,6 +122,7 @@
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:drinzz_contract_edit' %}"><i class="bi bi-file-earmark-text"></i> Contrato Drinzz</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:client_list' %}"><i class="bi bi-people"></i> Clientes</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:staff_user_list' %}"><i class="bi bi-person-badge"></i> Personal (vendedores/admins)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:sales_list' %}"><i class="bi bi-graph-up"></i> Ventas</a></li>
@@ -189,16 +189,13 @@
             <div>
                 <ul class="navbar-nav mb-3">
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:home' %}"><i class="bi bi-house me-1"></i> Inicio</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-1"></i> Productos</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'store:water_calculator' %}"><i class="bi bi-droplet-half me-1"></i> Calculadora</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:alianza_biztra' %}"><i class="bi bi-handshake me-1"></i> Alianza Biztra</a>
+                        <a class="nav-link" href="{% url 'store:alianzas' %}"><i class="bi bi-handshake me-1"></i> Alianza</a>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMobile" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -222,6 +219,7 @@
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:drinzz_contract_edit' %}"><i class="bi bi-file-earmark-text"></i> Contrato Drinzz</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:client_list' %}"><i class="bi bi-people"></i> Clientes</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:staff_user_list' %}"><i class="bi bi-person-badge"></i> Personal (vendedores/admins)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:sales_list' %}"><i class="bi bi-graph-up"></i> Ventas</a></li>
@@ -343,7 +341,7 @@
                     <h6 class="footer-title">Información</h6>
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2"><a href="{% url 'store:about' %}" class="text-white-50 text-decoration-none">Quiénes Somos</a></li>
-                        <li class="mb-2"><a href="{% url 'store:alianza_biztra' %}" class="text-white-50 text-decoration-none">Alianza Biztra</a></li>
+                        <li class="mb-2"><a href="{% url 'store:alianzas' %}" class="text-white-50 text-decoration-none">Alianza</a></li>
                         <li class="mb-2"><a href="{% url 'store:privacy_policy' %}" class="text-white-50 text-decoration-none">Políticas y Privacidad</a></li>
                         <li class="mb-2"><a href="{% url 'store:normatividad' %}" class="text-white-50 text-decoration-none">Normatividad</a></li>
                     </ul>

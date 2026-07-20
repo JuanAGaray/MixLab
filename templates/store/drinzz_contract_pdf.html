@@ -1,0 +1,316 @@
+{% load store_tags static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Contrato de colaboración operativa · {{ contract.operator_brand }}</title>
+  <style>
+    @page { size: A4; margin: 14mm 12mm 14mm 12mm; }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      color: #0f172a;
+      line-height: 1.42;
+      margin: 0;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0 0 4px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+    h2 {
+      font-size: 11px;
+      margin: 11px 0 5px;
+      border-bottom: 1px solid #94a3b8;
+      padding-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+    p, li { margin: 0 0 5px; text-align: justify; }
+    .meta {
+      text-align: center;
+      color: #475569;
+      margin-bottom: 10px;
+      font-size: 9.5px;
+    }
+    .box {
+      border: 1px solid #cbd5e1;
+      padding: 7px 8px;
+      margin: 0 0 8px;
+      background: #f8fafc;
+    }
+    .muted { color: #475569; font-size: 9px; }
+    .grid { width: 100%; }
+    .grid td { vertical-align: top; width: 50%; padding: 4px 6px 4px 0; }
+    .sig {
+      width: 100%;
+      margin-top: 28px;
+    }
+    .sig td {
+      width: 50%;
+      vertical-align: top;
+      padding: 8px 10px 0 0;
+      text-align: center;
+    }
+    .sig-line {
+      border-top: 1px solid #0f172a;
+      margin-top: 42px;
+      padding-top: 6px;
+      font-size: 9.5px;
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid #94a3b8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 8.5px;
+      color: #334155;
+    }
+    .pre {
+      white-space: pre-wrap;
+      font-family: Helvetica, Arial, sans-serif;
+      margin: 0 0 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Contrato de colaboración operativa<br>punto de granizados — {{ contract.operator_brand }}</h1>
+  <div class="meta">
+    Versión {{ contract.version_label }}
+    · Ciudad: {{ contract.jurisdiction_city }}
+    · Documento marco para formalización con asociados
+  </div>
+
+  <div class="box">
+    <strong>Naturaleza jurídica:</strong>
+    Contrato de colaboración empresarial / operativa de carácter mercantil, celebrado
+    conforme al ordenamiento jurídico colombiano (Código de Comercio y normas complementarias),
+    sin que por sí mismo constituya sociedad de hecho, relación laboral, ni mandato irrevocable,
+    salvo lo expresamente pactado.
+  </div>
+
+  <h2>1. Partes</h2>
+  <table class="grid">
+    <tr>
+      <td>
+        <div class="box">
+          <strong>OPERADOR</strong><br>
+          Marca: {{ contract.operator_brand }}<br>
+          Razón social: {{ contract.operator_legal_name|default:"________________" }}<br>
+          NIT: {{ contract.operator_nit|default:"________________" }}<br>
+          Ciudad: {{ contract.operator_city|default:"________________" }}<br>
+          Dirección: {{ contract.operator_address|default:"________________" }}<br>
+          Representante: {{ contract.operator_rep_name|default:"________________" }}
+        </div>
+      </td>
+      <td>
+        <div class="box">
+          <strong>ASOCIADO</strong><br>
+          Nombre / razón social: _______________________________<br>
+          C.C. / NIT: _______________________________<br>
+          Ciudad: _______________________________<br>
+          Dirección del local: _______________________________<br>
+          Teléfono / correo: _______________________________
+        </div>
+      </td>
+    </tr>
+  </table>
+  <p class="muted">
+    Las partes, obrando en pleno uso de sus facultades y sin vicios del consentimiento,
+    celebran el presente contrato de forma libre, espontánea e informada.
+  </p>
+
+  <h2>2. Objeto</h2>
+  <p>{{ contract.object_clause }}</p>
+
+  <h2>3. Alcance de la colaboración</h2>
+  <p>
+    El OPERADOR instalará y operará un punto de venta de granizados en el local del ASOCIADO.
+    El ASOCIADO aporta el espacio físico y el flujo de clientes. La propiedad de la
+    infraestructura, equipos y marca permanece en cabeza del OPERADOR, salvo pacto escrito en contrario.
+  </p>
+
+  <h2>4. Gastos asumidos por el operador</h2>
+  <p>
+    Durante la vigencia del contrato, el OPERADOR asumirá, dentro del esquema operativo pactado,
+    los siguientes gastos del punto:
+  </p>
+  <p><strong>{{ contract.expenses_assumed }}</strong></p>
+  <p>
+    Cualquier gasto extraordinario no contemplado requerirá acuerdo escrito entre las partes.
+    El ASOCIADO no transferirá al OPERADOR obligaciones ajenas al punto (arriendo total del local,
+    nómina del ASOCIADO u otros costos del establecimiento), salvo que así se pacte expresamente.
+  </p>
+
+  <h2>5. Personal operador</h2>
+  {% if contract.provides_operators %}
+  <p>
+    El OPERADOR podrá colocar personal operador para la atención del punto. Dicho personal
+    dependerá laboralmente del OPERADOR (o de quien éste designe), sin que se configure
+    vínculo laboral alguno entre el ASOCIADO y dichos operadores. El ASOCIADO se obliga a
+    facilitar condiciones mínimas de seguridad y acceso para el personal.
+  </p>
+  {% else %}
+  <p>
+    Salvo pacto especial, la atención del punto será definida de común acuerdo entre las partes.
+  </p>
+  {% endif %}
+
+  <h2>6. Utilidades y liquidación (escala progresiva)</h2>
+  <p>
+    Se entiende por <strong>utilidad neta del punto</strong> el resultado de restar a los ingresos
+    brutos por ventas del punto los costos y gastos operativos atribuibles al mismo, incluyendo
+    los gastos asumidos por el OPERADOR conforme a la cláusula 4, y demás deducciones legalmente
+    aplicables. La facturación mensual se entenderá como las ventas brutas del punto en el mes calendario.
+  </p>
+  <p><strong>6.1. Primer mes de operación:</strong></p>
+  <ul>
+    <li><strong>ASOCIADO: {{ contract.associate_pct_month1 }}%</strong></li>
+    <li><strong>OPERADOR: {{ contract.operator_pct_month1 }}%</strong></li>
+  </ul>
+  <p><strong>6.2. Meta de facturación:</strong></p>
+  <p>
+    Si en un mes se registra facturación superior a
+    <strong>{{ contract.billing_threshold|pesos_colombianos }}</strong>,
+    el reparto de utilidades netas de ese periodo será:
+  </p>
+  <ul>
+    <li><strong>ASOCIADO: {{ contract.associate_pct }}%</strong></li>
+    <li><strong>OPERADOR: {{ contract.operator_pct }}%</strong></li>
+  </ul>
+  <p><strong>6.3. Bonificación por mantener la meta:</strong></p>
+  <p>
+    Si en los meses siguientes se mantiene una facturación por encima de
+    <strong>{{ contract.billing_threshold|pesos_colombianos }}</strong>,
+    la liquidación correspondiente al ASOCIADO se incrementará en un
+    <strong>{{ contract.maintain_bonus_pct }}%</strong> adicional sobre el valor liquidado
+    conforme al numeral 6.2 (bonificación por desempeño sostenido).
+  </p>
+  <p>
+    La liquidación se realizará periódicamente y el pago correspondiente al ASOCIADO se efectuará
+    dentro de los <strong>{{ contract.settlement_days }} días hábiles</strong> siguientes al cierre
+    del periodo liquidado, previa entrega de soportes razonables de ventas y costos.
+  </p>
+
+  <h2>7. Ingresos estimados (referencia, no garantía)</h2>
+  <p>
+    Con base en la experiencia de puntos en operación, el ingreso mensual estimado del ASOCIADO
+    puede situarse aproximadamente entre
+    <strong>{{ contract.estimated_income_min|pesos_colombianos }}</strong>
+    y
+    <strong>{{ contract.estimated_income_max|pesos_colombianos }}</strong>.
+  </p>
+  <p class="muted">{{ contract.disclaimer_income }}</p>
+
+  <h2>8. Obligaciones del asociado</h2>
+  <p class="pre">{{ contract.associate_obligations }}</p>
+
+  <h2>9. Obligaciones del operador</h2>
+  <p class="pre">{{ contract.operator_obligations }}</p>
+
+  <h2>10. Transparencia y registro automatizado (Biztra)</h2>
+  <p>{{ contract.transparency_clause }}</p>
+
+  <h2>11. Propiedad, marca e infraestructura</h2>
+  <p>
+    La marca {{ contract.operator_brand }}, know-how, equipos, software, recetas, imagen comercial
+    e infraestructura instalada son de propiedad del OPERADOR. El ASOCIADO no adquiere licencia
+    distinta a la necesaria para permitir la operación del punto en su local durante la vigencia.
+    Al terminar el contrato, el OPERADOR podrá retirar equipos e insumos de su propiedad,
+    dejando el espacio en condiciones razonables.
+  </p>
+
+  <h2>12. Vigencia y terminación</h2>
+  <p>
+    El contrato tendrá una duración inicial de <strong>{{ contract.contract_duration_months }} meses</strong>,
+    contados desde la fecha de firma o desde la puesta en marcha del punto, lo que ocurra primero.
+    {% if contract.renewal_auto %}
+    Se renovará automáticamente por periodos iguales, salvo preaviso escrito de cualquiera de las
+    partes con al menos <strong>{{ contract.termination_notice_days }} días</strong> de anticipación.
+    {% else %}
+    Su prórroga requerirá acuerdo escrito. Cualquiera de las partes podrá darlo por terminado
+    con preaviso escrito de <strong>{{ contract.termination_notice_days }} días</strong>.
+    {% endif %}
+  </p>
+  <p>
+    También terminará por: (i) mutuo acuerdo; (ii) incumplimiento grave; (iii) cierre definitivo
+    del local; (iv) fuerza mayor o caso fortuito que impida la operación por más de treinta (30)
+    días continuos; (v) decisión judicial o administrativa que lo impida.
+  </p>
+
+  <h2>13. Responsabilidad y riesgos</h2>
+  <p>
+    Cada parte responderá por sus propias actuaciones. El OPERADOR responderá por la operación
+    del punto y por el personal a su cargo. El ASOCIADO responderá por la seguridad general del
+    local y por hechos atribuibles a su establecimiento. En caso de hurto, daño o pérdida de
+    equipos, se investigará la causa; si media culpa o dolo del ASOCIADO o de terceros bajo su
+    control, éste responderá conforme a la ley.
+  </p>
+
+  <h2>14. Confidencialidad y datos personales</h2>
+  <p>
+    Las partes se obligan a guardar reserva sobre información comercial, operativa y financiera
+    intercambiada con ocasión de este contrato. El tratamiento de datos personales se sujetará
+    a la Ley 1581 de 2012 y normas complementarias.
+  </p>
+
+  <h2>15. Solución de controversias y jurisdicción</h2>
+  <p>
+    Las partes intentarán resolver cualquier diferencia de manera directa y de buena fe.
+    A falta de acuerdo, serán competentes los jueces de la República de Colombia en la ciudad
+    de <strong>{{ contract.jurisdiction_city }}</strong>, renunciando a cualquier otro fuero
+    que pudiere corresponderles.
+  </p>
+
+  <h2>16. Integridad del acuerdo</h2>
+  <p>
+    Este documento y sus anexos constituyen el acuerdo completo entre las partes respecto del
+    objeto. Cualquier modificación deberá constar por escrito. La invalidación de una cláusula
+    no afectará la validez del resto, en cuanto sea separable.
+  </p>
+
+  {% if additional_paragraphs %}
+  <h2>17. Cláusulas adicionales</h2>
+  {% for paragraph in additional_paragraphs %}
+  <p>{{ paragraph }}</p>
+  {% endfor %}
+  {% endif %}
+
+  <p>
+    En constancia de lo anterior, se firma en {{ contract.jurisdiction_city }},
+    a los ______ días del mes de ______________ de ________.
+  </p>
+
+  <table class="sig">
+    <tr>
+      <td>
+        <div class="sig-line">
+          <strong>OPERADOR</strong><br>
+          {{ contract.operator_legal_name|default:contract.operator_brand }}<br>
+          NIT {{ contract.operator_nit|default:"____________" }}<br>
+          Nombre: {{ contract.operator_rep_name|default:"________________" }}<br>
+          C.C. ________________
+        </div>
+      </td>
+      <td>
+        <div class="sig-line">
+          <strong>ASOCIADO</strong><br>
+          Nombre / razón social: ________________<br>
+          C.C. / NIT: ________________<br>
+          Firma: ________________
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <p class="muted" style="margin-top:16px;">
+    Documento generado desde MixLab · Contrato {{ contract.operator_brand }} {{ contract.version_label }}.
+    Este modelo es un instrumento mercantil de colaboración operativa; se recomienda revisión
+    particular según el local y las condiciones concretas de cada alianza.
+  </p>
+</body>
+</html>

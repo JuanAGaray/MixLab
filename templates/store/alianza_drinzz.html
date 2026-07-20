@@ -1,0 +1,787 @@
+{% extends "base.html" %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Alianza Drinzz - Punto de granizados - MixLab{% endblock %}
+{% block meta_description %}Drinzz: primer mes 20/80; si facturas más de $6.000.000 subes a 30/70 y al mantenerlo +10% en liquidación. Asociados generan aprox. $500.000 a $3.500.000 mensuales.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dz-page {
+    --dz-navy: #0b1f3a;
+    --dz-blue: #0F6FFF;
+    --dz-ice: #38bdf8;
+    --dz-mint: #2ec4b6;
+  }
+  .dz-hero {
+    background:
+      radial-gradient(ellipse at 90% 10%, rgba(56, 189, 248, 0.28) 0%, transparent 42%),
+      radial-gradient(ellipse at 10% 80%, rgba(15, 111, 255, 0.25) 0%, transparent 40%),
+      linear-gradient(145deg, #071526 0%, #0b2a52 48%, #0a1f3d 100%);
+    color: #fff;
+    border-radius: 1.25rem;
+    padding: 2rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .dz-hero { padding: 2.5rem 2.35rem; }
+  }
+  .dz-partners {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1.1rem;
+  }
+  .dz-partner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.32);
+    border-radius: 1rem;
+    padding: 0.55rem 0.95rem 0.55rem 0.55rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #fff;
+  }
+  .dz-partner-logo-wrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.45);
+    padding: 0.2rem;
+  }
+  .dz-partner-logo-wrap.is-mixlab {
+    background: #fff;
+    padding: 0.35rem;
+  }
+  .dz-partner-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .dz-handshake {
+    color: #e0f2fe;
+    font-size: 1.35rem;
+    opacity: 0.9;
+  }
+  .dz-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(56, 189, 248, 0.22);
+    border: 1px solid rgba(186, 230, 253, 0.65);
+    color: #f0f9ff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 1rem;
+  }
+  .dz-hero h1 {
+    font-size: clamp(1.55rem, 4vw, 2.35rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+    color: #ffffff !important;
+  }
+  .dz-hero h1 span { color: #bae6fd !important; }
+  .dz-hero-lead {
+    font-size: 1.05rem;
+    color: rgba(255,255,255,0.95);
+    max-width: 42rem;
+    margin-bottom: 1.35rem;
+  }
+  .dz-hero-lead strong { color: #fff; }
+
+  .dz-highlights {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1.35rem;
+  }
+  @media (min-width: 768px) {
+    .dz-highlights { grid-template-columns: repeat(3, 1fr); }
+  }
+  .dz-hi {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 1rem;
+    padding: 1.05rem 1.1rem;
+  }
+  .dz-hi .label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #e0f2fe;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+  .dz-hi .value {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  .dz-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .dz-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 999px;
+    padding: 0.7rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.92rem;
+    text-decoration: none;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .dz-btn:hover { transform: translateY(-1px); }
+  .dz-btn-primary {
+    background: #38bdf8;
+    color: #082f49;
+    box-shadow: 0 8px 22px rgba(56, 189, 248, 0.35);
+  }
+  .dz-btn-primary:hover { color: #082f49; background: #0ea5e9; }
+  .dz-btn-outline {
+    background: transparent;
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.5);
+  }
+  .dz-btn-outline:hover { color: #fff; background: rgba(255,255,255,0.1); }
+  .dz-btn-dark {
+    background: #0b1f3a;
+    color: #fff;
+  }
+  .dz-btn-dark:hover { color: #fff; background: #143257; }
+  .dz-btn-wa {
+    background: #25D366;
+    color: #fff;
+  }
+  .dz-btn-wa:hover { color: #fff; background: #1ebe57; }
+
+  .dz-section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    margin-bottom: 1.15rem;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+  }
+  @media (min-width: 768px) {
+    .dz-section { padding: 1.85rem 2rem; }
+  }
+  .dz-section h2 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #0b1f3a !important;
+    margin-bottom: 0.7rem;
+  }
+  .dz-section p {
+    color: #334155;
+    margin-bottom: 0.75rem;
+  }
+
+  .dz-grid-3 {
+    display: grid;
+    gap: 0.85rem;
+  }
+  @media (min-width: 768px) {
+    .dz-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  }
+  .dz-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.1rem 1rem;
+    height: 100%;
+  }
+  .dz-card-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-bottom: 0.7rem;
+    background: linear-gradient(135deg, #0F6FFF, #38bdf8);
+    color: #fff;
+  }
+  .dz-card h3 {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0b1f3a !important;
+    margin-bottom: 0.35rem;
+  }
+  .dz-card p {
+    font-size: 0.88rem;
+    margin: 0;
+    color: #475569;
+  }
+
+  .dz-split {
+    display: grid;
+    gap: 0.85rem;
+  }
+  @media (min-width: 768px) {
+    .dz-split { grid-template-columns: repeat(3, 1fr); }
+  }
+  .dz-split-box {
+    border-radius: 1rem;
+    padding: 1.25rem 1.15rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .dz-split-box.tier-1 {
+    background: linear-gradient(145deg, #e0f2fe 0%, #f0f9ff 100%);
+    border: 1px solid #7dd3fc;
+  }
+  .dz-split-box.tier-2 {
+    background: linear-gradient(145deg, #0b1f3a 0%, #12325a 100%);
+    color: #fff;
+    border: 1px solid #1e3a5f;
+    box-shadow: 0 12px 28px rgba(15, 111, 255, 0.22);
+    transform: translateY(-2px);
+  }
+  .dz-split-box.tier-3 {
+    background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 1px solid #34d399;
+  }
+  .dz-tier-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    margin-bottom: 0.55rem;
+  }
+  .dz-split-box.tier-1 .dz-tier-badge { background: #bae6fd; color: #075985; }
+  .dz-split-box.tier-2 .dz-tier-badge { background: rgba(125,211,252,0.25); color: #e0f2fe; }
+  .dz-split-box.tier-3 .dz-tier-badge { background: #a7f3d0; color: #065f46; }
+  .dz-split-pct {
+    font-size: clamp(1.55rem, 4vw, 2.1rem);
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 0.35rem;
+  }
+  .dz-split-box.tier-1 .dz-split-pct { color: #0369a1; }
+  .dz-split-box.tier-2 .dz-split-pct { color: #7dd3fc; }
+  .dz-split-box.tier-3 .dz-split-pct { color: #059669; }
+  .dz-split-role {
+    font-weight: 800;
+    font-size: 0.95rem;
+    margin-bottom: 0.35rem;
+  }
+  .dz-split-box.tier-1 .dz-split-role { color: #0b1f3a; }
+  .dz-split-box.tier-2 .dz-split-role { color: #fff; }
+  .dz-split-box.tier-3 .dz-split-role { color: #064e3b; }
+  .dz-split-desc {
+    font-size: 0.84rem;
+    margin: 0;
+    line-height: 1.4;
+  }
+  .dz-split-box.tier-1 .dz-split-desc { color: #334155; }
+  .dz-split-box.tier-2 .dz-split-desc { color: rgba(255,255,255,0.9); }
+  .dz-split-box.tier-3 .dz-split-desc { color: #065f46; }
+  .dz-ladder-note {
+    margin-top: 1rem;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 0.9rem;
+    padding: 0.85rem 1rem;
+    font-size: 0.88rem;
+    color: #0c4a6e;
+  }
+  .dz-transparency {
+    background:
+      radial-gradient(ellipse at 90% 20%, rgba(46, 196, 182, 0.18) 0%, transparent 45%),
+      linear-gradient(145deg, #071526 0%, #0b2a52 55%, #0a1f3d 100%);
+    color: #fff;
+    border-radius: 1.25rem;
+    padding: 1.5rem 1.25rem;
+    margin-bottom: 1.15rem;
+    border: 1px solid rgba(125, 211, 252, 0.25);
+  }
+  @media (min-width: 768px) {
+    .dz-transparency { padding: 1.85rem 2rem; }
+  }
+  .dz-transparency h2 {
+    color: #ffffff !important;
+    margin-bottom: 0.65rem;
+  }
+  .dz-transparency p {
+    color: rgba(255,255,255,0.92);
+  }
+  .dz-transparency-grid {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.1rem;
+  }
+  @media (min-width: 768px) {
+    .dz-transparency-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .dz-transparency-item {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 1rem;
+    padding: 1rem 1.05rem;
+    text-align: center;
+  }
+  .dz-transparency-item i {
+    font-size: 1.35rem;
+    color: #7dd3fc;
+    display: block;
+    margin-bottom: 0.45rem;
+  }
+  .dz-transparency-item strong {
+    display: block;
+    color: #fff;
+    font-size: 0.95rem;
+    margin-bottom: 0.2rem;
+  }
+  .dz-transparency-item span {
+    display: block;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.82);
+  }
+  .dz-transparency-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(46, 196, 182, 0.2);
+    border: 1px solid rgba(159, 240, 230, 0.5);
+    color: #d8fffa;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    margin-bottom: 0.85rem;
+  }
+
+  .dz-earn {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  @media (min-width: 576px) {
+    .dz-earn { grid-template-columns: 1fr 1fr; }
+  }
+  .dz-earn-box {
+    background: #0b1f3a;
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1.15rem 1.2rem;
+  }
+  .dz-earn-box .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #bae6fd;
+    margin-bottom: 0.25rem;
+  }
+  .dz-earn-box .amount {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: #7dd3fc;
+    margin: 0;
+  }
+  .dz-earn-note {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.85rem;
+    margin-bottom: 0;
+  }
+
+  .dz-steps {
+    display: grid;
+    gap: 0.85rem;
+  }
+  @media (min-width: 768px) {
+    .dz-steps { grid-template-columns: repeat(4, 1fr); }
+  }
+  .dz-step {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.05rem 1rem;
+  }
+  .dz-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #0F6FFF;
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.55rem;
+  }
+  .dz-step h3 {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #0b1f3a !important;
+    margin-bottom: 0.3rem;
+  }
+  .dz-step p {
+    font-size: 0.84rem;
+    margin: 0;
+    color: #475569;
+  }
+
+  .dz-terms {
+    font-size: 0.82rem;
+    color: #475569;
+  }
+  .dz-terms ul {
+    padding-left: 1.1rem;
+    margin-bottom: 0;
+  }
+  .dz-terms li { margin-bottom: 0.35rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5 dz-page">
+
+  <div class="mb-3">
+    <a href="{% url 'store:alianzas' %}" class="text-decoration-none small text-muted">
+      <i class="bi bi-arrow-left"></i> Volver a alianzas
+    </a>
+  </div>
+
+  <section class="dz-hero">
+    <div class="dz-partners">
+      <span class="dz-partner">
+        <span class="dz-partner-logo-wrap is-mixlab">
+          <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" class="dz-partner-logo">
+        </span>
+        MixLab
+      </span>
+      <span class="dz-handshake" aria-hidden="true"><i class="bi bi-handshake"></i></span>
+      <span class="dz-partner">
+        <span class="dz-partner-logo-wrap">
+          <img src="{% static 'img/logo-drinzz-clear.png' %}" alt="Drinzz" class="dz-partner-logo">
+        </span>
+        Drinzz
+      </span>
+    </div>
+    <div class="dz-badge"><i class="bi bi-shop"></i> Modelo de negocio</div>
+    <h1>Pon un punto de <span>granizados</span> en tu local</h1>
+    <p class="dz-hero-lead">
+      Con <strong>Drinzz</strong> llevamos toda la infraestructura para operar un punto de granizados
+      en un local comercial. Tú aportas el espacio; nosotros armamos el negocio, asumimos gastos clave
+      y también podemos colocar <strong>operadores</strong>. Compras, gastos y ventas quedan
+      <strong>automatizadas en Biztra</strong> con total transparencia.
+    </p>
+
+    <div class="dz-highlights">
+      <div class="dz-hi">
+        <div class="label">Gastos asumidos</div>
+        <p class="value">Luz · Insumos · Alquiler</p>
+      </div>
+      <div class="dz-hi">
+        <div class="label">Reparto progresivo</div>
+        <p class="value">{{ drinzz_contract.associate_pct_month1 }}/{{ drinzz_contract.operator_pct_month1 }} → {{ drinzz_contract.associate_pct }}/{{ drinzz_contract.operator_pct }} +{{ drinzz_contract.maintain_bonus_pct }}%</p>
+      </div>
+      <div class="dz-hi">
+        <div class="label">Ingreso estimado del asociado</div>
+        <p class="value">{{ drinzz_contract.estimated_income_min|pesos_colombianos }} a {{ drinzz_contract.estimated_income_max|pesos_colombianos }} / mes</p>
+      </div>
+    </div>
+
+    <div class="dz-cta">
+      {% if site_settings.whatsapp_url %}
+      <a href="{{ site_settings.whatsapp_url }}?text={{ 'Hola MixLab, quiero información para asociarme con Drinzz y poner un punto de granizados'|urlencode }}"
+         class="dz-btn dz-btn-primary" target="_blank" rel="noopener noreferrer">
+        Quiero asociarme <i class="bi bi-arrow-right"></i>
+      </a>
+      <a href="{{ site_settings.whatsapp_url }}?text={{ 'Hola, quiero cotizar un punto Drinzz en mi local'|urlencode }}"
+         class="dz-btn dz-btn-outline" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-whatsapp"></i> Hablar por WhatsApp
+      </a>
+      {% else %}
+      <a href="{% url 'store:product_list' %}" class="dz-btn dz-btn-primary">
+        Ver productos MixLab <i class="bi bi-arrow-right"></i>
+      </a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="dz-section">
+    <h2>¿Cómo funciona?</h2>
+    <p>
+      Drinzz ofrece un modelo llave en mano para instalar y operar un punto de granizados
+      dentro de un local comercial (tiendas, droguerías, panaderías, centros de servicio, etc.).
+      La idea es simple: <strong>tú tienes el flujo de personas</strong>; nosotros ponemos
+      la operación lista para vender.
+    </p>
+    <div class="dz-steps mt-3">
+      <div class="dz-step">
+        <div class="dz-step-num">1</div>
+        <h3>Evalúamos tu local</h3>
+        <p>Revisamos ubicación, flujo de clientes y espacio disponible para el punto.</p>
+      </div>
+      <div class="dz-step">
+        <div class="dz-step-num">2</div>
+        <h3>Instalamos todo</h3>
+        <p>Llevamos la infraestructura: máquina, insumos base, montaje y puesta en marcha.</p>
+      </div>
+      <div class="dz-step">
+        <div class="dz-step-num">3</div>
+        <h3>Operamos el punto</h3>
+        <p>Asumimos luz, insumos y alquiler del modelo. También colocamos operadores si se requiere.</p>
+      </div>
+      <div class="dz-step">
+        <div class="dz-step-num">4</div>
+        <h3>Repartimos utilidades</h3>
+        <p>Empiezas en {{ drinzz_contract.associate_pct_month1 }}/{{ drinzz_contract.operator_pct_month1 }}; si superas {{ drinzz_contract.billing_threshold|pesos_colombianos }} subes a {{ drinzz_contract.associate_pct }}/{{ drinzz_contract.operator_pct }} y puedes sumar +{{ drinzz_contract.maintain_bonus_pct }}%.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="dz-section">
+    <h2>¿Qué asume Drinzz?</h2>
+    <p>Para que el asociado no cargue con la operación diaria, Drinzz cubre los gastos principales del punto:</p>
+    <div class="dz-grid-3 mt-3">
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-lightning-charge"></i></div>
+        <h3>Luz</h3>
+        <p>El consumo eléctrico asociado a la operación del punto de granizados.</p>
+      </div>
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-box-seam"></i></div>
+        <h3>Insumos</h3>
+        <p>Bases, vasos, tapas y consumibles necesarios para mantener la venta activa.</p>
+      </div>
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-building"></i></div>
+        <h3>Alquiler</h3>
+        <p>Drinzz asume el componente de alquiler dentro del esquema del punto.</p>
+      </div>
+    </div>
+    <div class="dz-grid-3 mt-3">
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-gear-wide-connected"></i></div>
+        <h3>Infraestructura</h3>
+        <p>Máquina y montaje del punto listo para vender en tu local comercial.</p>
+      </div>
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-people"></i></div>
+        <h3>Operadores</h3>
+        <p>También colocamos personal operador para atender el punto cuando se necesita.</p>
+      </div>
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-eye"></i></div>
+        <h3>Transparencia Biztra</h3>
+        <p>Compras, gastos y ventas quedan registradas de forma automática, con total claridad.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="dz-transparency">
+    <div class="dz-transparency-badge"><i class="bi bi-shield-check"></i> Total transparencia</div>
+    <h2>Todo automatizado con Biztra</h2>
+    <p>
+      {{ drinzz_contract.transparency_clause }}
+    </p>
+    <div class="dz-transparency-grid">
+      <div class="dz-transparency-item">
+        <i class="bi bi-cart-check"></i>
+        <strong>Compras</strong>
+        <span>Insumos y adquisiciones del punto registradas en el sistema.</span>
+      </div>
+      <div class="dz-transparency-item">
+        <i class="bi bi-receipt"></i>
+        <strong>Gastos</strong>
+        <span>Costos operativos visibles y trazables para la liquidación.</span>
+      </div>
+      <div class="dz-transparency-item">
+        <i class="bi bi-graph-up-arrow"></i>
+        <strong>Ventas</strong>
+        <span>Facturación del punto en tiempo real para control y meta.</span>
+      </div>
+    </div>
+    <div class="dz-cta" style="margin-top:1.15rem;">
+      <a href="{% url 'store:alianza_biztra' %}" class="dz-btn dz-btn-primary">
+        Conocer Biztra <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </section>
+
+  <section class="dz-section">
+    <h2>Reparto de utilidades progresivo</h2>
+    <p>
+      Entre más vende el punto, mejor liquidas. Así funciona la escala de utilidades
+      para el asociado:
+    </p>
+    <div class="dz-split mt-3">
+      <div class="dz-split-box tier-1">
+        <div class="dz-tier-badge">Nivel 1 · Arranque</div>
+        <div class="dz-split-pct">{{ drinzz_contract.associate_pct_month1 }}% / {{ drinzz_contract.operator_pct_month1 }}%</div>
+        <div class="dz-split-role">Primer mes</div>
+        <p class="dz-split-desc">
+          Empiezas con <strong>{{ drinzz_contract.associate_pct_month1 }}%</strong> para ti
+          y {{ drinzz_contract.operator_pct_month1 }}% para Drinzz.
+        </p>
+      </div>
+      <div class="dz-split-box tier-2">
+        <div class="dz-tier-badge">Nivel 2 · Meta</div>
+        <div class="dz-split-pct">{{ drinzz_contract.associate_pct }}% / {{ drinzz_contract.operator_pct }}%</div>
+        <div class="dz-split-role">Facturación &gt; {{ drinzz_contract.billing_threshold|pesos_colombianos }}</div>
+        <p class="dz-split-desc">
+          Si registras facturación superior a
+          <strong>{{ drinzz_contract.billing_threshold|pesos_colombianos }}</strong>,
+          tu participación sube a <strong>{{ drinzz_contract.associate_pct }}%</strong>.
+        </p>
+      </div>
+      <div class="dz-split-box tier-3">
+        <div class="dz-tier-badge">Nivel 3 · Bonificación</div>
+        <div class="dz-split-pct">+{{ drinzz_contract.maintain_bonus_pct }}%</div>
+        <div class="dz-split-role">Mantén la meta</div>
+        <p class="dz-split-desc">
+          Si en los meses siguientes mantienes facturación por encima de
+          <strong>{{ drinzz_contract.billing_threshold|pesos_colombianos }}</strong>,
+          tu liquidación sube un <strong>{{ drinzz_contract.maintain_bonus_pct }}%</strong> adicional.
+        </p>
+      </div>
+    </div>
+    <div class="dz-ladder-note">
+      <strong>Ejemplo rápido:</strong> arrancas 20/80 → cruzas $6.000.000 y pasas a 30/70 →
+      mantienes la meta y recibes +10% extra en tu liquidación. Más ventas, mejor pago.
+    </div>
+  </section>
+
+  <section class="dz-section">
+    <h2>¿Cuánto pueden generar los asociados?</h2>
+    <p>
+      Con base en nuestra experiencia con puntos en operación, los asociados generalmente
+      perciben un ingreso mensual aproximado de:
+    </p>
+    <div class="dz-earn">
+      <div class="dz-earn-box">
+        <div class="label">Desde</div>
+        <p class="amount">{{ drinzz_contract.estimated_income_min|pesos_colombianos }} / mes</p>
+      </div>
+      <div class="dz-earn-box">
+        <div class="label">Hasta</div>
+        <p class="amount">{{ drinzz_contract.estimated_income_max|pesos_colombianos }} / mes</p>
+      </div>
+    </div>
+    <p class="dz-earn-note">
+      *{{ drinzz_contract.disclaimer_income }}
+    </p>
+  </section>
+
+  <section class="dz-section">
+    <h2>Ideal si tienes un local con movimiento</h2>
+    <div class="dz-grid-3">
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-shop-window"></i></div>
+        <h3>Local comercial</h3>
+        <p>Tiendas, droguerías, panaderías, minimarkets o espacios con paso constante de personas.</p>
+      </div>
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-cash-coin"></i></div>
+        <h3>Ingreso adicional</h3>
+        <p>Activas una nueva línea de ingreso sin cargar con la operación completa del punto.</p>
+      </div>
+      <div class="dz-card">
+        <div class="dz-card-icon"><i class="bi bi-snow"></i></div>
+        <h3>Producto atractivo</h3>
+        <p>Los granizados generan compra impulsiva y complementan muy bien otros negocios.</p>
+      </div>
+    </div>
+    <div class="dz-cta mt-4">
+      {% if site_settings.whatsapp_url %}
+      <a href="{{ site_settings.whatsapp_url }}?text={{ 'Hola, tengo un local y quiero información del modelo Drinzz'|urlencode }}"
+         class="dz-btn dz-btn-wa" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-whatsapp"></i> Solicitar evaluación de mi local
+      </a>
+      {% endif %}
+      {% if drinzz_contract.is_published or request.user.is_staff %}
+      <a href="{% url 'store:drinzz_contract_pdf' %}?download=1" class="dz-btn dz-btn-dark" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-file-earmark-pdf"></i> Descargar contrato PDF
+      </a>
+      {% endif %}
+      <a href="{% url 'store:product_list' %}" class="dz-btn dz-btn-outline" style="border-color:#0b1f3a;color:#0b1f3a;">
+        Ver insumos MixLab
+      </a>
+    </div>
+  </section>
+
+  <section class="dz-section">
+    <h2>Contrato de colaboración operativa</h2>
+    <p>
+      Descarga el contrato marco para formalizar la alianza. Incluye objeto, gastos asumidos,
+      reparto progresivo ({{ drinzz_contract.associate_pct_month1 }}/{{ drinzz_contract.operator_pct_month1 }} → {{ drinzz_contract.associate_pct }}/{{ drinzz_contract.operator_pct }} +{{ drinzz_contract.maintain_bonus_pct }}%),
+      obligaciones, vigencia y jurisdicción.
+    </p>
+    <div class="dz-cta">
+      {% if drinzz_contract.is_published or request.user.is_staff %}
+      <a href="{% url 'store:drinzz_contract_pdf' %}" class="dz-btn dz-btn-primary" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-eye"></i> Ver contrato
+      </a>
+      <a href="{% url 'store:drinzz_contract_pdf' %}?download=1" class="dz-btn dz-btn-dark" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-download"></i> Descargar PDF
+      </a>
+      {% endif %}
+      {% if request.user.is_staff %}
+      <a href="{% url 'store:drinzz_contract_edit' %}" class="dz-btn dz-btn-outline" style="border-color:#0b1f3a;color:#0b1f3a;">
+        <i class="bi bi-pencil"></i> Editar contrato (admin)
+      </a>
+      {% endif %}
+    </div>
+    <p class="dz-earn-note mb-0">Versión {{ drinzz_contract.version_label }} · Los campos del asociado se completan al firmar.</p>
+  </section>
+
+  <section class="dz-section">
+    <h2>Términos generales</h2>
+    <div class="dz-terms">
+      <ul>
+        <li>El modelo Drinzz contempla la instalación de un punto de granizados en un local comercial aliado.</li>
+        <li>Drinzz asume, dentro del esquema pactado: <strong>{{ drinzz_contract.expenses_assumed }}</strong></li>
+        <li>Las utilidades son progresivas: <strong>{{ drinzz_contract.associate_pct_month1 }}%/{{ drinzz_contract.operator_pct_month1 }}%</strong> el primer mes; <strong>{{ drinzz_contract.associate_pct }}%/{{ drinzz_contract.operator_pct }}%</strong> si la facturación supera <strong>{{ drinzz_contract.billing_threshold|pesos_colombianos }}</strong>; y <strong>+{{ drinzz_contract.maintain_bonus_pct }}%</strong> en la liquidación si se mantiene esa meta.</li>
+        {% if drinzz_contract.provides_operators %}
+        <li>También se pueden colocar <strong>operadores</strong> para la atención del punto.</li>
+        {% endif %}
+        <li>Compras, gastos y ventas se registran de forma <strong>automatizada en Biztra</strong> para garantizar <strong>total transparencia</strong>.</li>
+        <li>Los ingresos estimados de {{ drinzz_contract.estimated_income_min|pesos_colombianos }} a {{ drinzz_contract.estimated_income_max|pesos_colombianos }} mensuales son referenciales según experiencia y no garantizan resultados.</li>
+        <li>Cada alianza se formaliza con el contrato vigente y la evaluación del local.</li>
+      </ul>
+      <p class="mt-3 mb-0">
+        ¿Quieres evaluar tu local?
+        Escríbenos a
+        <a href="mailto:{{ site_settings.contact_email }}">{{ site_settings.contact_email }}</a>
+        o por WhatsApp.
+      </p>
+    </div>
+  </section>
+
+  <p class="text-center text-muted small mb-0">
+    <i class="bi bi-handshake me-1"></i>
+    MixLab × Drinzz — infraestructura de granizados para hacer crecer tu local.
+  </p>
+</div>
+{% endblock %}

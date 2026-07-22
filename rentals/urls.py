@@ -6,6 +6,8 @@ app_name = 'rentals'
 urlpatterns = [
     path('', views.rental_list, name='rental_list'),
     path('product/<int:product_id>/', views.rental_detail, name='rental_detail'),
+    path('product/<int:product_id>/contrato/', views.rental_sample_contract, name='rental_sample_contract'),
+    path('product/<int:product_id>/acta-entrega/', views.rental_sample_delivery_acta, name='rental_sample_delivery_acta'),
     path('create/<int:product_id>/', views.create_rental, name='create_rental'),
     path('history/', views.rental_history, name='rental_history'),
     # Manager — solicitudes

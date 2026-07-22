@@ -188,7 +188,7 @@
 <div class="container py-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h3 class="mb-0">Registro de cotizaciones</h3>
-    <a class="btn btn-outline-primary" href="{% url 'store:quotation' %}">Nueva cotización</a>
+    <a class="btn btn-outline-primary" href="{% url 'store:quotation' %}?nueva=1">Nueva cotización</a>
   </div>
 
   <!-- Filtros -->
@@ -297,6 +297,13 @@
               <td class="text-end fw-semibold col-total">{{ q.total|pesos_colombianos }}</td>
               <td class="text-end col-actions">
                 <div class="row-actions">
+                  {% if q.order_status != 'pago_recibido' and q.order_status != 'enviado' and q.order_status != 'recibido' and q.order_status != 'modificado_y_enviado' and q.quotation_status != 'cancelada' and q.quotation_status != 'cerrada' %}
+                  <a href="{% url 'store:quotation_edit' quotation_id=q.id %}"
+                     class="btn btn-outline-primary btn-sm"
+                     title="Modificar cotización">
+                    <i class="bi bi-pencil-square"></i>
+                  </a>
+                  {% endif %}
                   {% if q.order_status == 'esperando_pago' or q.order_status == 'pago_parcial' %}
                   <a href="{% url 'store:quotation_detail' quotation_id=q.id %}#payment-proof-section"
                      class="btn btn-outline-warning btn-sm"

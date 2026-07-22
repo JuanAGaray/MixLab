@@ -1,0 +1,319 @@
+{% load store_tags %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Formato · Contrato de alquiler · {{ product.name }}</title>
+  <style>
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 14px;
+      color: #0f172a;
+      line-height: 1.55;
+      margin: 0;
+      background: #eef2f7;
+    }
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 1.25rem;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+      font-family: system-ui, sans-serif;
+    }
+    .toolbar a, .toolbar button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      text-decoration: none;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .badge-sample {
+      background: #ecfdf8;
+      color: #0f766e;
+      border: 1px solid #99f6e4;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: system-ui, sans-serif;
+    }
+    .sheet {
+      background: #fff;
+      border: 1px solid #dbe3ee;
+      border-radius: 12px;
+      padding: 1.5rem 1.35rem 2rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+    h1 {
+      font-size: 1.35rem;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.35rem;
+    }
+    .meta {
+      text-align: center;
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 1.25rem;
+      font-family: system-ui, sans-serif;
+    }
+    h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #94a3b8;
+      padding-bottom: 0.25rem;
+      margin: 1.35rem 0 0.65rem;
+    }
+    p, li { margin: 0 0 0.55rem; text-align: justify; }
+    ul { margin: 0.25rem 0 0.75rem 1.2rem; padding: 0; }
+    .box {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 0.85rem 0.95rem;
+      margin-bottom: 0.75rem;
+    }
+    .label {
+      display: block;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.2rem;
+      font-family: system-ui, sans-serif;
+    }
+    .value { font-weight: 700; }
+    table.equip {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.5rem 0 0.75rem;
+      font-size: 0.9rem;
+      font-family: system-ui, sans-serif;
+    }
+    .equip th {
+      background: #0f172a;
+      color: #fff;
+      text-align: left;
+      padding: 0.5rem 0.55rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+    .equip td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0.55rem;
+      vertical-align: top;
+    }
+    .highlight {
+      background: #fffbeb;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 0.85rem 0.95rem;
+      margin: 0.65rem 0;
+    }
+    .muted { color: #64748b; font-size: 0.88rem; }
+    .blank { border-bottom: 1px dotted #94a3b8; display: inline-block; min-width: 10rem; }
+    .signs {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin-top: 2.5rem;
+      text-align: center;
+      font-family: system-ui, sans-serif;
+      font-size: 0.85rem;
+    }
+    .signs .line {
+      border-top: 1px solid #0f172a;
+      margin-top: 3rem;
+      padding-top: 0.4rem;
+    }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none !important; }
+      .wrap { padding: 0; max-width: none; }
+      .sheet { border: none; box-shadow: none; border-radius: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar"{% if request.GET.embed == '1' %} style="display:none"{% endif %}>
+      <span class="badge-sample">Formato de muestra</span>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <a href="{% url 'rentals:rental_detail' product.id %}">← Volver al producto</a>
+        <button type="button" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
+
+    <article class="sheet">
+      <h1>Contrato de Arrendamiento de Bien Mueble</h1>
+      <p class="meta">
+        Formato aplicable al alquiler de <strong>{{ product.name }}</strong> ·
+        {{ settings.company_legal_name|default:"MIXLAB SAS" }}
+      </p>
+
+      <h2>1. Identificación de las partes</h2>
+      <div class="box">
+        <span class="label">Arrendador</span>
+        <p>
+          <span class="value">{{ settings.company_legal_name|default:"MIXLAB SAS" }}</span><br>
+          NIT: {{ settings.company_nit|default:"902031074-1" }}
+          {% if settings.company_matricula %} · Matrícula mercantil No. {{ settings.company_matricula }}{% endif %}<br>
+          {% if settings.company_rep_name %}Representante legal: {{ settings.company_rep_name }}<br>{% endif %}
+          Domicilio: {{ settings.company_address|default:"—" }}<br>
+          Municipio: {{ settings.address_city|default:"Cartagena" }}{% if settings.company_department %}, {{ settings.company_department }}{% endif %}<br>
+          Tel: {{ settings.contact_phone|default:"—" }} · Correo: {{ settings.contact_email|default:"—" }}
+        </p>
+        <span class="label">Arrendatario</span>
+        <p>
+          Nombre / Razón social: <span class="blank">&nbsp;</span><br>
+          Documento / NIT: <span class="blank">&nbsp;</span> · Tel: <span class="blank">&nbsp;</span><br>
+          Correo: <span class="blank">&nbsp;</span><br>
+          Ciudad / Departamento: <span class="blank">&nbsp;</span>
+        </p>
+        <span class="label">Codeudor (Fiador Solidario)</span>
+        <p>
+          Nombre: <span class="blank">&nbsp;</span><br>
+          C.C. / NIT: <span class="blank">&nbsp;</span> · Tel: <span class="blank">&nbsp;</span><br>
+          Dirección: <span class="blank">&nbsp;</span>
+        </p>
+        <p class="muted" style="margin:0;">
+          El codeudor se obliga solidariamente por las obligaciones del arrendatario (canon, daños, cláusula penal y demás sumas), renunciando al beneficio de excusión.
+        </p>
+      </div>
+
+      <h2>2. Objeto del contrato</h2>
+      <p>
+        El ARRENDADOR entrega en arrendamiento al ARRENDATARIO el siguiente bien mueble,
+        el cual el ARRENDATARIO recibe a satisfacción:
+      </p>
+      <table class="equip">
+        <thead>
+          <tr>
+            <th>Equipo</th>
+            <th>Marca / Modelo / Serial</th>
+            <th>Estado / Accesorios</th>
+            <th>Valor comercial</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>{{ product.name }}</strong></td>
+            <td>
+              Marca: {{ product.rental_brand|default:"—" }}<br>
+              Modelo: {{ product.rental_model|default:"—" }}<br>
+              Serial: {{ product.rental_serial|default:"—" }}
+            </td>
+            <td>
+              {{ product.rental_condition|default:"Buen estado" }}<br>
+              <span class="muted">{{ product.rental_accessories|default:"Accesorios: ver inventario del acta de entrega" }}</span>
+            </td>
+            <td>
+              {% if commercial_value %}{{ commercial_value|pesos_colombianos }}{% else %}Por definir{% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted">
+        El estado detallado, inventario y registro fotográfico se consignan en el
+        <strong>acta de entrega / recepción</strong>, que forma parte de este contrato.
+      </p>
+
+      <h2>3. Canon de arrendamiento</h2>
+      <p>Tarifas vigentes para este equipo:</p>
+      <ul>
+        {% for t in tariffs %}
+        <li><strong>{{ t.get_period_type_display }}:</strong> {{ t.price|pesos_colombianos }}{{ t.period_short_label }}</li>
+        {% empty %}
+        <li>Según tarifa acordada al momento de la solicitud / cotización.</li>
+        {% endfor %}
+      </ul>
+      <p>
+        El canon correspondiente al periodo contratado (diario, mensual u otro) se paga
+        de forma oportuna por transferencia o consignación en las cuentas que indique el ARRENDADOR.
+      </p>
+
+      <h2>4. Depósito de garantía</h2>
+      <p>
+        El ARRENDADOR podrá exigir un depósito equivalente al <strong>8%</strong> del valor comercial
+        del equipo, o el monto que acuerden las partes. Se devolverá tras la terminación del contrato
+        y verificación del estado del equipo, deducidos daños, faltantes o mora.
+      </p>
+      {% if deposit_8pct %}
+      <p>
+        Referencia para este equipo:
+        valor comercial {{ commercial_value|pesos_colombianos }} →
+        depósito 8%: <strong>{{ deposit_8pct|pesos_colombianos }}</strong>.
+      </p>
+      {% endif %}
+
+      <h2>5. Garantías adicionales</h2>
+      <div class="highlight">
+        <p><strong>Codeudor solidario</strong>, <strong>pagaré en blanco con carta de instrucciones</strong>
+        y <strong>fotocopias de cédula / NIT</strong> (y Cámara de Comercio si aplica) forman parte
+        de los documentos exigidos para formalizar el alquiler.</p>
+      </div>
+
+      <h2>6. Entrega y acta de recepción</h2>
+      <p>
+        La entrega se documenta en un acta con estado físico/funcional, accesorios, evidencias
+        fotográficas y firmas. El ARRENDATARIO se obliga a devolver el equipo en las mismas
+        condiciones, salvo desgaste normal por uso adecuado.
+      </p>
+
+      <h2>7. Obligaciones del arrendatario</h2>
+      <ul>
+        <li>Usar el equipo solo para su destinación, con personal capacitado.</li>
+        <li>No modificar, reparar ni intervenir sin autorización escrita.</li>
+        <li>No subarrendar ni ceder el equipo.</li>
+        <li>Permitir inspecciones razonables y devolver en fecha y lugar acordados.</li>
+      </ul>
+
+      <h2>8. Alquiler mensual y formalización</h2>
+      <p>
+        En modalidad <strong>mensual</strong>, la firma del contrato se realiza en
+        <strong>notaría</strong> para mayor seguridad jurídica, junto con los soportes
+        documentales requeridos.
+      </p>
+
+      <h2>9. Anexos</h2>
+      <ul>
+        <li>Acta de entrega / recepción</li>
+        <li>Registro fotográfico del equipo</li>
+        <li>Cédulas / NIT y documentos del codeudor</li>
+        <li>Pagaré y carta de instrucciones (si aplica)</li>
+      </ul>
+
+      <p class="muted">
+        Este es el <strong>formato de muestra</strong> del contrato. Los datos del arrendatario,
+        fechas, canon final y firmas se completan al formalizar el alquiler.
+      </p>
+
+      <div class="signs">
+        <div><div class="line">ARRENDADOR</div></div>
+        <div><div class="line">ARRENDATARIO</div></div>
+        <div><div class="line">CODEUDOR</div></div>
+      </div>
+    </article>
+  </div>
+</body>
+</html>

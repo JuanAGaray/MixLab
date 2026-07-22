@@ -333,6 +333,11 @@
       </div>
     </div>
     <div class="qd-actions">
+      {% if can_edit_quote %}
+      <a class="qd-btn qd-btn-accent" href="{% url 'store:quotation_edit' quotation_id=quote.id %}">
+        <i class="bi bi-pencil-square"></i> Modificar
+      </a>
+      {% endif %}
       <a class="qd-btn qd-btn-dark" href="{% url 'store:quotation_pdf' quotation_id=quote.id %}?iva=1" target="_blank" rel="noopener noreferrer">
         <i class="bi bi-file-earmark-pdf"></i> PDF con IVA
       </a>

@@ -2,153 +2,571 @@
 {% load static %}
 {% load store_tags %}
 
-{% block title %}Reservar {{ product.name }} - Frozz{% endblock %}
+{% block title %}Alquiler · {{ product.name }} - MixLab{% endblock %}
+{% block meta_description %}Alquila {{ product.name }} por día o por mes. Incluye contrato, actas y documentación requerida.{% endblock %}
 
 {% block extra_css %}
 <style>
-    .unavailable-date {
-        background-color: #dc3545 !important;
-        color: white !important;
-        pointer-events: none;
-    }
+  .rd-page {
+    --rd-navy: #0b1f3a;
+    --rd-teal: #0d9488;
+    --rd-teal-soft: #ecfdf8;
+    --rd-ink: #0f172a;
+    --rd-muted: #64748b;
+    --rd-line: #e2e8f0;
+    --rd-soft: #f8fafc;
+  }
+  .rd-back {
+    color: var(--rd-muted) !important;
+    font-weight: 600;
+    font-size: 0.88rem;
+    text-decoration: none;
+  }
+  .rd-back:hover { color: var(--rd-ink) !important; }
+
+  .rd-hero-img {
+    width: 100%;
+    border-radius: 1.25rem;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--rd-line);
+    min-height: 220px;
+    max-height: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+  }
+  .rd-hero-img img {
+    width: 100%;
+    height: auto;
+    max-height: 450px;
+    object-fit: contain;
+    display: block;
+  }
+  .rd-hero-img .placeholder {
+    font-size: 5rem;
+    color: #94a3b8;
+  }
+
+  .rd-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--rd-teal-soft);
+    color: var(--rd-teal);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    margin-bottom: 0.75rem;
+  }
+  .rd-title {
+    font-weight: 800;
+    color: var(--rd-ink) !important;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.65rem;
+  }
+  .rd-desc {
+    color: var(--rd-muted);
+    line-height: 1.55;
+    margin-bottom: 1.25rem;
+  }
+  .rd-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    color: var(--rd-muted);
+    font-size: 0.88rem;
+    margin-bottom: 1.25rem;
+  }
+  .rd-meta strong { color: var(--rd-ink); }
+
+  .rd-card {
+    background: #fff;
+    border: 1px solid var(--rd-line);
+    border-radius: 1.25rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+  .rd-card-head {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--rd-line);
+    background: var(--rd-soft);
+  }
+  .rd-card-head h2,
+  .rd-card-head h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--rd-ink) !important;
+  }
+  .rd-card-body { padding: 1.25rem; }
+
+  .rd-tariff-grid {
+    display: grid;
+    gap: 0.75rem;
+  }
+  @media (min-width: 480px) {
+    .rd-tariff-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .rd-tariff-option {
+    position: relative;
+    cursor: pointer;
+  }
+  .rd-tariff-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .rd-tariff-box {
+    border: 2px solid var(--rd-line);
+    border-radius: 1rem;
+    padding: 1rem 1.05rem;
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    height: 100%;
+  }
+  .rd-tariff-option input:checked + .rd-tariff-box,
+  .rd-tariff-option:hover .rd-tariff-box {
+    border-color: var(--rd-teal);
+    background: var(--rd-teal-soft);
+    box-shadow: 0 6px 16px rgba(13, 148, 136, 0.12);
+  }
+  .rd-tariff-box .label {
+    display: block;
+    font-weight: 800;
+    color: var(--rd-ink);
+    margin-bottom: 0.2rem;
+  }
+  .rd-tariff-box .price {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--rd-teal);
+  }
+  .rd-tariff-box .hint {
+    font-size: 0.8rem;
+    color: var(--rd-muted);
+    margin-top: 0.25rem;
+  }
+
+  .rd-qty-label {
+    font-weight: 700;
+    color: var(--rd-ink);
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+  .rd-notes {
+    font-size: 0.9rem;
+  }
+
+  .rd-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    border: none;
+    border-radius: 999px;
+    padding: 0.85rem 1.25rem;
+    font-weight: 800;
+    font-size: 0.95rem;
+    background: linear-gradient(135deg, #0d9488, #0f766e);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(13, 148, 136, 0.3);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .rd-btn:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(13, 148, 136, 0.35);
+  }
+
+  .rd-docs {
+    margin-top: 2rem;
+  }
+  .rd-docs-grid {
+    display: grid;
+    gap: 0.85rem;
+  }
+  @media (min-width: 768px) {
+    .rd-docs-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 1100px) {
+    .rd-docs-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  .rd-doc-item {
+    background: #fff;
+    border: 1px solid var(--rd-line);
+    border-radius: 1rem;
+    padding: 1.1rem 1rem;
+    height: 100%;
+  }
+  .rd-doc-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: var(--rd-teal-soft);
+    color: var(--rd-teal);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    margin-bottom: 0.65rem;
+  }
+  .rd-doc-item h3 {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--rd-ink) !important;
+    margin-bottom: 0.35rem;
+  }
+  .rd-doc-item p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--rd-muted);
+    line-height: 1.45;
+  }
+  .rd-notary {
+    margin-top: 0.85rem;
+    border-radius: 1rem;
+    padding: 1rem 1.15rem;
+    background: linear-gradient(135deg, #0b1f3a 0%, #12325a 100%);
+    color: #fff;
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+  }
+  .rd-notary i {
+    font-size: 1.35rem;
+    color: #5eead4;
+    margin-top: 0.1rem;
+  }
+  .rd-notary strong {
+    display: block;
+    margin-bottom: 0.2rem;
+  }
+  .rd-notary span {
+    font-size: 0.88rem;
+    color: rgba(255,255,255,0.88);
+  }
+
+  .rd-doc-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+  }
+  .rd-doc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid var(--rd-line);
+    color: var(--rd-ink);
+    background: #fff;
+  }
+  .rd-doc-link:hover { color: var(--rd-teal); border-color: var(--rd-teal); }
+  .rd-doc-link.primary {
+    background: var(--rd-teal);
+    border-color: var(--rd-teal);
+    color: #fff;
+  }
+  .rd-doc-link.primary:hover { color: #fff; background: #0f766e; }
+  .rd-preview-frame {
+    width: 100%;
+    min-height: 520px;
+    border: 1px solid var(--rd-line);
+    border-radius: 1rem;
+    background: #fff;
+    margin-top: 1rem;
+  }
+  .rd-preview-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 1.25rem;
+  }
+  .rd-preview-tab {
+    border: 1px solid var(--rd-line);
+    background: #fff;
+    color: var(--rd-ink);
+    border-radius: 999px;
+    padding: 0.45rem 0.95rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .rd-preview-tab.active {
+    background: var(--rd-navy);
+    border-color: var(--rd-navy);
+    color: #fff;
+  }
+  .rd-login-box {
+    border: 1px dashed #f59e0b;
+    background: #fffbeb;
+    border-radius: 1rem;
+    padding: 1.1rem 1.2rem;
+    color: #92400e;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="row">
-        <div class="col-md-6">
-            {% if product.image %}
-            <img src="{{ product.image.url }}" class="img-fluid rounded shadow" alt="{{ product.name }}">
-            {% else %}
-            <div class="bg-light d-flex align-items-center justify-content-center rounded shadow" style="height: 400px;">
-                <i class="bi bi-calendar3" style="font-size: 128px; color: #0d6efd;"></i>
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="col-md-6">
-            <h1 class="mb-3">{{ product.name }}</h1>
-            <p class="text-muted mb-4">{{ product.description }}</p>
-            
-            <div class="card mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Precios de Alquiler</h5>
-                </div>
-                <div class="card-body">
-                    {% if rental_prices %}
-                        {% for tariff in rental_prices %}
-                        <p class="mb-2">
-                            <strong>{{ tariff.get_period_type_display }}:</strong>
-                            {{ tariff.price|pesos_colombianos }}{{ tariff.period_short_label }}
-                        </p>
-                        {% endfor %}
-                    {% else %}
-                        <p class="mb-0"><strong>Diario:</strong> {{ product.price|pesos_colombianos }}/día</p>
-                    {% endif %}
-                </div>
-            </div>
-            
-            {% if user.is_authenticated %}
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Reservar Alquiler</h5>
-                </div>
-                <div class="card-body">
-                    <form method="post" action="{% url 'rentals:create_rental' product.id %}">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="duration_type" class="form-label">Tipo de alquiler *</label>
-                            <select class="form-select" id="duration_type" name="duration_type" required>
-                                {% if rental_prices %}
-                                    {% for tariff in rental_prices %}
-                                    <option value="{{ tariff.period_type }}">{{ tariff.get_period_type_display }} — {{ tariff.price|pesos_colombianos }}</option>
-                                    {% endfor %}
-                                {% else %}
-                                    <option value="daily">Por día — {{ product.price|pesos_colombianos }}</option>
-                                {% endif %}
-                            </select>
-                        </div>
-                        <div class="mb-3" id="hours-field-wrap" style="display: none;">
-                            <label for="hours" class="form-label">Cantidad de horas *</label>
-                            <input type="number" class="form-control" id="hours" name="hours" min="1" value="1">
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="start_date" class="form-label">Fecha de Inicio *</label>
-                                <input type="date" class="form-control" id="start_date" name="start_date" min="{{ today }}" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="end_date" class="form-label">Fecha de Fin *</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date" min="{{ today }}" required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="contact_name" class="form-label">Nombre de Contacto *</label>
-                            <input type="text" class="form-control" id="contact_name" name="contact_name" value="{{ user.get_full_name|default:user.username }}" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="contact_phone" class="form-label">Teléfono de Contacto *</label>
-                            <div class="input-group">
-                                <span class="input-group-text">+57</span>
-                                <input type="tel" class="form-control" id="contact_phone" name="contact_phone" value="{% if user.profile %}{{ user.profile.phone }}{% endif %}" required>
-                            </div>
-                            <small class="text-muted">Puedes cambiar el indicativo manualmente si lo necesitas.</small>
-                        </div>
-                        <div class="mb-3">
-                            <label for="delivery_address" class="form-label">Dirección de Entrega *</label>
-                            <textarea class="form-control" id="delivery_address" name="delivery_address" rows="2" required>{% if user.profile %}{{ user.profile.address }}{% endif %}</textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="delivery_city" class="form-label">Ciudad de Entrega *</label>
-                            <input type="text" class="form-control" id="delivery_city" name="delivery_city" value="{% if user.profile %}{{ user.profile.city }}{% endif %}" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="special_requirements" class="form-label">Requisitos Especiales</label>
-                            <textarea class="form-control" id="special_requirements" name="special_requirements" rows="2"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
-                            <i class="bi bi-calendar-check"></i> Reservar Alquiler
-                        </button>
-                    </form>
-                </div>
-            </div>
-            {% else %}
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle"></i> Debes <a href="{% url 'accounts:login' %}">iniciar sesión</a> para reservar un alquiler.
-            </div>
-            {% endif %}
-        </div>
+<div class="container my-4 my-md-5 rd-page">
+  <div class="mb-3">
+    <a href="{% url 'rentals:rental_list' %}" class="rd-back">
+      <i class="bi bi-arrow-left"></i> Volver a alquileres
+    </a>
+  </div>
+
+  <div class="row g-4 align-items-start">
+    <div class="col-lg-5">
+      <div class="rd-hero-img">
+        {% if product.image %}
+        <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
+        {% else %}
+        <i class="bi bi-cpu placeholder"></i>
+        {% endif %}
+      </div>
     </div>
+
+    <div class="col-lg-7">
+      <span class="rd-badge"><i class="bi bi-calendar2-check"></i> Alquiler de maquinaria</span>
+      <h1 class="h2 rd-title">{{ product.name }}</h1>
+      {% if product.description %}
+      <p class="rd-desc">{{ product.description }}</p>
+      {% endif %}
+
+      <div class="rd-meta">
+        {% if product.rental_brand %}<span><strong>Marca:</strong> {{ product.rental_brand }}</span>{% endif %}
+        {% if product.rental_model %}<span><strong>Modelo:</strong> {{ product.rental_model }}</span>{% endif %}
+        {% if product.rental_condition %}<span><strong>Estado:</strong> {{ product.rental_condition }}</span>{% endif %}
+      </div>
+
+      <div class="rd-card mb-3">
+        <div class="rd-card-head">
+          <h2><i class="bi bi-tags me-1 text-teal"></i> Solicitar alquiler</h2>
+        </div>
+        <div class="rd-card-body">
+          {% if user.is_authenticated %}
+          <form method="post" action="{% url 'rentals:create_rental' product.id %}" id="rental-request-form">
+            {% csrf_token %}
+
+            <p class="text-muted small mb-3">
+              Elige el <strong>tipo de alquiler</strong> según la tarifa de la máquina.
+              Las fechas y datos de contacto se coordinan después con el equipo MixLab.
+            </p>
+
+            <label class="rd-qty-label">Tipo de alquiler *</label>
+            <div class="rd-tariff-grid mb-3">
+              {% if rental_prices %}
+                {% for tariff in rental_prices %}
+                <label class="rd-tariff-option">
+                  <input type="radio"
+                         name="duration_type"
+                         value="{{ tariff.period_type }}"
+                         data-label="{{ tariff.get_period_type_display }}"
+                         {% if forloop.first %}checked{% endif %}
+                         required>
+                  <div class="rd-tariff-box">
+                    <span class="label">{{ tariff.get_period_type_display }}</span>
+                    <div class="price">{{ tariff.price|pesos_colombianos }}{{ tariff.period_short_label }}</div>
+                    <div class="hint">
+                      {% if tariff.period_type == 'daily' %}Ideal para usos cortos
+                      {% elif tariff.period_type == 'monthly' %}Ideal para operación continua
+                      {% elif tariff.period_type == 'weekly' %}Por periodos semanales
+                      {% else %}Por horas de uso{% endif %}
+                    </div>
+                  </div>
+                </label>
+                {% endfor %}
+              {% else %}
+                <label class="rd-tariff-option">
+                  <input type="radio" name="duration_type" value="daily" checked required>
+                  <div class="rd-tariff-box">
+                    <span class="label">Por día</span>
+                    <div class="price">{{ product.price|pesos_colombianos }}/día</div>
+                  </div>
+                </label>
+                <label class="rd-tariff-option">
+                  <input type="radio" name="duration_type" value="monthly" required>
+                  <div class="rd-tariff-box">
+                    <span class="label">Por mes</span>
+                    <div class="price">Consultar</div>
+                  </div>
+                </label>
+              {% endif %}
+            </div>
+
+            <div class="mb-3" id="quantity-wrap">
+              <label for="duration_quantity" class="rd-qty-label" id="quantity-label">Cantidad *</label>
+              <input type="number"
+                     class="form-control form-control-lg"
+                     id="duration_quantity"
+                     name="duration_quantity"
+                     min="1"
+                     value="1"
+                     required>
+              <div class="form-text" id="quantity-help">Número de días / meses según el tipo elegido.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="special_requirements" class="rd-qty-label">Notas o requisitos (opcional)</label>
+              <textarea class="form-control rd-notes"
+                        id="special_requirements"
+                        name="special_requirements"
+                        rows="2"
+                        placeholder="Ej: horario de entrega, zona, observaciones…"></textarea>
+            </div>
+
+            <button type="submit" class="rd-btn">
+              <i class="bi bi-send-check"></i> Solicitar alquiler
+            </button>
+          </form>
+          {% else %}
+          <div class="rd-login-box">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Debes <a href="{% url 'accounts:login' %}?next={{ request.path }}">iniciar sesión</a>
+            para solicitar este alquiler.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="rd-docs">
+    <div class="rd-card">
+      <div class="rd-card-head">
+        <h2><i class="bi bi-folder2-open me-1"></i> Documentación que se remite</h2>
+      </div>
+      <div class="rd-card-body">
+        <p class="text-muted mb-3" style="max-width: 46rem;">
+          Al alquilar la máquina se gestiona un paquete documental para proteger a ambas partes:
+          contrato, actas y soportes. Puedes revisar aquí el <strong>formato real</strong> del
+          contrato y del acta de entrega. En alquileres <strong>mensuales</strong> la formalización
+          incluye firma en notaría.
+        </p>
+
+        <div class="rd-docs-grid">
+          <div class="rd-doc-item">
+            <div class="rd-doc-icon"><i class="bi bi-file-earmark-text"></i></div>
+            <h3>Contrato de alquiler</h3>
+            <p>Condiciones, valor, depósito, responsabilidades y vigencia del préstamo de la máquina.</p>
+            <div class="rd-doc-actions">
+              <a class="rd-doc-link primary"
+                 href="{% url 'rentals:rental_sample_contract' product.id %}"
+                 target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-eye"></i> Ver formato
+              </a>
+            </div>
+          </div>
+          <div class="rd-doc-item">
+            <div class="rd-doc-icon"><i class="bi bi-clipboard2-check"></i></div>
+            <h3>Acta de entrega / recepción</h3>
+            <p>Registro del estado de la máquina, accesorios, fotos y firmas al momento de la entrega.</p>
+            <div class="rd-doc-actions">
+              <a class="rd-doc-link primary"
+                 href="{% url 'rentals:rental_sample_delivery_acta' product.id %}"
+                 target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-eye"></i> Ver formato
+              </a>
+            </div>
+          </div>
+          <div class="rd-doc-item">
+            <div class="rd-doc-icon"><i class="bi bi-person-vcard"></i></div>
+            <h3>Documentos solicitados</h3>
+            <p>Cédula, datos del representante o arrendatario, firmas y demás soportes para validar el alquiler.</p>
+          </div>
+          <div class="rd-doc-item">
+            <div class="rd-doc-icon"><i class="bi bi-building"></i></div>
+            <h3>Firma en notaría (mensual)</h3>
+            <p>Para modalidad <strong>mensual</strong>, la firma del contrato se realiza en notaría.</p>
+          </div>
+        </div>
+
+        <div class="rd-preview-tabs" role="tablist" aria-label="Vista previa de documentos">
+          <button type="button" class="rd-preview-tab active" data-preview="contract">
+            Vista contrato
+          </button>
+          <button type="button" class="rd-preview-tab" data-preview="acta">
+            Vista acta de entrega
+          </button>
+        </div>
+        <iframe
+          id="rd-doc-preview"
+          class="rd-preview-frame"
+          title="Vista previa del documento"
+          src="{% url 'rentals:rental_sample_contract' product.id %}?embed=1"
+          loading="lazy"></iframe>
+
+        <div class="rd-notary">
+          <i class="bi bi-shield-check"></i>
+          <div>
+            <strong>Alquiler mensual = formalización notarial</strong>
+            <span>
+              Si eliges tarifa mensual, el proceso incluye firma del contrato en notaría antes o al momento
+              de la entrega. Te guiaremos con los documentos exactos y la cita.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var durationTypeEl = document.getElementById('duration_type');
-        var hoursWrap = document.getElementById('hours-field-wrap');
-        function toggleHoursField() {
-            if (!durationTypeEl || !hoursWrap) return;
-            hoursWrap.style.display = durationTypeEl.value === 'hourly' ? '' : 'none';
-        }
-        if (durationTypeEl) {
-            durationTypeEl.addEventListener('change', toggleHoursField);
-            toggleHoursField();
-        }
+  document.addEventListener('DOMContentLoaded', function () {
+    var radios = document.querySelectorAll('input[name="duration_type"]');
+    var label = document.getElementById('quantity-label');
+    var help = document.getElementById('quantity-help');
+    var frame = document.getElementById('rd-doc-preview');
+    var tabs = document.querySelectorAll('.rd-preview-tab');
 
-        var startDateEl = document.getElementById('start_date');
-        if (startDateEl) {
-            startDateEl.addEventListener('change', function() {
-                var startDate = this.value;
-                var endDateInput = document.getElementById('end_date');
-                if (endDateInput) {
-                    endDateInput.min = startDate;
-                    if (endDateInput.value && endDateInput.value < startDate) endDateInput.value = startDate;
-                }
-            });
-        }
+    var qtyLabels = {
+      hourly: ['Cantidad de horas *', 'Indica cuántas horas necesitas.'],
+      daily: ['Cantidad de días *', 'Indica cuántos días de alquiler.'],
+      weekly: ['Cantidad de semanas *', 'Indica cuántas semanas de alquiler.'],
+      monthly: ['Cantidad de meses *', 'Indica cuántos meses. La firma del contrato se hace en notaría.']
+    };
+
+    function syncQtyCopy() {
+      var selected = document.querySelector('input[name="duration_type"]:checked');
+      if (!selected || !label || !help) return;
+      var key = selected.value || 'daily';
+      var copy = qtyLabels[key] || ['Cantidad *', 'Según el tipo de alquiler elegido.'];
+      label.textContent = copy[0];
+      help.textContent = copy[1];
+    }
+
+    radios.forEach(function (r) {
+      r.addEventListener('change', syncQtyCopy);
     });
+    syncQtyCopy();
+
+    var previewUrls = {
+      contract: "{% url 'rentals:rental_sample_contract' product.id %}?embed=1",
+      acta: "{% url 'rentals:rental_sample_delivery_acta' product.id %}?embed=1"
+    };
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var key = tab.getAttribute('data-preview');
+        if (frame && previewUrls[key]) {
+          frame.src = previewUrls[key];
+        }
+      });
+    });
+  });
 </script>
 {% endblock %}
-{% endblock %}
-

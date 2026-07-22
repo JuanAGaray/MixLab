@@ -7,8 +7,10 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.utils import timezone
 from datetime import datetime, timedelta
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from .models import Rental, RentalAvailability
-from store.models import Product, Quotation, QuotationItem
+from store.models import Product, Quotation, QuotationItem, SiteSettings
+from decimal import Decimal
 
 
 # Cotizaciones con estos estados AÚN NO comprometen la máquina en alquiler.
@@ -173,73 +175,83 @@ def rental_detail(request, product_id):
     return render(request, 'rentals/rental_detail.html', context)
 
 
+def _product_document_context(product: Product) -> dict:
+    """Contexto compartido para formatos de contrato / acta de muestra."""
+    settings_obj = SiteSettings.load()
+    tariffs = product.rental_prices.filter(is_active=True).order_by('order', 'period_type')
+    commercial = product.rental_commercial_value
+    deposit_8pct = None
+    if commercial is not None and commercial > 0:
+        deposit_8pct = (Decimal(str(commercial)) * Decimal('0.08')).quantize(Decimal('0.01'))
+    return {
+        'product': product,
+        'settings': settings_obj,
+        'tariffs': tariffs,
+        'commercial_value': commercial,
+        'deposit_8pct': deposit_8pct,
+    }
+
+
+@xframe_options_sameorigin
+def rental_sample_contract(request, product_id):
+    """Formato de muestra del contrato de alquiler para una máquina."""
+    product = get_object_or_404(Product, id=product_id, product_type='rental', available=True)
+    return render(request, 'rentals/sample_contract.html', _product_document_context(product))
+
+
+@xframe_options_sameorigin
+def rental_sample_delivery_acta(request, product_id):
+    """Formato de muestra del acta de entrega / recepción."""
+    product = get_object_or_404(Product, id=product_id, product_type='rental', available=True)
+    return render(request, 'rentals/sample_delivery_acta.html', _product_document_context(product))
+
+
 @login_required
 def create_rental(request, product_id):
-    """Create a rental booking"""
+    """Create a rental booking (solicitud) desde tipo de alquiler, sin fechas del cliente."""
     product = get_object_or_404(Product, id=product_id, product_type='rental', available=True)
-    
+
     if request.method == 'POST':
-        start_date_str = request.POST.get('start_date')
-        end_date_str = request.POST.get('end_date')
-        duration_type = request.POST.get('duration_type', 'daily')
-        contact_name = request.POST.get('contact_name')
-        contact_phone = request.POST.get('contact_phone')
-        delivery_address = request.POST.get('delivery_address')
-        delivery_city = request.POST.get('delivery_city')
-        special_requirements = request.POST.get('special_requirements', '')
-        
-        if not all([start_date_str, end_date_str, contact_name, contact_phone, delivery_address, delivery_city]):
-            messages.error(request, 'Por favor completa todos los campos requeridos.')
-            return redirect('rentals:rental_detail', product_id=product_id)
-        
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            messages.error(request, 'Fechas inválidas.')
-            return redirect('rentals:rental_detail', product_id=product_id)
-        
-        if start_date < timezone.now().date():
-            messages.error(request, 'La fecha de inicio no puede ser en el pasado.')
-            return redirect('rentals:rental_detail', product_id=product_id)
-        
-        if end_date <= start_date:
-            messages.error(request, 'La fecha de fin debe ser posterior a la fecha de inicio.')
-            return redirect('rentals:rental_detail', product_id=product_id)
-        
-        # Check availability
-        conflicting_rentals = Rental.objects.filter(
-            product=product,
-            status__in=['confirmed', 'active'],
-            start_date__lte=end_date,
-            end_date__gte=start_date
+        duration_type = (request.POST.get('duration_type') or 'daily').strip()
+        special_requirements = (request.POST.get('special_requirements') or '').strip()
+
+        allowed_types = {c[0] for c in Rental.DURATION_CHOICES}
+        active_tariffs = set(
+            product.rental_prices.filter(is_active=True).values_list('period_type', flat=True)
         )
-        
-        if conflicting_rentals.exists():
-            messages.error(request, 'El producto no está disponible en las fechas seleccionadas.')
+        if active_tariffs and duration_type not in active_tariffs:
+            messages.error(request, 'Selecciona un tipo de alquiler válido para esta máquina.')
             return redirect('rentals:rental_detail', product_id=product_id)
-        
-        # Calculate duration and pricing from configured rental tariffs
+        if duration_type not in allowed_types:
+            duration_type = 'daily'
+
+        try:
+            duration_quantity = max(1, int(request.POST.get('duration_quantity', 1) or 1))
+        except (ValueError, TypeError):
+            duration_quantity = 1
+
+        # Fechas internas estimadas (se coordinan luego con el cliente)
+        start_date = timezone.now().date()
+        if duration_type == 'hourly':
+            end_date = start_date
+        elif duration_type == 'weekly':
+            end_date = start_date + timedelta(days=(duration_quantity * 7) - 1)
+        elif duration_type == 'monthly':
+            end_date = start_date + timedelta(days=(duration_quantity * 30) - 1)
+        else:
+            duration_type = 'daily'
+            end_date = start_date + timedelta(days=max(0, duration_quantity - 1))
+
         unit_price = product.get_rental_price(duration_type)
         if unit_price is None:
             unit_price = product.price
 
-        days = (end_date - start_date).days + 1
-
-        if duration_type == 'hourly':
-            try:
-                duration_quantity = max(1, int(request.POST.get('hours', 1) or 1))
-            except (ValueError, TypeError):
-                duration_quantity = 1
-        elif duration_type == 'daily':
-            duration_quantity = max(1, days)
-        elif duration_type == 'weekly':
-            duration_quantity = max(1, (days + 6) // 7)
-        elif duration_type == 'monthly':
-            duration_quantity = max(1, (days + 29) // 30)
-        else:
-            duration_quantity = max(1, days)
-            duration_type = 'daily'
+        # Contacto desde el perfil del usuario (no se pide en el form público)
+        profile = getattr(request.user, 'profile', None)
+        contact_name = (request.user.get_full_name() or request.user.username or '').strip() or 'Cliente'
+        contact_phone = (getattr(profile, 'phone', None) or '').strip() or 'Por confirmar'
+        delivery_address = (getattr(profile, 'address', None) or '').strip() or 'Por confirmar'
+        delivery_city = (getattr(profile, 'city', None) or '').strip() or 'Por confirmar'
 
         rental = Rental(
             user=request.user,
@@ -257,10 +269,14 @@ def create_rental(request, product_id):
         )
         rental.total_price = rental.calculate_total()
         rental.save()
-        
-        messages.success(request, f'Alquiler #{rental.id} creado exitosamente. Estará pendiente de confirmación.')
+
+        messages.success(
+            request,
+            f'Solicitud de alquiler #{rental.id} creada. El equipo MixLab te contactará para '
+            f'coordinar fechas, contrato y documentación.',
+        )
         return redirect('rentals:rental_detail_view', rental_id=rental.id)
-    
+
     return redirect('rentals:rental_detail', product_id=product_id)
 
 

@@ -102,6 +102,102 @@ def _quotation_is_fully_paid(quote: Quotation) -> bool:
     return quote.order_status in _fully_paid_statuses() and bool(quote.payment_proof)
 
 
+def _quotation_can_edit(quote: Quotation) -> bool:
+    """Permite reabrir cotizaciones no canceladas / no pagadas / no cerradas."""
+    if not quote:
+        return False
+    if quote.quotation_status in ('cancelada', 'cerrada'):
+        return False
+    if quote.order_status in _fully_paid_statuses():
+        return False
+    return True
+
+
+def _restore_stock_for_quotation(quotation: Quotation) -> bool:
+    """
+    Devuelve al inventario el stock previamente descontado de una cotización.
+    No toca productos de alquiler. Limpia el flag stock_deducted.
+    """
+    if not getattr(quotation, 'stock_deducted', False):
+        return False
+
+    items = quotation.items.select_related('product')
+    changed_any = False
+    for it in items:
+        product = it.product
+        if not product:
+            continue
+        if getattr(product, 'is_rental', False) or getattr(product, 'product_type', '') == 'rental':
+            continue
+        try:
+            qty = int(it.quantity or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            continue
+        current_stock = int(product.stock or 0)
+        new_stock = current_stock + qty
+        if new_stock != current_stock:
+            product.stock = new_stock
+            product.save(update_fields=['stock'])
+            changed_any = True
+
+    quotation.stock_deducted = False
+    quotation.save(update_fields=['stock_deducted', 'updated_at'])
+    return changed_any
+
+
+def _quote_discount_from_saved_item(item) -> tuple[str, float]:
+    """Reconstruye descuento de línea (tipo/valor) a partir de precios guardados."""
+    try:
+        unit = Decimal(str(item.unit_price or 0))
+    except Exception:
+        unit = Decimal('0.00')
+    try:
+        list_unit = item.list_unit_price
+        if list_unit is None:
+            list_unit = unit
+        else:
+            list_unit = Decimal(str(list_unit))
+    except Exception:
+        list_unit = unit
+    if list_unit <= 0 or unit >= list_unit:
+        return 'percent', 0.0
+    amount = (list_unit - unit).quantize(Decimal('0.01'))
+    return 'amount', float(amount)
+
+
+def _load_quotation_into_session(request, quote: Quotation) -> dict:
+    """Carga ítems de una cotización guardada en la sesión del builder."""
+    session_quote: dict = {}
+    for item in quote.items.select_related('product', 'rental_price').all():
+        if not item.product_id:
+            continue
+        rental_price_id = item.rental_price_id
+        if rental_price_id:
+            line_key = f'{item.product_id}:{rental_price_id}'
+        else:
+            line_key = str(item.product_id)
+        dtype, dval = _quote_discount_from_saved_item(item)
+        session_quote[line_key] = {
+            'qty': int(item.quantity or 1),
+            'discount_type': dtype,
+            'discount_value': dval,
+            'discount_percent': dval if dtype == 'percent' else 0.0,
+            'rental_price_id': rental_price_id,
+        }
+    request.session['quotation'] = session_quote
+    request.session['editing_quotation_id'] = quote.id
+    request.session.modified = True
+    return session_quote
+
+
+def _clear_quotation_edit_session(request):
+    request.session.pop('editing_quotation_id', None)
+    request.session['quotation'] = {}
+    request.session.modified = True
+
+
 def _deduct_stock_for_quotation(quotation: Quotation):
     """
     Descontar stock de los productos de una cotización.
@@ -2509,8 +2605,24 @@ def inventory_create_category(request):
 
 def quotation(request):
     """Vista de cotización - permite seleccionar productos y generar cotización"""
+    # Iniciar cotización limpia (sale del modo edición)
+    if request.method == 'GET' and request.GET.get('nueva') == '1':
+        _clear_quotation_edit_session(request)
+        return redirect('store:quotation')
+
     quotation_items = []
     total = Decimal('0.00')
+    editing_quote = None
+    editing_id = request.session.get('editing_quotation_id')
+    if editing_id:
+        try:
+            editing_quote = Quotation.objects.filter(id=int(editing_id)).first()
+        except (TypeError, ValueError):
+            editing_quote = None
+        if not editing_quote or not _quotation_can_edit(editing_quote):
+            request.session.pop('editing_quotation_id', None)
+            editing_quote = None
+            editing_id = None
     
     # Si hay sesión de cotización, úsala como base (AJAX)
     session_quote = _get_quote_session(request)
@@ -2518,7 +2630,12 @@ def quotation(request):
         for line_key, entry in session_quote.items():
             try:
                 product_id, rental_from_key = _parse_quote_line_key(line_key)
-                product = Product.objects.select_related('category').get(id=product_id, available=True)
+                # En edición permitir productos aunque ya no estén "available"
+                product_qs = Product.objects.select_related('category')
+                if editing_quote:
+                    product = product_qs.get(id=product_id)
+                else:
+                    product = product_qs.get(id=product_id, available=True)
                 entry = _normalize_quote_entry(entry)
                 qty = entry['qty']
                 rental_price_id = entry.get('rental_price_id') or rental_from_key
@@ -2616,25 +2733,46 @@ def quotation(request):
                     valid_client = False
 
         if form.is_valid() and product_ids and valid_client:
-            # Crear cotización en BD (registro)
-            quotation_obj = Quotation.objects.create(
-                created_by=request.user if request.user.is_authenticated else None,
-                existing_client=selected_client if (selected_client and not unregistered) else None,
-                client_kind=client_kind or 'existing',
-                client_name=client_name or '',
-                client_email=client_email or '',
-                client_phone=client_phone or '',
-                client_departamento=client_departamento or '',
-                client_city=client_city or '',
-                notes=form.cleaned_data.get('notes', '') or '',
-                total=Decimal('0.00'),
-            )
+            is_update = bool(editing_quote and _quotation_can_edit(editing_quote))
+            if is_update and editing_quote.stock_deducted:
+                _restore_stock_for_quotation(editing_quote)
+
+            if is_update:
+                quotation_obj = editing_quote
+                quotation_obj.existing_client = selected_client if (selected_client and not unregistered) else None
+                quotation_obj.client_kind = client_kind or 'existing'
+                quotation_obj.client_name = client_name or ''
+                quotation_obj.client_email = client_email or ''
+                quotation_obj.client_phone = client_phone or ''
+                quotation_obj.client_departamento = client_departamento or ''
+                quotation_obj.client_city = client_city or ''
+                quotation_obj.notes = form.cleaned_data.get('notes', '') or ''
+                quotation_obj.total = Decimal('0.00')
+                quotation_obj.save()
+                quotation_obj.items.all().delete()
+            else:
+                # Crear cotización en BD (registro)
+                quotation_obj = Quotation.objects.create(
+                    created_by=request.user if request.user.is_authenticated else None,
+                    existing_client=selected_client if (selected_client and not unregistered) else None,
+                    client_kind=client_kind or 'existing',
+                    client_name=client_name or '',
+                    client_email=client_email or '',
+                    client_phone=client_phone or '',
+                    client_departamento=client_departamento or '',
+                    client_city=client_city or '',
+                    notes=form.cleaned_data.get('notes', '') or '',
+                    total=Decimal('0.00'),
+                )
 
             running_total = Decimal('0.00')
             for line_key, entry in session_quote.items():
                 try:
                     product_id, rental_from_key = _parse_quote_line_key(line_key)
-                    product = Product.objects.get(id=product_id, available=True)
+                    if is_update:
+                        product = Product.objects.get(id=product_id)
+                    else:
+                        product = Product.objects.get(id=product_id, available=True)
                 except (Product.DoesNotExist, ValueError, TypeError):
                     continue
                 entry = _normalize_quote_entry(entry)
@@ -2666,20 +2804,38 @@ def quotation(request):
             quotation_obj.total = running_total
             quotation_obj.save(update_fields=['total', 'updated_at'])
 
-            # Limpiar sesión de cotización
-            request.session['quotation'] = {}
-            request.session.modified = True
+            if is_update and quotation_obj.order_status in _stock_commit_statuses():
+                _deduct_stock_for_quotation(quotation_obj)
 
-            _notify_wa_new_quotation(
-                quotation_obj,
-                source=f'Staff · {(request.user.get_full_name() or request.user.username) if request.user.is_authenticated else "Manager"}',
-                request=request,
-            )
+            # Limpiar sesión de cotización / edición
+            _clear_quotation_edit_session(request)
 
-            messages.success(request, f'Cotización #{quotation_obj.id} generada exitosamente.')
+            if is_update:
+                messages.success(request, f'Cotización #{quotation_obj.id} actualizada correctamente.')
+            else:
+                _notify_wa_new_quotation(
+                    quotation_obj,
+                    source=f'Staff · {(request.user.get_full_name() or request.user.username) if request.user.is_authenticated else "Manager"}',
+                    request=request,
+                )
+                messages.success(request, f'Cotización #{quotation_obj.id} generada exitosamente.')
             return redirect('store:quotation_detail', quotation_id=quotation_obj.id)
     else:
-        form = QuotationForm()
+        initial = {}
+        if editing_quote:
+            has_existing = bool(editing_quote.existing_client_id)
+            initial = {
+                'existing_client': editing_quote.existing_client_id,
+                'unregistered_client': not has_existing,
+                'client_kind': editing_quote.client_kind if editing_quote.client_kind in ('natural', 'empresa') else 'natural',
+                'client_name': editing_quote.client_name or '',
+                'client_email': editing_quote.client_email or '',
+                'client_phone': editing_quote.client_phone or '',
+                'client_departamento': editing_quote.client_departamento or '',
+                'client_city': editing_quote.client_city or '',
+                'notes': editing_quote.notes or '',
+            }
+        form = QuotationForm(initial=initial)
         # Obtener productos desde GET (pueden venir desde la lista de productos)
         # Soporta "productId" o "productId:rentalPriceId"
         product_ids = request.GET.getlist('products')
@@ -2806,8 +2962,44 @@ def quotation(request):
         'products_by_category': products_by_category,
         'categories': categories,
         'clients': clients,
+        'editing_quote': editing_quote,
     }
     return render(request, 'store/quotation.html', context)
+
+
+@staff_member_required
+def quotation_edit(request, quotation_id):
+    """Carga una cotización existente en el builder para modificarla."""
+    quote = get_object_or_404(
+        Quotation.objects.prefetch_related('items__product', 'items__rental_price'),
+        id=quotation_id,
+    )
+    if not _quotation_can_edit(quote):
+        messages.error(
+            request,
+            'Esta cotización no se puede modificar (cerrada, cancelada o ya pagada).',
+        )
+        return redirect('store:quotation_detail', quotation_id=quote.id)
+
+    _load_quotation_into_session(request, quote)
+    messages.info(
+        request,
+        f'Editando cotización #{quote.id}. Guarda los cambios cuando termines.',
+    )
+    return redirect('store:quotation')
+
+
+@staff_member_required
+def quotation_edit_cancel(request, quotation_id):
+    """Cancela la edición en curso y vuelve al detalle."""
+    editing_id = request.session.get('editing_quotation_id')
+    try:
+        editing_id = int(editing_id) if editing_id is not None else None
+    except (TypeError, ValueError):
+        editing_id = None
+    if editing_id == quotation_id:
+        _clear_quotation_edit_session(request)
+    return redirect('store:quotation_detail', quotation_id=quotation_id)
 
 
 @staff_member_required
@@ -3218,6 +3410,7 @@ def quotation_detail(request, quotation_id):
             'delivery_acta': delivery_acta,
             'is_fully_paid': _quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses(),
             'is_quote_closed': q.quotation_status == 'cerrada' or q.order_status in _fully_paid_statuses(),
+            'can_edit_quote': _quotation_can_edit(q),
         },
     )
 

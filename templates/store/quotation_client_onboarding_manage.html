@@ -187,7 +187,14 @@
           {% if req.codeudor_required %}
             <div class="fw-semibold">{{ req.codeudor_name|default:"—" }}</div>
             <div class="small">CC {{ req.codeudor_document|default:"—" }}</div>
-            {% if req.codeudor_id_front %}<img src="{{ req.codeudor_id_front.url }}" alt="Cédula codeudor" class="mt-1">{% endif %}
+            <div class="row g-1 mt-1">
+              <div class="col-6">
+                {% if req.codeudor_id_front %}<img src="{{ req.codeudor_id_front.url }}" alt="Codeudor frente">{% else %}<span class="text-muted small">Frente —</span>{% endif %}
+              </div>
+              <div class="col-6">
+                {% if req.codeudor_id_back %}<img src="{{ req.codeudor_id_back.url }}" alt="Codeudor reverso">{% else %}<span class="text-muted small">Reverso —</span>{% endif %}
+              </div>
+            </div>
           {% else %}
             <span class="text-muted">No requerido</span>
           {% endif %}

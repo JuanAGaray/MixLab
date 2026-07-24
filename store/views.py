@@ -3735,13 +3735,16 @@ def _rental_contract_context(quote: Quotation) -> dict:
         equipment.append(entry)
         if deposit_8pct is not None:
             deposit_examples.append(entry)
+    req = RentalContractRequirements.objects.filter(quotation=quote).first()
     return {
         'quote': quote,
         'settings': settings_obj,
         'equipment': equipment,
         'deposit_examples': deposit_examples,
-        'today': quote.created_at,
+        'req': req,
+        'today': timezone.now() if req and req.client_submitted_at else quote.created_at,
         'for_pdf_engine': True,
+        'for_client_download': False,
     }
 
 
@@ -4052,6 +4055,8 @@ def client_rental_requirements_unlock(request, token):
 
     session_key = _client_req_session_key(token)
     if request.session.get(session_key):
+        if req.client_submitted_at:
+            return redirect('store:client_rental_requirements_done', token=token)
         return redirect('store:client_rental_requirements_form', token=token)
 
     error = ''
@@ -4060,6 +4065,8 @@ def client_rental_requirements_unlock(request, token):
         if password and check_password(password, req.access_password_hash):
             request.session[session_key] = True
             request.session.modified = True
+            if req.client_submitted_at:
+                return redirect('store:client_rental_requirements_done', token=token)
             return redirect('store:client_rental_requirements_form', token=token)
         error = 'Contraseña incorrecta. Verifica el mensaje que te enviamos.'
 
@@ -4117,20 +4124,26 @@ def client_rental_requirements_form(request, token):
             errors.append('Toma o sube la foto del reverso de tu cédula.')
         if not request.FILES.get('selfie_with_id') and not req.selfie_with_id:
             errors.append('Toma una foto de tu rostro con la cédula al lado.')
-        if not location_text and not maps_url and latitude is None:
-            errors.append('Indica tu ubicación (GPS, Google Maps o dirección manual).')
+        if latitude is None or longitude is None:
+            errors.append('Marca en el mapa el lugar donde operará la máquina (arrastra o toca el pin).')
+        if not location_text:
+            errors.append('Escribe la dirección / descripción del lugar de operación.')
         if req.codeudor_required:
             if not codeudor_name:
                 errors.append('El nombre completo del codeudor es obligatorio.')
             if not codeudor_document:
                 errors.append('La cédula del codeudor es obligatoria.')
             if not request.FILES.get('codeudor_id_front') and not req.codeudor_id_front:
-                errors.append('Sube la foto de la cédula del codeudor.')
+                errors.append('Sube la foto del frente de la cédula del codeudor.')
+            if not request.FILES.get('codeudor_id_back') and not req.codeudor_id_back:
+                errors.append('Sube la foto del reverso de la cédula del codeudor.')
 
         if errors:
             for err in errors:
                 messages.error(request, err)
         else:
+            if not maps_url and latitude is not None and longitude is not None:
+                maps_url = f'https://www.google.com/maps?q={latitude},{longitude}'
             req.tenant_name = tenant_name
             req.location_text = location_text
             req.maps_url = maps_url
@@ -4148,9 +4161,11 @@ def client_rental_requirements_form(request, token):
                 req.selfie_with_id = request.FILES['selfie_with_id']
             if request.FILES.get('codeudor_id_front'):
                 req.codeudor_id_front = request.FILES['codeudor_id_front']
+            if request.FILES.get('codeudor_id_back'):
+                req.codeudor_id_back = request.FILES['codeudor_id_back']
 
             q.client_document = client_document
-            if tenant_name and not (q.client_name or '').strip():
+            if tenant_name:
                 q.client_name = tenant_name
             q.save(update_fields=['client_document', 'client_name', 'updated_at'])
 
@@ -4176,7 +4191,7 @@ def client_rental_requirements_form(request, token):
             except Exception:
                 logger.exception('No se pudo notificar onboarding cliente')
 
-            messages.success(request, '¡Datos enviados correctamente! MixLab los revisará para continuar con el contrato.')
+            messages.success(request, '¡Datos enviados correctamente! Ya puedes descargar el contrato para firma en notaría.')
             return redirect('store:client_rental_requirements_done', token=token)
 
     return render(request, 'store/client_rental_requirements_form.html', {
@@ -4184,16 +4199,55 @@ def client_rental_requirements_form(request, token):
         'req': req,
         'token': token,
         'client_document': q.display_client_document or '',
+        'already_submitted': bool(req.client_submitted_at),
     })
 
 
 def client_rental_requirements_done(request, token):
-    """Pantalla de confirmación tras envío del cliente."""
+    """Pantalla de confirmación: descargar contrato o modificar datos."""
     req = _get_req_by_token(token)
+    session_key = _client_req_session_key(token)
+    if not request.session.get(session_key):
+        return redirect('store:client_rental_requirements_unlock', token=token)
+    if not req.client_submitted_at:
+        return redirect('store:client_rental_requirements_form', token=token)
     return render(request, 'store/client_rental_requirements_done.html', {
         'quote': req.quotation,
         'req': req,
+        'token': token,
+        'can_download_contract': req.client_onboarding_complete or bool(req.client_submitted_at),
     })
+
+
+def client_rental_contract_pdf(request, token):
+    """PDF del contrato para el cliente (sin imágenes de cédula), listo para notaría."""
+    req = _get_req_by_token(token)
+    session_key = _client_req_session_key(token)
+    if not req.link_is_active:
+        return render(request, 'store/client_rental_requirements_locked.html', {
+            'quote': req.quotation,
+            'req': req,
+            'reason': 'expired',
+        }, status=403)
+    if not request.session.get(session_key):
+        return redirect('store:client_rental_requirements_unlock', token=token)
+    if not req.client_submitted_at:
+        messages.warning(request, 'Primero completa y envía tus datos para descargar el contrato.')
+        return redirect('store:client_rental_requirements_form', token=token)
+
+    q = req.quotation
+    pdf_bytes, err = _build_rental_contract_pdf_bytes(q)
+    if not pdf_bytes:
+        messages.error(request, err or 'No se pudo generar el contrato.')
+        return redirect('store:client_rental_requirements_done', token=token)
+
+    safe_client = slugify(req.tenant_name or q.client_name or 'cliente')[:40]
+    filename = f"CONTRATO-ALQUILER-COT{q.id}-{safe_client}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    as_download = str(request.GET.get('download') or '1') in ('1', 'true', 'yes')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    return response
 
 
 def client_rental_requirements_geocode(request, token):

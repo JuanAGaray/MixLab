@@ -1005,6 +1005,12 @@ class RentalContractRequirements(models.Model):
         null=True,
         verbose_name='Cédula del codeudor (frente)',
     )
+    codeudor_id_back = models.ImageField(
+        upload_to='quotations/rental_requirements/ids/',
+        blank=True,
+        null=True,
+        verbose_name='Cédula del codeudor (reverso)',
+    )
     access_token = models.UUIDField(
         null=True,
         blank=True,
@@ -1069,6 +1075,7 @@ class RentalContractRequirements(models.Model):
                 (self.codeudor_name or '').strip()
                 and (self.codeudor_document or '').strip()
                 and self.codeudor_id_front
+                and self.codeudor_id_back
             )
         return True
 

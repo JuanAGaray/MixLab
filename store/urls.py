@@ -41,6 +41,7 @@ urlpatterns = [
     path('requisitos/<uuid:token>/', views.client_rental_requirements_unlock, name='client_rental_requirements_unlock'),
     path('requisitos/<uuid:token>/formulario/', views.client_rental_requirements_form, name='client_rental_requirements_form'),
     path('requisitos/<uuid:token>/listo/', views.client_rental_requirements_done, name='client_rental_requirements_done'),
+    path('requisitos/<uuid:token>/contrato.pdf', views.client_rental_contract_pdf, name='client_rental_contract_pdf'),
     path('requisitos/<uuid:token>/ajax/reverse-geocode/', views.client_rental_requirements_geocode, name='client_rental_requirements_geocode'),
     path('cotizaciones/<int:quotation_id>/acta-recepcion/', views.quotation_delivery_acta, name='quotation_delivery_acta'),
     path('cotizaciones/<int:quotation_id>/acta-recepcion/pdf/', views.quotation_delivery_acta_pdf, name='quotation_delivery_acta_pdf'),

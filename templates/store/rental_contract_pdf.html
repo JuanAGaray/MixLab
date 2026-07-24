@@ -147,25 +147,41 @@
       Correo: {{ settings.contact_email|default:"juandam594@gmail.com" }}
     </p>
     <p style="margin:0;"><span class="label">Arrendatario</span><br>
-      <span class="value">{{ quote.display_client_name|default:"—" }}</span><br>
+      <span class="value">{% if req and req.tenant_name %}{{ req.tenant_name }}{% else %}{{ quote.display_client_name|default:"—" }}{% endif %}</span><br>
       Tipo: {{ quote.display_client_kind }} ·
       Tel: {{ quote.display_client_phone|default:"—" }} ·
       Correo: {{ quote.display_client_email|default:"—" }}<br>
       Documento de identidad / NIT: <strong>{{ quote.display_client_document|default:"—" }}</strong><br>
-      Ubicación:
-      {% if quote.display_client_departamento or quote.display_client_city %}
+      Ubicación de operación de la máquina:
+      {% if req and req.location_text %}
+        <strong>{{ req.location_text }}</strong>
+        {% if req.latitude and req.longitude %}
+          <br>Coordenadas: {{ req.latitude }}, {{ req.longitude }}
+        {% endif %}
+        {% if req.maps_url %}
+          <br>Maps: {{ req.maps_url }}
+        {% endif %}
+      {% elif quote.display_client_departamento or quote.display_client_city %}
         {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %} · {% endif %}{{ quote.display_client_city|default:"" }}
       {% else %}—{% endif %}
     </p>
     <p style="margin-top:6px; border-top:1px dashed #cbd5e1; padding-top:6px;">
       <span class="label">Codeudor (Fiador Solidario)</span><br>
+      {% if req and req.codeudor_required and req.codeudor_name %}
+      <span class="value">{{ req.codeudor_name }}</span><br>
+      C.C. / NIT: <strong>{{ req.codeudor_document|default:"—" }}</strong>
+      {% elif req and not req.codeudor_required %}
+      <span class="value">No requerido para este contrato</span>
+      {% else %}
       <span class="value">________________________________________</span><br>
       C.C. / NIT: ______________________ · Teléfono: ________________<br>
       Dirección: __________________________________________________<br>
       Correo electrónico: __________________________________________
+      {% endif %}
     </p>
     <p class="muted" style="margin-top:4px;">
       El codeudor se obliga solidaria e incondicionalmente como garante de todas las obligaciones del arrendatario derivadas del presente contrato, incluyendo el pago del canon, los daños, la cláusula penal y cualquier otra suma adeudada, renunciando al beneficio de excusión.
+      Las imágenes de cédula y selfie se conservan en el expediente interno de MixLab y <strong>no forman parte de este PDF</strong>.
     </p>
   </div>
 

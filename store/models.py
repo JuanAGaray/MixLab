@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.utils.text import slugify
+from django.utils import timezone
 from decimal import Decimal
 
 
@@ -915,7 +916,7 @@ class QuotationItem(models.Model):
 
 
 class RentalContractRequirements(models.Model):
-    """Requisitos previos al contrato: firmas digitales y fotos de cédula."""
+    """Requisitos previos al contrato: firmas digitales, fotos de cédula y onboarding del cliente."""
 
     quotation = models.OneToOneField(
         Quotation,
@@ -949,6 +950,84 @@ class RentalContractRequirements(models.Model):
         null=True,
         verbose_name='Cédula (reverso)',
     )
+    selfie_with_id = models.ImageField(
+        upload_to='quotations/rental_requirements/ids/',
+        blank=True,
+        null=True,
+        verbose_name='Selfie con cédula al lado del rostro',
+    )
+    location_text = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='Ubicación manual / dirección',
+    )
+    maps_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='Enlace Google Maps',
+    )
+    latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        verbose_name='Latitud',
+    )
+    longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        verbose_name='Longitud',
+    )
+    codeudor_required = models.BooleanField(
+        default=False,
+        verbose_name='Requiere codeudor',
+        help_text='Si está activo, el cliente debe registrar datos del codeudor en el formulario móvil.',
+    )
+    codeudor_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Nombre completo del codeudor',
+    )
+    codeudor_document = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        verbose_name='Cédula / documento del codeudor',
+    )
+    codeudor_id_front = models.ImageField(
+        upload_to='quotations/rental_requirements/ids/',
+        blank=True,
+        null=True,
+        verbose_name='Cédula del codeudor (frente)',
+    )
+    access_token = models.UUIDField(
+        null=True,
+        blank=True,
+        unique=True,
+        db_index=True,
+        verbose_name='Token de acceso cliente',
+    )
+    access_password_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        verbose_name='Hash de contraseña de acceso',
+    )
+    link_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Enlace expira en',
+    )
+    client_submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Cliente envió datos en',
+    )
     notes = models.TextField(blank=True, default='', verbose_name='Notas')
     completed_at = models.DateTimeField(blank=True, null=True, verbose_name='Completado en')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -972,6 +1051,35 @@ class RentalContractRequirements(models.Model):
             and self.quotation.display_client_email
             and self.quotation.display_client_phone
         )
+
+    @property
+    def client_onboarding_complete(self) -> bool:
+        """Datos mínimos que el cliente remite desde el celular."""
+        base_ok = bool(
+            (self.tenant_name or '').strip()
+            and self.id_front
+            and self.id_back
+            and self.selfie_with_id
+            and ((self.location_text or '').strip() or (self.maps_url or '').strip())
+        )
+        if not base_ok:
+            return False
+        if self.codeudor_required:
+            return bool(
+                (self.codeudor_name or '').strip()
+                and (self.codeudor_document or '').strip()
+                and self.codeudor_id_front
+            )
+        return True
+
+    @property
+    def link_is_active(self) -> bool:
+        if not self.access_token or not self.access_password_hash:
+            return False
+        if self.link_expires_at and timezone.now() > self.link_expires_at:
+            return False
+        return True
+
 
 
 class RentalDeliveryActa(models.Model):

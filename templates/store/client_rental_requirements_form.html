@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Completar requisitos · MixLab</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --ml-teal: #0d9488;
+      --ml-navy: #0b1f3a;
+    }
+    body {
+      background: #f1f5f9;
+      padding-bottom: 5rem;
+    }
+    .topbar {
+      background: var(--ml-navy);
+      color: #fff;
+      padding: 0.9rem 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .section-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      padding: 1rem;
+      margin-bottom: 0.85rem;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    }
+    .section-card h2 {
+      font-size: 1rem;
+      font-weight: 800;
+      margin: 0 0 0.75rem;
+      color: var(--ml-navy);
+    }
+    .capture-box {
+      border: 2px dashed #94a3b8;
+      border-radius: 0.9rem;
+      padding: 0.85rem;
+      text-align: center;
+      background: #f8fafc;
+      position: relative;
+    }
+    .capture-box.has-file {
+      border-style: solid;
+      border-color: var(--ml-teal);
+      background: #ecfdf8;
+    }
+    .capture-box input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .capture-box img.preview {
+      max-width: 100%;
+      max-height: 180px;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    .capture-icon {
+      font-size: 1.6rem;
+      color: var(--ml-teal);
+    }
+    .sticky-submit {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,0.96);
+      border-top: 1px solid #e2e8f0;
+      z-index: 30;
+    }
+    .btn-ml {
+      background: var(--ml-teal);
+      border: none;
+      font-weight: 800;
+      width: 100%;
+      padding: 0.85rem;
+      border-radius: 999px;
+      color: #fff;
+    }
+    .btn-ml:hover { background: #0f766e; color: #fff; }
+    .hint { font-size: 0.82rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="fw-bold">MixLab · Requisitos contrato</div>
+    <div class="small opacity-75">COT-{{ quote.id }} · Completa desde tu celular</div>
+  </div>
+
+  <div class="container py-3" style="max-width: 560px;">
+    {% if messages %}
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} py-2">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="client-req-form">
+      {% csrf_token %}
+
+      <div class="section-card">
+        <h2><i class="bi bi-person-vcard me-1"></i> Tus datos</h2>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="tenant_name">Nombre completo *</label>
+          <input type="text" class="form-control form-control-lg" id="tenant_name" name="tenant_name"
+                 value="{{ req.tenant_name|default:quote.display_client_name }}" required
+                 autocomplete="name" placeholder="Como aparece en la cédula">
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold" for="client_document">Número de cédula *</label>
+          <input type="text" class="form-control form-control-lg" id="client_document" name="client_document"
+                 value="{{ client_document }}" required inputmode="numeric"
+                 placeholder="Ej: 1234567890">
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h2><i class="bi bi-camera me-1"></i> Fotos de tu cédula</h2>
+        <p class="hint mb-3">Usa la cámara del teléfono. Asegúrate de que se lea bien.</p>
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="capture-box{% if req.id_front %} has-file{% endif %}" data-preview="prev-front">
+              <div class="capture-icon"><i class="bi bi-camera-fill"></i></div>
+              <div class="fw-semibold small">Frente *</div>
+              <input type="file" name="id_front" accept="image/*" capture="environment"
+                     {% if not req.id_front %}required{% endif %}>
+              <img class="preview" id="prev-front" alt="" {% if req.id_front %}src="{{ req.id_front.url }}" style="display:block"{% endif %}>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="capture-box{% if req.id_back %} has-file{% endif %}" data-preview="prev-back">
+              <div class="capture-icon"><i class="bi bi-camera-fill"></i></div>
+              <div class="fw-semibold small">Reverso *</div>
+              <input type="file" name="id_back" accept="image/*" capture="environment"
+                     {% if not req.id_back %}required{% endif %}>
+              <img class="preview" id="prev-back" alt="" {% if req.id_back %}src="{{ req.id_back.url }}" style="display:block"{% endif %}>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h2><i class="bi bi-person-bounding-box me-1"></i> Selfie con cédula</h2>
+        <p class="hint mb-3">Tómate una foto con tu <strong>cara</strong> y la <strong>cédula al lado</strong> de tu rostro (misma imagen).</p>
+        <div class="capture-box{% if req.selfie_with_id %} has-file{% endif %}" data-preview="prev-selfie">
+          <div class="capture-icon"><i class="bi bi-phone"></i></div>
+          <div class="fw-semibold">Foto rostro + cédula *</div>
+          <input type="file" name="selfie_with_id" accept="image/*" capture="user"
+                 {% if not req.selfie_with_id %}required{% endif %}>
+          <img class="preview" id="prev-selfie" alt="" {% if req.selfie_with_id %}src="{{ req.selfie_with_id.url }}" style="display:block"{% endif %}>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h2><i class="bi bi-geo-alt me-1"></i> Ubicación</h2>
+        <p class="hint mb-2">Puedes usar GPS (Google Maps), pegar un enlace de Maps, o escribir la dirección.</p>
+
+        <button type="button" class="btn btn-outline-primary w-100 mb-3" id="btn-gps">
+          <i class="bi bi-crosshair"></i> Usar mi ubicación GPS
+        </button>
+        <div id="gps-status" class="small text-muted mb-2"></div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="maps_url">Enlace Google Maps</label>
+          <input type="url" class="form-control" id="maps_url" name="maps_url"
+                 value="{{ req.maps_url }}" placeholder="https://maps.google.com/...">
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold" for="location_text">Dirección manual</label>
+          <textarea class="form-control" id="location_text" name="location_text" rows="2"
+                    placeholder="Barrio, calle, número, ciudad…">{{ req.location_text }}</textarea>
+        </div>
+        <input type="hidden" name="latitude" id="latitude" value="{{ req.latitude|default_if_none:'' }}">
+        <input type="hidden" name="longitude" id="longitude" value="{{ req.longitude|default_if_none:'' }}">
+      </div>
+
+      {% if req.codeudor_required %}
+      <div class="section-card border-warning">
+        <h2><i class="bi bi-people me-1"></i> Codeudor (obligatorio)</h2>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="codeudor_name">Nombre completo del codeudor *</label>
+          <input type="text" class="form-control form-control-lg" id="codeudor_name" name="codeudor_name"
+                 value="{{ req.codeudor_name }}" required autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="codeudor_document">Cédula del codeudor *</label>
+          <input type="text" class="form-control form-control-lg" id="codeudor_document" name="codeudor_document"
+                 value="{{ req.codeudor_document }}" required inputmode="numeric">
+        </div>
+        <div class="capture-box{% if req.codeudor_id_front %} has-file{% endif %}" data-preview="prev-codeudor">
+          <div class="capture-icon"><i class="bi bi-camera-fill"></i></div>
+          <div class="fw-semibold">Foto cédula codeudor (frente) *</div>
+          <input type="file" name="codeudor_id_front" accept="image/*" capture="environment"
+                 {% if not req.codeudor_id_front %}required{% endif %}>
+          <img class="preview" id="prev-codeudor" alt="" {% if req.codeudor_id_front %}src="{{ req.codeudor_id_front.url }}" style="display:block"{% endif %}>
+        </div>
+      </div>
+      {% endif %}
+
+      <div style="height: 4.5rem;"></div>
+      <div class="sticky-submit">
+        <button type="submit" class="btn btn-ml">
+          <i class="bi bi-send-check"></i> Enviar datos a MixLab
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Preview de fotos
+    document.querySelectorAll('.capture-box input[type=file]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var box = input.closest('.capture-box');
+        var prevId = box.getAttribute('data-preview');
+        var img = document.getElementById(prevId);
+        if (!img || !input.files || !input.files[0]) return;
+        var url = URL.createObjectURL(input.files[0]);
+        img.src = url;
+        img.style.display = 'block';
+        box.classList.add('has-file');
+      });
+    });
+
+    // GPS + reverse geocode
+    var btnGps = document.getElementById('btn-gps');
+    var statusEl = document.getElementById('gps-status');
+    var geocodeUrl = "{% url 'store:client_rental_requirements_geocode' token=token %}";
+
+    if (btnGps) {
+      btnGps.addEventListener('click', function () {
+        if (!navigator.geolocation) {
+          statusEl.textContent = 'Tu navegador no soporta geolocalización.';
+          return;
+        }
+        statusEl.textContent = 'Obteniendo ubicación…';
+        btnGps.disabled = true;
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          document.getElementById('latitude').value = lat.toFixed(7);
+          document.getElementById('longitude').value = lng.toFixed(7);
+          document.getElementById('maps_url').value = 'https://www.google.com/maps?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
+          statusEl.textContent = 'Ubicación GPS capturada. Buscando dirección…';
+
+          fetch(geocodeUrl + '?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng), {
+            credentials: 'same-origin'
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.ok) {
+                if (data.address) {
+                  document.getElementById('location_text').value = data.address;
+                }
+                if (data.maps_url) {
+                  document.getElementById('maps_url').value = data.maps_url;
+                }
+                statusEl.textContent = 'Ubicación lista.';
+              } else {
+                statusEl.textContent = 'GPS listo. Completa o ajusta la dirección manual si hace falta.';
+              }
+            })
+            .catch(function () {
+              statusEl.textContent = 'GPS listo. Completa la dirección manual si hace falta.';
+            })
+            .finally(function () { btnGps.disabled = false; });
+        }, function (err) {
+          statusEl.textContent = 'No se pudo obtener GPS (' + (err.message || 'permiso denegado') + '). Usa Maps o dirección manual.';
+          btnGps.disabled = false;
+        }, { enableHighAccuracy: true, timeout: 15000 });
+      });
+    }
+  </script>
+</body>
+</html>

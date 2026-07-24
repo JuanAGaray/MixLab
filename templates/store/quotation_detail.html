@@ -368,6 +368,13 @@
         Requisitos
       </a>
       {% endif %}
+      <a class="qd-btn qd-btn-accent" href="{% url 'store:quotation_client_onboarding_manage' quotation_id=quote.id %}">
+        <i class="bi bi-phone"></i>
+        Remitir al cliente
+        {% if rental_requirements and rental_requirements.client_onboarding_complete %}
+        <span class="badge text-bg-success ms-1">OK</span>
+        {% endif %}
+      </a>
       {% if delivery_acta and delivery_acta.is_complete %}
       <a class="qd-btn qd-btn-dark" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
         <i class="bi bi-file-earmark-pdf"></i> Ver acta de recepción

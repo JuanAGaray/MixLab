@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Remitir requisitos · COT-{{ quote.id }} - MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .co-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .co-head {
+    padding: 1rem 1.2rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .co-body { padding: 1.2rem; }
+  .co-link-box {
+    background: #0b1f3a;
+    color: #fff;
+    border-radius: 0.9rem;
+    padding: 1rem;
+    word-break: break-all;
+    font-size: 0.9rem;
+  }
+  .co-pass {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: #0f766e;
+    background: #ecfdf8;
+    border: 1px dashed #14b8a6;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    text-align: center;
+  }
+  .co-preview img {
+    max-width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a cotización
+  </a>
+  <h1 class="h4 fw-bold mt-2 mb-1">Remitir requisitos al cliente</h1>
+  <p class="text-muted">COT-{{ quote.id }} · {{ quote.display_client_name }}</p>
+
+  <div class="co-card">
+    <div class="co-head">1. Configuración</div>
+    <div class="co-body">
+      <form method="post" class="d-flex flex-wrap align-items-center gap-2 mb-0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="toggle_codeudor">
+        <span class="me-2">¿Requiere codeudor?</span>
+        {% if req.codeudor_required %}
+          <span class="badge text-bg-success">Sí, obligatorio</span>
+          <button type="submit" class="btn btn-outline-secondary btn-sm">Desactivar codeudor</button>
+        {% else %}
+          <span class="badge text-bg-secondary">No</span>
+          <button type="submit" class="btn btn-primary btn-sm">Activar codeudor</button>
+        {% endif %}
+      </form>
+      <p class="small text-muted mt-2 mb-0">
+        Si lo activas, el cliente deberá enviar nombre, cédula y foto de la cédula del codeudor.
+      </p>
+    </div>
+  </div>
+
+  <div class="co-card">
+    <div class="co-head">2. Generar enlace y contraseña</div>
+    <div class="co-body">
+      <form method="post" class="row g-2 align-items-end mb-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="generate_link">
+        <div class="col-auto">
+          <label class="form-label small mb-1">Vigencia (días)</label>
+          <input type="number" name="expire_days" class="form-control" value="14" min="1" max="60" style="width: 100px;">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-key"></i>
+            {% if req.access_token %}Regenerar enlace{% else %}Generar enlace{% endif %}
+          </button>
+        </div>
+      </form>
+      {% if req.access_token %}
+      <form method="post" class="mb-3" onsubmit="return confirm('¿Deshabilitar este enlace?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="revoke_link">
+        <button type="submit" class="btn btn-outline-danger btn-sm">Deshabilitar enlace</button>
+      </form>
+      {% endif %}
+
+      {% if client_link %}
+      <label class="form-label fw-semibold">Enlace para el cliente</label>
+      <div class="co-link-box mb-2" id="client-link">{{ client_link }}</div>
+      <button type="button" class="btn btn-sm btn-outline-light mb-3" style="background:#12325a;color:#fff;"
+              onclick="navigator.clipboard.writeText(document.getElementById('client-link').innerText)">
+        Copiar enlace
+      </button>
+
+      {% if plain_password %}
+      <label class="form-label fw-semibold d-block">Contraseña (solo esta vez)</label>
+      <div class="co-pass mb-2" id="client-pass">{{ plain_password }}</div>
+      <button type="button" class="btn btn-sm btn-outline-success mb-3"
+              onclick="navigator.clipboard.writeText(document.getElementById('client-pass').innerText)">
+        Copiar contraseña
+      </button>
+      {% elif req.link_is_active %}
+      <div class="alert alert-info py-2">
+        El enlace está activo. La contraseña ya se mostró al generarlo; si la perdiste, regenera el enlace.
+        {% if req.link_expires_at %}
+          · Expira: {{ req.link_expires_at|date:"d/m/Y H:i" }}
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="alert alert-warning py-2">El enlace no está activo. Genera uno nuevo.</div>
+      {% endif %}
+
+      {% if wa_url %}
+      <a class="btn btn-success" href="{{ wa_url }}" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-whatsapp"></i> Enviar por WhatsApp al cliente
+      </a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="co-card">
+    <div class="co-head">
+      3. Datos recibidos del cliente
+      {% if req.client_onboarding_complete %}
+        <span class="badge text-bg-success ms-1">Completo</span>
+      {% elif req.client_submitted_at %}
+        <span class="badge text-bg-warning ms-1">Parcial</span>
+      {% else %}
+        <span class="badge text-bg-secondary ms-1">Pendiente</span>
+      {% endif %}
+    </div>
+    <div class="co-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="small text-muted">Nombre</div>
+          <div class="fw-semibold">{{ req.tenant_name|default:"—" }}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Documento</div>
+          <div class="fw-semibold">{{ quote.display_client_document|default:"—" }}</div>
+        </div>
+        <div class="col-12">
+          <div class="small text-muted">Ubicación</div>
+          <div>{{ req.location_text|default:"—" }}</div>
+          {% if req.maps_url %}
+          <a href="{{ req.maps_url }}" target="_blank" rel="noopener noreferrer">Abrir en Google Maps</a>
+          {% endif %}
+          {% if req.latitude and req.longitude %}
+          <div class="small text-muted">GPS: {{ req.latitude }}, {{ req.longitude }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="row g-3 mt-2 co-preview">
+        <div class="col-6 col-md-3">
+          <div class="small text-muted mb-1">Cédula frente</div>
+          {% if req.id_front %}<img src="{{ req.id_front.url }}" alt="Cédula frente">{% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="small text-muted mb-1">Cédula reverso</div>
+          {% if req.id_back %}<img src="{{ req.id_back.url }}" alt="Cédula reverso">{% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="small text-muted mb-1">Selfie + cédula</div>
+          {% if req.selfie_with_id %}<img src="{{ req.selfie_with_id.url }}" alt="Selfie">{% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="small text-muted mb-1">Codeudor</div>
+          {% if req.codeudor_required %}
+            <div class="fw-semibold">{{ req.codeudor_name|default:"—" }}</div>
+            <div class="small">CC {{ req.codeudor_document|default:"—" }}</div>
+            {% if req.codeudor_id_front %}<img src="{{ req.codeudor_id_front.url }}" alt="Cédula codeudor" class="mt-1">{% endif %}
+          {% else %}
+            <span class="text-muted">No requerido</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-3 d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'store:quotation_rental_requirements' quotation_id=quote.id %}">
+          Ir a firmas / requisitos internos
+        </a>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}" target="_blank">
+          Ver contrato
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

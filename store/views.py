@@ -3919,6 +3919,335 @@ def quotation_rental_requirements(request, quotation_id):
     })
 
 
+def _generate_client_access_password(length: int = 8) -> str:
+    """Contraseña corta y legible para enviar al cliente por WhatsApp."""
+    import secrets
+    import string
+    alphabet = string.ascii_uppercase + string.digits
+    # Evitar caracteres confusos
+    alphabet = alphabet.replace('O', '').replace('0', '').replace('I', '').replace('1', '')
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _client_req_session_key(token) -> str:
+    return f'rental_req_auth_{token}'
+
+
+def _get_req_by_token(token):
+    return get_object_or_404(
+        RentalContractRequirements.objects.select_related('quotation'),
+        access_token=token,
+    )
+
+
+@staff_member_required
+def quotation_client_onboarding_manage(request, quotation_id):
+    """
+    Staff: generar enlace + contraseña para que el cliente remita
+    cédula, selfie, ubicación y codeudor (si aplica) desde el celular.
+    """
+    from django.contrib.auth.hashers import make_password
+    import uuid
+
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    if not q.has_rental_items:
+        messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    req, _ = RentalContractRequirements.objects.get_or_create(quotation=q)
+    if not req.tenant_name:
+        req.tenant_name = q.client_name or ''
+        req.save(update_fields=['tenant_name', 'updated_at'])
+
+    plain_password = request.session.pop('client_onboarding_password', None)
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+
+        if action == 'toggle_codeudor':
+            req.codeudor_required = not req.codeudor_required
+            req.save(update_fields=['codeudor_required', 'updated_at'])
+            messages.success(
+                request,
+                'Codeudor obligatorio activado.' if req.codeudor_required else 'Codeudor desactivado.',
+            )
+            return redirect('store:quotation_client_onboarding_manage', quotation_id=q.id)
+
+        if action == 'generate_link':
+            password = _generate_client_access_password()
+            days = 14
+            try:
+                days = max(1, min(60, int(request.POST.get('expire_days') or 14)))
+            except (TypeError, ValueError):
+                days = 14
+            if not req.access_token:
+                req.access_token = uuid.uuid4()
+            req.access_password_hash = make_password(password)
+            req.link_expires_at = timezone.now() + timedelta(days=days)
+            req.save(update_fields=[
+                'access_token', 'access_password_hash', 'link_expires_at', 'updated_at',
+            ])
+            request.session['client_onboarding_password'] = password
+            messages.success(request, 'Enlace y contraseña generados. Cópialos ahora: la clave solo se muestra una vez.')
+            return redirect('store:quotation_client_onboarding_manage', quotation_id=q.id)
+
+        if action == 'revoke_link':
+            req.access_password_hash = ''
+            req.link_expires_at = timezone.now()
+            req.save(update_fields=['access_password_hash', 'link_expires_at', 'updated_at'])
+            messages.info(request, 'El enlace quedó deshabilitado. Genera uno nuevo para volver a compartirlo.')
+            return redirect('store:quotation_client_onboarding_manage', quotation_id=q.id)
+
+    client_link = ''
+    if req.access_token:
+        client_link = request.build_absolute_uri(
+            reverse('store:client_rental_requirements_unlock', kwargs={'token': str(req.access_token)})
+        )
+
+    wa_url = ''
+    phone = (q.display_client_phone or '').strip()
+    if client_link and phone:
+        from urllib.parse import quote
+        msg = (
+            f'Hola {q.display_client_name or ""},\n'
+            f'Te compartimos el enlace para completar los datos del contrato de alquiler (COT-{q.id}).\n'
+            f'Enlace: {client_link}\n'
+        )
+        if plain_password:
+            msg += f'Contraseña: {plain_password}\n'
+        else:
+            msg += 'La contraseña te la enviaremos por separado.\n'
+        msg += 'Ábrelo desde tu celular para tomar las fotos de la cédula.'
+        digits = ''.join(ch for ch in phone if ch.isdigit())
+        if digits.startswith('57'):
+            wa_phone = digits
+        elif len(digits) == 10:
+            wa_phone = f'57{digits}'
+        else:
+            wa_phone = digits
+        wa_url = f'https://wa.me/{wa_phone}?text={quote(msg)}'
+
+    return render(request, 'store/quotation_client_onboarding_manage.html', {
+        'quote': q,
+        'req': req,
+        'client_link': client_link,
+        'plain_password': plain_password,
+        'wa_url': wa_url,
+    })
+
+
+def client_rental_requirements_unlock(request, token):
+    """Cliente: desbloquear formulario con la contraseña enviada por MixLab."""
+    from django.contrib.auth.hashers import check_password
+
+    req = _get_req_by_token(token)
+    q = req.quotation
+
+    if not req.link_is_active:
+        return render(request, 'store/client_rental_requirements_locked.html', {
+            'quote': q,
+            'req': req,
+            'reason': 'expired',
+        }, status=403)
+
+    session_key = _client_req_session_key(token)
+    if request.session.get(session_key):
+        return redirect('store:client_rental_requirements_form', token=token)
+
+    error = ''
+    if request.method == 'POST':
+        password = (request.POST.get('password') or '').strip()
+        if password and check_password(password, req.access_password_hash):
+            request.session[session_key] = True
+            request.session.modified = True
+            return redirect('store:client_rental_requirements_form', token=token)
+        error = 'Contraseña incorrecta. Verifica el mensaje que te enviamos.'
+
+    return render(request, 'store/client_rental_requirements_unlock.html', {
+        'quote': q,
+        'req': req,
+        'token': token,
+        'error': error,
+    })
+
+
+def client_rental_requirements_form(request, token):
+    """Formulario móvil del cliente: cédula, selfie, ubicación y codeudor."""
+    req = _get_req_by_token(token)
+    q = req.quotation
+    session_key = _client_req_session_key(token)
+
+    if not req.link_is_active:
+        return render(request, 'store/client_rental_requirements_locked.html', {
+            'quote': q,
+            'req': req,
+            'reason': 'expired',
+        }, status=403)
+
+    if not request.session.get(session_key):
+        return redirect('store:client_rental_requirements_unlock', token=token)
+
+    if request.method == 'POST':
+        tenant_name = (request.POST.get('tenant_name') or '').strip()
+        client_document = (request.POST.get('client_document') or '').strip()
+        location_text = (request.POST.get('location_text') or '').strip()
+        maps_url = (request.POST.get('maps_url') or '').strip()
+        codeudor_name = (request.POST.get('codeudor_name') or '').strip()
+        codeudor_document = (request.POST.get('codeudor_document') or '').strip()
+
+        lat_raw = (request.POST.get('latitude') or '').strip()
+        lng_raw = (request.POST.get('longitude') or '').strip()
+        try:
+            latitude = Decimal(lat_raw) if lat_raw else None
+        except Exception:
+            latitude = None
+        try:
+            longitude = Decimal(lng_raw) if lng_raw else None
+        except Exception:
+            longitude = None
+
+        errors = []
+        if not tenant_name:
+            errors.append('El nombre completo es obligatorio.')
+        if not client_document:
+            errors.append('El número de cédula es obligatorio.')
+        if not request.FILES.get('id_front') and not req.id_front:
+            errors.append('Toma o sube la foto del frente de tu cédula.')
+        if not request.FILES.get('id_back') and not req.id_back:
+            errors.append('Toma o sube la foto del reverso de tu cédula.')
+        if not request.FILES.get('selfie_with_id') and not req.selfie_with_id:
+            errors.append('Toma una foto de tu rostro con la cédula al lado.')
+        if not location_text and not maps_url and latitude is None:
+            errors.append('Indica tu ubicación (GPS, Google Maps o dirección manual).')
+        if req.codeudor_required:
+            if not codeudor_name:
+                errors.append('El nombre completo del codeudor es obligatorio.')
+            if not codeudor_document:
+                errors.append('La cédula del codeudor es obligatoria.')
+            if not request.FILES.get('codeudor_id_front') and not req.codeudor_id_front:
+                errors.append('Sube la foto de la cédula del codeudor.')
+
+        if errors:
+            for err in errors:
+                messages.error(request, err)
+        else:
+            req.tenant_name = tenant_name
+            req.location_text = location_text
+            req.maps_url = maps_url
+            req.latitude = latitude
+            req.longitude = longitude
+            if req.codeudor_required:
+                req.codeudor_name = codeudor_name
+                req.codeudor_document = codeudor_document
+
+            if request.FILES.get('id_front'):
+                req.id_front = request.FILES['id_front']
+            if request.FILES.get('id_back'):
+                req.id_back = request.FILES['id_back']
+            if request.FILES.get('selfie_with_id'):
+                req.selfie_with_id = request.FILES['selfie_with_id']
+            if request.FILES.get('codeudor_id_front'):
+                req.codeudor_id_front = request.FILES['codeudor_id_front']
+
+            q.client_document = client_document
+            if tenant_name and not (q.client_name or '').strip():
+                q.client_name = tenant_name
+            q.save(update_fields=['client_document', 'client_name', 'updated_at'])
+
+            req.client_submitted_at = timezone.now()
+            req.save()
+
+            # Aviso a staff
+            try:
+                detail_url = reverse('store:quotation_client_onboarding_manage', kwargs={'quotation_id': q.id})
+                _notify_whatsapp_n8n(
+                    message=_wa_build_message(
+                        f'📋 Cliente completó requisitos COT-{q.id}',
+                        [
+                            f'Cliente: {tenant_name}',
+                            f'Documento: {client_document}',
+                            'Revisa fotos de cédula, selfie y ubicación.',
+                        ],
+                        link=detail_url,
+                    ),
+                    link=detail_url,
+                    request=request,
+                )
+            except Exception:
+                logger.exception('No se pudo notificar onboarding cliente')
+
+            messages.success(request, '¡Datos enviados correctamente! MixLab los revisará para continuar con el contrato.')
+            return redirect('store:client_rental_requirements_done', token=token)
+
+    return render(request, 'store/client_rental_requirements_form.html', {
+        'quote': q,
+        'req': req,
+        'token': token,
+        'client_document': q.display_client_document or '',
+    })
+
+
+def client_rental_requirements_done(request, token):
+    """Pantalla de confirmación tras envío del cliente."""
+    req = _get_req_by_token(token)
+    return render(request, 'store/client_rental_requirements_done.html', {
+        'quote': req.quotation,
+        'req': req,
+    })
+
+
+def client_rental_requirements_geocode(request, token):
+    """Reverse geocode para el formulario cliente (requiere sesión desbloqueada)."""
+    req = _get_req_by_token(token)
+    session_key = _client_req_session_key(token)
+    if not request.session.get(session_key) or not req.link_is_active:
+        return JsonResponse({'ok': False, 'error': 'No autorizado'}, status=403)
+    if request.method != 'GET':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+
+    lat = (request.GET.get('lat') or '').strip()
+    lng = (request.GET.get('lng') or '').strip()
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Coordenadas inválidas'}, status=400)
+
+    address = ''
+    try:
+        import urllib.parse
+        import urllib.request
+
+        params = urllib.parse.urlencode({
+            'format': 'jsonv2',
+            'lat': f'{lat_f:.6f}',
+            'lon': f'{lng_f:.6f}',
+            'zoom': 18,
+            'addressdetails': 1,
+            'accept-language': 'es',
+        })
+        url = f'https://nominatim.openstreetmap.org/reverse?{params}'
+        req_http = urllib.request.Request(
+            url,
+            headers={
+                'User-Agent': 'MixLab-Frozz/1.0 (client-onboarding)',
+                'Accept': 'application/json',
+            },
+        )
+        with urllib.request.urlopen(req_http, timeout=8) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        address = (data.get('display_name') or '').strip()
+    except Exception as exc:
+        logger.warning('Client reverse geocode failed: %s', exc)
+        return JsonResponse({'ok': False, 'error': 'No se pudo obtener la dirección aproximada'}, status=502)
+
+    return JsonResponse({
+        'ok': True,
+        'address': address,
+        'maps_url': f'https://www.google.com/maps?q={lat_f:.6f},{lng_f:.6f}',
+    })
+
+
 @staff_member_required
 def ajax_reverse_geocode(request):
     """Devuelve una dirección aproximada a partir de lat/lng (Nominatim)."""

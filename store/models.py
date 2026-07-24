@@ -1024,6 +1024,13 @@ class RentalContractRequirements(models.Model):
         default='',
         verbose_name='Hash de contraseña de acceso',
     )
+    access_password = models.CharField(
+        max_length=32,
+        blank=True,
+        default='',
+        verbose_name='Contraseña de acceso (texto claro para staff)',
+        help_text='Se muestra al staff para reenviar al cliente. El hash se usa para validar.',
+    )
     link_expires_at = models.DateTimeField(
         null=True,
         blank=True,

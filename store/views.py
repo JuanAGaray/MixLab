@@ -3962,7 +3962,7 @@ def quotation_client_onboarding_manage(request, quotation_id):
         req.tenant_name = q.client_name or ''
         req.save(update_fields=['tenant_name', 'updated_at'])
 
-    plain_password = request.session.pop('client_onboarding_password', None)
+    plain_password = (req.access_password or '').strip()
 
     if request.method == 'POST':
         action = (request.POST.get('action') or '').strip()
@@ -3986,20 +3986,27 @@ def quotation_client_onboarding_manage(request, quotation_id):
             if not req.access_token:
                 req.access_token = uuid.uuid4()
             req.access_password_hash = make_password(password)
+            req.access_password = password
             req.link_expires_at = timezone.now() + timedelta(days=days)
             req.save(update_fields=[
-                'access_token', 'access_password_hash', 'link_expires_at', 'updated_at',
+                'access_token', 'access_password_hash', 'access_password',
+                'link_expires_at', 'updated_at',
             ])
-            request.session['client_onboarding_password'] = password
-            messages.success(request, 'Enlace y contraseña generados. Cópialos ahora: la clave solo se muestra una vez.')
+            messages.success(request, 'Enlace y contraseña generados. Ya puedes copiarlos o enviar el mensaje al cliente.')
             return redirect('store:quotation_client_onboarding_manage', quotation_id=q.id)
 
         if action == 'revoke_link':
             req.access_password_hash = ''
+            req.access_password = ''
             req.link_expires_at = timezone.now()
-            req.save(update_fields=['access_password_hash', 'link_expires_at', 'updated_at'])
+            req.save(update_fields=[
+                'access_password_hash', 'access_password', 'link_expires_at', 'updated_at',
+            ])
             messages.info(request, 'El enlace quedó deshabilitado. Genera uno nuevo para volver a compartirlo.')
             return redirect('store:quotation_client_onboarding_manage', quotation_id=q.id)
+
+    # Refrescar después de posibles cambios (por si no hubo redirect)
+    plain_password = (req.access_password or '').strip()
 
     client_link = ''
     if req.access_token:
@@ -4007,34 +4014,40 @@ def quotation_client_onboarding_manage(request, quotation_id):
             reverse('store:client_rental_requirements_unlock', kwargs={'token': str(req.access_token)})
         )
 
+    share_message = ''
     wa_url = ''
-    phone = (q.display_client_phone or '').strip()
-    if client_link and phone:
-        from urllib.parse import quote
-        msg = (
-            f'Hola {q.display_client_name or ""},\n'
-            f'Te compartimos el enlace para completar los datos del contrato de alquiler (COT-{q.id}).\n'
+    if client_link and req.link_is_active:
+        share_message = (
+            f'Hola {q.display_client_name or ""},\n\n'
+            f'Te compartimos el enlace para completar los datos del contrato de alquiler '
+            f'(COT-{q.id}).\n\n'
             f'Enlace: {client_link}\n'
         )
         if plain_password:
-            msg += f'Contraseña: {plain_password}\n'
-        else:
-            msg += 'La contraseña te la enviaremos por separado.\n'
-        msg += 'Ábrelo desde tu celular para tomar las fotos de la cédula.'
-        digits = ''.join(ch for ch in phone if ch.isdigit())
-        if digits.startswith('57'):
-            wa_phone = digits
-        elif len(digits) == 10:
-            wa_phone = f'57{digits}'
-        else:
-            wa_phone = digits
-        wa_url = f'https://wa.me/{wa_phone}?text={quote(msg)}'
+            share_message += f'Contraseña: {plain_password}\n'
+        share_message += (
+            '\nÁbrelo desde tu celular para tomar las fotos de la cédula, '
+            'la selfie y marcar la ubicación de operación.'
+        )
+
+        phone = (q.display_client_phone or '').strip()
+        if phone:
+            from urllib.parse import quote
+            digits = ''.join(ch for ch in phone if ch.isdigit())
+            if digits.startswith('57'):
+                wa_phone = digits
+            elif len(digits) == 10:
+                wa_phone = f'57{digits}'
+            else:
+                wa_phone = digits
+            wa_url = f'https://wa.me/{wa_phone}?text={quote(share_message)}'
 
     return render(request, 'store/quotation_client_onboarding_manage.html', {
         'quote': q,
         'req': req,
         'client_link': client_link,
         'plain_password': plain_password,
+        'share_message': share_message,
         'wa_url': wa_url,
     })
 
@@ -4200,6 +4213,223 @@ def client_rental_requirements_form(request, token):
         'token': token,
         'client_document': q.display_client_document or '',
         'already_submitted': bool(req.client_submitted_at),
+        'progress': _client_req_progress(req),
+    })
+
+
+# Campos de texto que el cliente puede guardar por AJAX
+_CLIENT_REQ_TEXT_FIELDS = {
+    'tenant_name', 'location_text', 'maps_url',
+    'codeudor_name', 'codeudor_document',
+}
+# Campos de imagen que el cliente puede subir por AJAX
+_CLIENT_REQ_FILE_FIELDS = {
+    'id_front', 'id_back', 'selfie_with_id',
+    'codeudor_id_front', 'codeudor_id_back',
+}
+# Etiquetas legibles para el cliente
+_CLIENT_REQ_LABELS = {
+    'tenant_name': 'Nombre completo',
+    'client_document': 'Número de cédula',
+    'id_front': 'Cédula (frente)',
+    'id_back': 'Cédula (reverso)',
+    'selfie_with_id': 'Selfie con cédula',
+    'location': 'Ubicación en el mapa',
+    'location_text': 'Dirección del sitio',
+    'codeudor_name': 'Nombre del codeudor',
+    'codeudor_document': 'Cédula del codeudor',
+    'codeudor_id_front': 'Cédula codeudor (frente)',
+    'codeudor_id_back': 'Cédula codeudor (reverso)',
+}
+
+
+def _client_req_required_keys(req) -> list:
+    """Claves obligatorias según si el contrato exige codeudor."""
+    keys = [
+        'tenant_name', 'client_document',
+        'id_front', 'id_back', 'selfie_with_id',
+        'location', 'location_text',
+    ]
+    if req.codeudor_required:
+        keys += [
+            'codeudor_name', 'codeudor_document',
+            'codeudor_id_front', 'codeudor_id_back',
+        ]
+    return keys
+
+
+def _client_req_progress(req) -> dict:
+    """Progreso de diligenciamiento para mostrar al cliente."""
+    missing = _client_req_missing(req)
+    total = len(_client_req_required_keys(req))
+    return {
+        'missing': missing,
+        'missing_labels': [_CLIENT_REQ_LABELS.get(m, m) for m in missing],
+        'total': total,
+        'done': total - len(missing),
+        'complete': not missing,
+    }
+
+
+def _client_req_missing(req) -> list:
+    """Lista de campos que aún faltan para poder finalizar."""
+    q = req.quotation
+    missing = []
+    if not (req.tenant_name or '').strip():
+        missing.append('tenant_name')
+    if not (q.display_client_document or '').strip():
+        missing.append('client_document')
+    if not req.id_front:
+        missing.append('id_front')
+    if not req.id_back:
+        missing.append('id_back')
+    if not req.selfie_with_id:
+        missing.append('selfie_with_id')
+    if req.latitude is None or req.longitude is None:
+        missing.append('location')
+    if not (req.location_text or '').strip():
+        missing.append('location_text')
+    if req.codeudor_required:
+        if not (req.codeudor_name or '').strip():
+            missing.append('codeudor_name')
+        if not (req.codeudor_document or '').strip():
+            missing.append('codeudor_document')
+        if not req.codeudor_id_front:
+            missing.append('codeudor_id_front')
+        if not req.codeudor_id_back:
+            missing.append('codeudor_id_back')
+    return missing
+
+
+def client_rental_requirements_save(request, token):
+    """Guarda un campo (texto o imagen) de forma incremental vía AJAX."""
+    req = _get_req_by_token(token)
+    session_key = _client_req_session_key(token)
+
+    if not req.link_is_active:
+        return JsonResponse({'ok': False, 'error': 'El enlace expiró.'}, status=403)
+    if not request.session.get(session_key):
+        return JsonResponse({'ok': False, 'error': 'Sesión no autorizada.'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido.'}, status=405)
+
+    q = req.quotation
+    saved = []
+    update_fields = []
+    preview_url = ''
+
+    # Guardado de coordenadas (par lat/lng)
+    if 'latitude' in request.POST or 'longitude' in request.POST:
+        lat_raw = (request.POST.get('latitude') or '').strip()
+        lng_raw = (request.POST.get('longitude') or '').strip()
+        try:
+            req.latitude = Decimal(lat_raw) if lat_raw else None
+        except Exception:
+            req.latitude = None
+        try:
+            req.longitude = Decimal(lng_raw) if lng_raw else None
+        except Exception:
+            req.longitude = None
+        if req.latitude is not None and req.longitude is not None and not (request.POST.get('maps_url') or '').strip():
+            req.maps_url = f'https://www.google.com/maps?q={req.latitude},{req.longitude}'
+            update_fields.append('maps_url')
+        update_fields.extend(['latitude', 'longitude'])
+        saved.append('location')
+
+    # Campos de texto
+    for field in _CLIENT_REQ_TEXT_FIELDS:
+        if field in request.POST:
+            value = (request.POST.get(field) or '').strip()
+            setattr(req, field, value)
+            update_fields.append(field)
+            saved.append(field)
+
+    # Documento y nombre también viajan a la cotización
+    if 'client_document' in request.POST:
+        q.client_document = (request.POST.get('client_document') or '').strip()
+        q.save(update_fields=['client_document', 'updated_at'])
+        saved.append('client_document')
+    if 'tenant_name' in request.POST:
+        name = (request.POST.get('tenant_name') or '').strip()
+        if name:
+            q.client_name = name
+            q.save(update_fields=['client_name', 'updated_at'])
+
+    # Archivos (imágenes)
+    for field in _CLIENT_REQ_FILE_FIELDS:
+        if request.FILES.get(field):
+            getattr(req, field).save(
+                request.FILES[field].name,
+                request.FILES[field],
+                save=False,
+            )
+            update_fields.append(field)
+            saved.append(field)
+            try:
+                preview_url = getattr(req, field).url
+            except Exception:
+                preview_url = ''
+
+    if not saved:
+        return JsonResponse({'ok': False, 'error': 'Sin datos para guardar.'}, status=400)
+
+    if 'updated_at' not in update_fields:
+        update_fields.append('updated_at')
+    # Deduplicar
+    req.save(update_fields=list(dict.fromkeys(update_fields)))
+
+    payload = {
+        'ok': True,
+        'saved': saved,
+        'preview_url': preview_url,
+    }
+    payload.update(_client_req_progress(req))
+    return JsonResponse(payload)
+
+
+def client_rental_requirements_finalize(request, token):
+    """Valida que todo esté completo y marca el envío del cliente."""
+    req = _get_req_by_token(token)
+    session_key = _client_req_session_key(token)
+
+    if not req.link_is_active:
+        return JsonResponse({'ok': False, 'error': 'El enlace expiró.'}, status=403)
+    if not request.session.get(session_key):
+        return JsonResponse({'ok': False, 'error': 'Sesión no autorizada.'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido.'}, status=405)
+
+    progress = _client_req_progress(req)
+    if not progress['complete']:
+        payload = {'ok': False, 'error': 'Faltan: ' + ', '.join(progress['missing_labels'])}
+        payload.update(progress)
+        return JsonResponse(payload, status=400)
+
+    q = req.quotation
+    req.client_submitted_at = timezone.now()
+    req.save(update_fields=['client_submitted_at', 'updated_at'])
+
+    try:
+        detail_url = reverse('store:quotation_client_onboarding_manage', kwargs={'quotation_id': q.id})
+        _notify_whatsapp_n8n(
+            message=_wa_build_message(
+                f'📋 Cliente completó requisitos COT-{q.id}',
+                [
+                    f'Cliente: {req.tenant_name}',
+                    f'Documento: {q.display_client_document}',
+                    'Revisa fotos de cédula, selfie y ubicación.',
+                ],
+                link=detail_url,
+            ),
+            link=detail_url,
+            request=request,
+        )
+    except Exception:
+        logger.exception('No se pudo notificar onboarding cliente')
+
+    return JsonResponse({
+        'ok': True,
+        'redirect_url': reverse('store:client_rental_requirements_done', kwargs={'token': str(token)}),
     })
 
 

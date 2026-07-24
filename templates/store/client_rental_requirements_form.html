@@ -86,6 +86,22 @@
       color: #fff;
     }
     .btn-ml:hover { background: #0f766e; color: #fff; }
+    .btn-ml:disabled {
+      background: #cbd5e1;
+      color: #64748b;
+      opacity: 1;
+    }
+    .progress-wrap { margin-bottom: 0.6rem; }
+    .progress-count { font-size: 0.8rem; font-weight: 700; color: var(--ml-navy); }
+    .progress-saved { font-size: 0.72rem; color: var(--ml-teal); font-weight: 600; }
+    .progress-bar.bg-teal { background-color: var(--ml-teal); transition: width .3s; }
+    .progress-missing {
+      font-size: 0.75rem;
+      color: #b45309;
+      margin-top: 0.3rem;
+      line-height: 1.3;
+    }
+    .progress-missing.done { color: var(--ml-teal); font-weight: 600; }
     .hint { font-size: 0.82rem; color: #64748b; }
     #op-map {
       height: 280px;
@@ -123,6 +139,35 @@
       color: var(--ml-navy);
       border: 1px solid #cbd5e1;
     }
+    .field-status {
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 0.25rem;
+      min-height: 1rem;
+      display: block;
+    }
+    .field-status.saving { color: #b45309; }
+    .field-status.saved { color: #0d9488; }
+    .field-status.error { color: #dc2626; }
+    .ml-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 9rem;
+      transform: translateX(-50%) translateY(1rem);
+      background: var(--ml-navy);
+      color: #fff;
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.25);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s, transform .2s;
+      z-index: 50;
+    }
+    .ml-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .ml-toast.err { background: #dc2626; }
   </style>
 </head>
 <body>
@@ -163,7 +208,14 @@
     </div>
     {% endif %}
 
-    <form method="post" enctype="multipart/form-data" id="client-req-form">
+    <div class="alert alert-info py-2 small d-flex align-items-center gap-2">
+      <i class="bi bi-cloud-check"></i>
+      <span>Tus datos se <strong>guardan automáticamente</strong> a medida que los completas.</span>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="client-req-form" novalidate
+          data-save-url="{% url 'store:client_rental_requirements_save' token=token %}"
+          data-finalize-url="{% url 'store:client_rental_requirements_finalize' token=token %}">
       {% csrf_token %}
       <div id="form-start"></div>
 
@@ -173,13 +225,13 @@
           <label class="form-label fw-semibold" for="tenant_name">Nombre completo *</label>
           <input type="text" class="form-control form-control-lg" id="tenant_name" name="tenant_name"
                  value="{{ req.tenant_name|default:quote.display_client_name }}" required
-                 autocomplete="name" placeholder="Como aparece en la cédula">
+                 autocomplete="name" placeholder="Como aparece en la cédula" data-autosave>
         </div>
         <div class="mb-0">
           <label class="form-label fw-semibold" for="client_document">Número de cédula *</label>
           <input type="text" class="form-control form-control-lg" id="client_document" name="client_document"
                  value="{{ client_document }}" required inputmode="numeric"
-                 placeholder="Ej: 1234567890">
+                 placeholder="Ej: 1234567890" data-autosave>
         </div>
       </div>
 
@@ -236,7 +288,7 @@
         <div class="mb-3">
           <label class="form-label fw-semibold" for="location_text">Dirección / descripción del sitio *</label>
           <textarea class="form-control" id="location_text" name="location_text" rows="2" required
-                    placeholder="Barrio, calle, referencia, ciudad…">{{ req.location_text }}</textarea>
+                    placeholder="Barrio, calle, referencia, ciudad…" data-autosave>{{ req.location_text }}</textarea>
         </div>
         <div class="mb-0">
           <label class="form-label fw-semibold" for="maps_url">Enlace Google Maps</label>
@@ -253,12 +305,12 @@
         <div class="mb-3">
           <label class="form-label fw-semibold" for="codeudor_name">Nombre completo del codeudor *</label>
           <input type="text" class="form-control form-control-lg" id="codeudor_name" name="codeudor_name"
-                 value="{{ req.codeudor_name }}" required autocomplete="off">
+                 value="{{ req.codeudor_name }}" required autocomplete="off" data-autosave>
         </div>
         <div class="mb-3">
           <label class="form-label fw-semibold" for="codeudor_document">Cédula del codeudor *</label>
           <input type="text" class="form-control form-control-lg" id="codeudor_document" name="codeudor_document"
-                 value="{{ req.codeudor_document }}" required inputmode="numeric">
+                 value="{{ req.codeudor_document }}" required inputmode="numeric" data-autosave>
         </div>
         <p class="hint mb-2">Fotos de la cédula del codeudor</p>
         <div class="row g-2">
@@ -284,28 +336,182 @@
       </div>
       {% endif %}
 
-      <div style="height: 4.5rem;"></div>
+      <div style="height: 7rem;"></div>
       <div class="sticky-submit">
-        <button type="submit" class="btn btn-ml">
+        <div class="progress-wrap">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="progress-count" id="progress-count">
+              {{ progress.done }} de {{ progress.total }} completados
+            </span>
+            <span class="progress-saved"><i class="bi bi-cloud-check"></i> Guardado automático</span>
+          </div>
+          <div class="progress" style="height: 6px;">
+            <div class="progress-bar bg-teal" id="progress-bar" role="progressbar"
+                 style="width: {% widthratio progress.done progress.total 100 %}%"></div>
+          </div>
+          <div class="progress-missing{% if progress.complete %} done{% endif %}" id="progress-missing">
+            {% if progress.missing_labels %}
+              Falta: {{ progress.missing_labels|join:", " }}
+            {% else %}
+              Todo listo para enviar
+            {% endif %}
+          </div>
+        </div>
+        <button type="submit" class="btn btn-ml" id="finalize-btn"
+                {% if not progress.complete %}disabled{% endif %}>
           <i class="bi bi-send-check"></i>
-          {% if already_submitted %}Guardar cambios{% else %}Enviar datos a MixLab{% endif %}
+          {% if already_submitted %}Confirmar cambios y notificar a MixLab{% else %}Finalizar y notificar a MixLab{% endif %}
         </button>
       </div>
     </form>
   </div>
 
+  <div class="ml-toast" id="ml-toast"></div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
+    var form = document.getElementById('client-req-form');
+    var SAVE_URL = form.getAttribute('data-save-url');
+    var FINALIZE_URL = form.getAttribute('data-finalize-url');
+    var CSRF = form.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    var toastEl = document.getElementById('ml-toast');
+    var toastTimer = null;
+    function toast(msg, isError) {
+      toastEl.textContent = msg;
+      toastEl.classList.toggle('err', !!isError);
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+    }
+
+    // Añade una etiqueta de estado debajo de cada campo autosave
+    function statusFor(el) {
+      var next = el.parentElement.querySelector('.field-status');
+      if (!next) {
+        next = document.createElement('span');
+        next.className = 'field-status';
+        el.parentElement.appendChild(next);
+      }
+      return next;
+    }
+    function setStatus(el, state, text) {
+      if (!el) return;
+      var s = statusFor(el);
+      s.className = 'field-status ' + state;
+      s.textContent = text || '';
+    }
+
+    // Refleja el progreso devuelto por el servidor
+    var progressCount = document.getElementById('progress-count');
+    var progressBar = document.getElementById('progress-bar');
+    var progressMissing = document.getElementById('progress-missing');
+    function applyProgress(data) {
+      if (!data || typeof data.total === 'undefined') return;
+      progressCount.textContent = data.done + ' de ' + data.total + ' completados';
+      progressBar.style.width = (data.total ? (data.done / data.total) * 100 : 0) + '%';
+      if (data.complete) {
+        progressMissing.textContent = 'Todo listo para enviar';
+        progressMissing.classList.add('done');
+      } else {
+        progressMissing.textContent = 'Falta: ' + (data.missing_labels || []).join(', ');
+        progressMissing.classList.remove('done');
+      }
+      var btn = document.getElementById('finalize-btn');
+      if (btn) btn.disabled = !data.complete;
+    }
+
+    // Guarda una FormData en el servidor
+    function postSave(formData, onOk, onErr) {
+      formData.append('csrfmiddlewaretoken', CSRF);
+      fetch(SAVE_URL, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (res.ok && res.data.ok) {
+            applyProgress(res.data);
+            if (onOk) onOk(res.data);
+          } else {
+            if (onErr) onErr(res.data.error || 'Error al guardar');
+          }
+        })
+        .catch(function () { if (onErr) onErr('Sin conexión'); });
+    }
+
+    // Autosave de campos de texto (al salir del campo)
+    document.querySelectorAll('[data-autosave]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var val = (el.value || '').trim();
+        setStatus(el, 'saving', 'Guardando…');
+        var fd = new FormData();
+        fd.append(el.name, val);
+        postSave(fd, function () {
+          setStatus(el, 'saved', 'Guardado ✓');
+        }, function (msg) {
+          setStatus(el, 'error', msg);
+        });
+      });
+    });
+
+    // Autosave de imágenes (al seleccionar/tomar la foto)
     document.querySelectorAll('.capture-box input[type=file]').forEach(function (input) {
       input.addEventListener('change', function () {
         var box = input.closest('.capture-box');
         var prevId = box.getAttribute('data-preview');
         var img = document.getElementById(prevId);
-        if (!img || !input.files || !input.files[0]) return;
-        img.src = URL.createObjectURL(input.files[0]);
-        img.style.display = 'block';
+        if (!input.files || !input.files[0]) return;
+        if (img) {
+          img.src = URL.createObjectURL(input.files[0]);
+          img.style.display = 'block';
+        }
         box.classList.add('has-file');
+        toast('Subiendo foto…');
+        var fd = new FormData();
+        fd.append(input.name, input.files[0]);
+        postSave(fd, function () {
+          toast('Foto guardada ✓');
+        }, function (msg) {
+          box.classList.remove('has-file');
+          toast(msg, true);
+        });
       });
+    });
+
+    // Envío final: valida en el servidor y redirige
+    var finalizeBtn = document.getElementById('finalize-btn');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      finalizeBtn.disabled = true;
+      var original = finalizeBtn.innerHTML;
+      finalizeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando…';
+      var fd = new FormData();
+      fd.append('csrfmiddlewaretoken', CSRF);
+      fetch(FINALIZE_URL, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (res.ok && res.data.ok && res.data.redirect_url) {
+            window.location.href = res.data.redirect_url;
+          } else {
+            finalizeBtn.disabled = false;
+            finalizeBtn.innerHTML = original;
+            applyProgress(res.data);
+            toast(res.data.error || 'Faltan datos por completar', true);
+          }
+        })
+        .catch(function () {
+          finalizeBtn.disabled = false;
+          finalizeBtn.innerHTML = original;
+          toast('Sin conexión', true);
+        });
     });
 
     (function initOpMap() {
@@ -344,7 +550,19 @@
         latInput.value = lat.toFixed(7);
         lngInput.value = lng.toFixed(7);
         mapsInput.value = 'https://www.google.com/maps?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
-        statusEl.textContent = 'Pin: ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ' · Arrástralo para ajustar';
+        statusEl.textContent = 'Pin: ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ' · Guardando…';
+
+        // Autosave de coordenadas
+        var fd = new FormData();
+        fd.append('latitude', latInput.value);
+        fd.append('longitude', lngInput.value);
+        fd.append('maps_url', mapsInput.value);
+        postSave(fd, function () {
+          statusEl.textContent = 'Pin: ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ' · Ubicación guardada ✓';
+        }, function (msg) {
+          statusEl.textContent = 'Pin: ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ' · ' + msg;
+        });
+
         if (reverse) {
           fetch(geocodeUrl + '?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng), {
             credentials: 'same-origin'
@@ -353,6 +571,10 @@
             .then(function (data) {
               if (data.ok && data.address && (!locInput.value || reverse)) {
                 locInput.value = data.address;
+                // Guarda la dirección obtenida por geocodificación inversa
+                var lfd = new FormData();
+                lfd.append('location_text', locInput.value);
+                postSave(lfd, function () { setStatus(locInput, 'saved', 'Guardado ✓'); });
               }
               if (data.ok && data.maps_url) mapsInput.value = data.maps_url;
             })

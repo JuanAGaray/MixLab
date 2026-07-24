@@ -104,21 +104,26 @@
       {% if client_link %}
       <label class="form-label fw-semibold">Enlace para el cliente</label>
       <div class="co-link-box mb-2" id="client-link">{{ client_link }}</div>
-      <button type="button" class="btn btn-sm btn-outline-light mb-3" style="background:#12325a;color:#fff;"
-              onclick="navigator.clipboard.writeText(document.getElementById('client-link').innerText)">
-        Copiar enlace
-      </button>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <button type="button" class="btn btn-sm btn-outline-light" style="background:#12325a;color:#fff;"
+                onclick="copyText('client-link', this)">
+          <i class="bi bi-clipboard"></i> Copiar enlace
+        </button>
+      </div>
 
-      {% if plain_password %}
-      <label class="form-label fw-semibold d-block">Contraseña (solo esta vez)</label>
+      {% if plain_password and req.link_is_active %}
+      <label class="form-label fw-semibold d-block">Contraseña de acceso</label>
       <div class="co-pass mb-2" id="client-pass">{{ plain_password }}</div>
-      <button type="button" class="btn btn-sm btn-outline-success mb-3"
-              onclick="navigator.clipboard.writeText(document.getElementById('client-pass').innerText)">
-        Copiar contraseña
-      </button>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <button type="button" class="btn btn-sm btn-outline-success"
+                onclick="copyText('client-pass', this)">
+          <i class="bi bi-clipboard"></i> Copiar contraseña
+        </button>
+      </div>
       {% elif req.link_is_active %}
-      <div class="alert alert-info py-2">
-        El enlace está activo. La contraseña ya se mostró al generarlo; si la perdiste, regenera el enlace.
+      <div class="alert alert-warning py-2">
+        El enlace está activo, pero no hay contraseña guardada (se generó antes de este cambio).
+        <strong>Regenera el enlace</strong> para obtener una contraseña visible.
         {% if req.link_expires_at %}
           · Expira: {{ req.link_expires_at|date:"d/m/Y H:i" }}
         {% endif %}
@@ -127,10 +132,24 @@
       <div class="alert alert-warning py-2">El enlace no está activo. Genera uno nuevo.</div>
       {% endif %}
 
-      {% if wa_url %}
-      <a class="btn btn-success" href="{{ wa_url }}" target="_blank" rel="noopener noreferrer">
-        <i class="bi bi-whatsapp"></i> Enviar por WhatsApp al cliente
-      </a>
+      {% if share_message %}
+      <label class="form-label fw-semibold d-block mt-2">Mensaje para enviar al cliente</label>
+      <textarea class="form-control mb-2" id="share-message" rows="8" readonly
+                style="font-size:0.9rem; white-space:pre-wrap;">{{ share_message }}</textarea>
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <button type="button" class="btn btn-primary"
+                onclick="copyText('share-message', this)">
+          <i class="bi bi-clipboard-check"></i> Copiar mensaje
+        </button>
+        {% if wa_url %}
+        <a class="btn btn-success" href="{{ wa_url }}" target="_blank" rel="noopener noreferrer">
+          <i class="bi bi-whatsapp"></i> Enviar por WhatsApp
+        </a>
+        {% endif %}
+      </div>
+      {% if req.link_expires_at %}
+      <p class="small text-muted mb-0">Expira: {{ req.link_expires_at|date:"d/m/Y H:i" }}</p>
+      {% endif %}
       {% endif %}
       {% endif %}
     </div>
@@ -212,4 +231,26 @@
     </div>
   </div>
 </div>
+<script>
+function copyText(elId, btn) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  var text = (el.value !== undefined) ? el.value : el.innerText;
+  navigator.clipboard.writeText(text.trim()).then(function () {
+    var original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i> ¡Copiado!';
+    btn.classList.add('btn-success');
+    setTimeout(function () {
+      btn.innerHTML = original;
+      btn.classList.remove('btn-success');
+    }, 1800);
+  }).catch(function () {
+    // Fallback: seleccionar el textarea / contenido
+    if (el.select) {
+      el.select();
+      document.execCommand('copy');
+    }
+  });
+}
+</script>
 {% endblock %}

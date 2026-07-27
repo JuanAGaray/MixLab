@@ -3361,6 +3361,31 @@ def quotation_list(request):
 
 
 @staff_member_required
+def quotation_wa_share(request, quotation_id):
+    """Abre WhatsApp con el mensaje de la cotización para el cliente."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client'), id=quotation_id)
+    urls = _quotation_client_wa_urls(q, request=request)
+    if not urls['wa_share_url']:
+        messages.error(request, 'Esta cotización no tiene un teléfono de cliente válido para WhatsApp.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+    return redirect(urls['wa_share_url'])
+
+
+@staff_member_required
+def quotation_wa_payment_reminder(request, quotation_id):
+    """Abre WhatsApp con el recordatorio de pago para el cliente."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client'), id=quotation_id)
+    urls = _quotation_client_wa_urls(q, request=request)
+    if urls['is_fully_paid']:
+        messages.info(request, 'Esta cotización ya está pagada; no hace falta recordatorio.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+    if not urls['wa_payment_reminder_url']:
+        messages.error(request, 'Esta cotización no tiene un teléfono de cliente válido para WhatsApp.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+    return redirect(urls['wa_payment_reminder_url'])
+
+
+@staff_member_required
 def sales_list(request):
     """
     Vista de ventas con 3 tablas:
@@ -3727,6 +3752,7 @@ def quotation_detail(request, quotation_id):
             'is_fully_paid': _quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses(),
             'is_quote_closed': q.quotation_status == 'cerrada' or q.order_status in _fully_paid_statuses(),
             'can_edit_quote': _quotation_can_edit(q),
+            'client_wa': _quotation_client_wa_urls(q, request=request),
         },
     )
 
@@ -5121,6 +5147,141 @@ def _wa_money(amount) -> str:
         return f"${Decimal(amount):.2f}"
     except Exception:
         return f"${amount}"
+
+
+def _wa_normalize_phone(phone: str) -> str:
+    """Normaliza teléfono a dígitos con indicativo Colombia (57) si aplica."""
+    digits = ''.join(ch for ch in str(phone or '') if ch.isdigit())
+    if not digits:
+        return ''
+    if digits.startswith('57') and len(digits) >= 12:
+        return digits
+    if len(digits) == 10:
+        return f'57{digits}'
+    if digits.startswith('0') and len(digits) == 11:
+        return f'57{digits.lstrip("0")}'
+    return digits
+
+
+def _wa_me_url(phone: str, message: str = '') -> str:
+    """URL wa.me con mensaje opcional prellenado."""
+    from urllib.parse import quote
+    digits = _wa_normalize_phone(phone)
+    if not digits:
+        return ''
+    url = f'https://wa.me/{digits}'
+    text = (message or '').strip()
+    if text:
+        url += f'?text={quote(text)}'
+    return url
+
+
+def _quotation_public_link(quote: Quotation, request=None) -> str:
+    """Enlace absoluto a la cotización (PDF con IVA) para compartir con el cliente."""
+    path = reverse('store:quotation_pdf', kwargs={'quotation_id': quote.id}) + '?iva=1'
+    return _absolute_url(path, request=request)
+
+
+def _quotation_wa_share_message(quote: Quotation, request=None) -> str:
+    """Mensaje para enviar la cotización al cliente por WhatsApp."""
+    quote.sync_client_snapshot_from_profile(save=False)
+    name = (quote.display_client_name or '').strip() or 'cliente'
+    items = list(quote.items.select_related('product')[:8])
+    item_lines = []
+    for it in items:
+        pname = getattr(it.product, 'name', 'Producto')
+        item_lines.append(f"• {pname} x{it.quantity} — {_wa_money(it.subtotal)}")
+    more = quote.items.count() - len(items)
+    if more > 0:
+        item_lines.append(f"• … y {more} más")
+
+    lines = [
+        f"Hola {name} 👋",
+        "",
+        f"Te compartimos la cotización *COT-{quote.id}* de MixLab:",
+        f"Total: *{_wa_money(quote.total)}*",
+    ]
+    if item_lines:
+        lines.append("")
+        lines.append("Detalle:")
+        lines.extend(item_lines)
+    link = _quotation_public_link(quote, request=request)
+    if link:
+        lines.append("")
+        lines.append("Ver / descargar PDF:")
+        lines.append(link)
+    lines.append("")
+    lines.append("Quedamos atentos a tu confirmación. ¡Gracias!")
+    return "\n".join(lines)
+
+
+def _quotation_wa_payment_reminder_message(quote: Quotation, request=None) -> str:
+    """Mensaje de recordatorio de pago al cliente por WhatsApp."""
+    quote.sync_client_snapshot_from_profile(save=False)
+    name = (quote.display_client_name or '').strip() or 'cliente'
+    paid = quote.amount_paid
+    remaining = quote.remaining_balance
+    total = Decimal(str(quote.total or 0))
+
+    lines = [
+        f"Hola {name} 👋",
+        "",
+        f"Te recordamos el pago pendiente de la cotización *COT-{quote.id}*:",
+        f"Total: {_wa_money(total)}",
+    ]
+    if paid > 0:
+        lines.append(f"Abonado: {_wa_money(paid)}")
+        lines.append(f"*Saldo pendiente: {_wa_money(remaining)}*")
+    else:
+        lines.append(f"*Pendiente por pagar: {_wa_money(remaining or total)}*")
+
+    try:
+        methods = list(PaymentMethod.objects.filter(is_active=True).order_by('sort_order', 'id')[:4])
+    except Exception:
+        methods = []
+    if methods:
+        lines.append("")
+        lines.append("Puedes pagar a:")
+        for m in methods:
+            bank = (m.bank_name or m.get_account_type_display() or '').strip()
+            holder = (m.holder_name or '').strip()
+            acct = (m.account_number or '').strip()
+            bit = f"• {bank}"
+            if acct:
+                bit += f" · {acct}"
+            if holder:
+                bit += f" (a nombre de {holder})"
+            lines.append(bit)
+            if (m.breb_key or '').strip():
+                lines.append(f"  Llave BREB: {m.breb_key.strip()}")
+
+    link = _quotation_public_link(quote, request=request)
+    if link:
+        lines.append("")
+        lines.append("Cotización:")
+        lines.append(link)
+
+    lines.append("")
+    lines.append("Cuando realices el pago, envíanos el comprobante por este chat. ¡Gracias!")
+    return "\n".join(lines)
+
+
+def _quotation_client_wa_urls(quote: Quotation, request=None) -> dict:
+    """URLs wa.me al teléfono del cliente (cotización + recordatorio de pago)."""
+    phone = quote.display_client_phone or quote.client_phone or ''
+    share_msg = _quotation_wa_share_message(quote, request=request)
+    reminder_msg = _quotation_wa_payment_reminder_message(quote, request=request)
+    fully_paid = _quotation_is_fully_paid(quote) or quote.order_status in (
+        'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado',
+    )
+    return {
+        'phone': phone,
+        'has_phone': bool(_wa_normalize_phone(phone)),
+        'wa_share_url': _wa_me_url(phone, share_msg),
+        'wa_payment_reminder_url': _wa_me_url(phone, reminder_msg),
+        'is_fully_paid': fully_paid,
+        'needs_payment': not fully_paid and quote.quotation_status not in ('cancelada',),
+    }
 
 
 def _wa_build_message(title: str, lines: list[str], link: str = '') -> str:

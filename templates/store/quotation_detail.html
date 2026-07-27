@@ -96,6 +96,31 @@
     color: #451a03 !important;
     border-color: #d97706;
   }
+  .qd-btn-wa {
+    background: #25d366;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(37, 211, 102, 0.28);
+  }
+  .qd-btn-wa:hover {
+    background: #1ebe57;
+    color: #fff !important;
+  }
+  .qd-btn-wa-soft {
+    background: #ecfdf5;
+    color: #047857 !important;
+    border-color: #86efac;
+  }
+  .qd-btn-wa-soft:hover {
+    background: #d1fae5;
+    color: #065f46 !important;
+  }
+  .qd-btn-wa-disabled {
+    background: #e2e8f0;
+    color: #64748b !important;
+    border-color: #cbd5e1;
+    pointer-events: none;
+    box-shadow: none;
+  }
   .qd-card {
     border: 1px solid var(--qd-line);
     border-radius: 1rem;
@@ -338,6 +363,26 @@
         <i class="bi bi-pencil-square"></i> Modificar
       </a>
       {% endif %}
+
+      {% if client_wa.has_phone %}
+      <a class="qd-btn qd-btn-wa" href="{% url 'store:quotation_wa_share' quotation_id=quote.id %}"
+         target="_blank" rel="noopener noreferrer"
+         title="Abrir WhatsApp con la cotización para el cliente">
+        <i class="bi bi-whatsapp"></i> Enviar cotización por WA
+      </a>
+      {% if client_wa.needs_payment %}
+      <a class="qd-btn qd-btn-wa-soft" href="{% url 'store:quotation_wa_payment_reminder' quotation_id=quote.id %}"
+         target="_blank" rel="noopener noreferrer"
+         title="Recordatorio de pago por WhatsApp">
+        <i class="bi bi-whatsapp"></i> Recordatorio de pago
+      </a>
+      {% endif %}
+      {% else %}
+      <span class="qd-btn qd-btn-wa-disabled" title="Agrega un teléfono al cliente para enviar por WhatsApp">
+        <i class="bi bi-whatsapp"></i> Sin teléfono WA
+      </span>
+      {% endif %}
+
       <a class="qd-btn qd-btn-dark" href="{% url 'store:quotation_pdf' quotation_id=quote.id %}?iva=1" target="_blank" rel="noopener noreferrer">
         <i class="bi bi-file-earmark-pdf"></i> PDF con IVA
       </a>

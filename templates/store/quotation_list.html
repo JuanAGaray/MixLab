@@ -82,6 +82,24 @@
     background: #1ebe57;
     color: #fff !important;
   }
+  .quotes-table .btn-wa-action {
+    background: #25d366 !important;
+    color: #fff !important;
+    border: 0;
+  }
+  .quotes-table .btn-wa-action:hover {
+    background: #1ebe57 !important;
+    color: #fff !important;
+  }
+  .quotes-table .btn-wa-reminder {
+    background: #064e3b !important;
+    color: #a7f3d0 !important;
+    border: 1px solid #10b981;
+  }
+  .quotes-table .btn-wa-reminder:hover {
+    background: #065f46 !important;
+    color: #fff !important;
+  }
   .quotes-table .creator-name {
     font-size: 0.8rem;
     color: #475569;
@@ -297,6 +315,22 @@
               <td class="text-end fw-semibold col-total">{{ q.total|pesos_colombianos }}</td>
               <td class="text-end col-actions">
                 <div class="row-actions">
+                  {% if q.display_client_phone or q.client_phone %}
+                  <a href="{% url 'store:quotation_wa_share' quotation_id=q.id %}"
+                     class="btn btn-sm btn-wa-action"
+                     target="_blank" rel="noopener noreferrer"
+                     title="Enviar cotización por WhatsApp">
+                    <i class="bi bi-whatsapp"></i>
+                  </a>
+                  {% if q.order_status != 'pago_recibido' and q.order_status != 'enviado' and q.order_status != 'recibido' and q.order_status != 'modificado_y_enviado' and q.quotation_status != 'cancelada' %}
+                  <a href="{% url 'store:quotation_wa_payment_reminder' quotation_id=q.id %}"
+                     class="btn btn-sm btn-wa-reminder"
+                     target="_blank" rel="noopener noreferrer"
+                     title="Recordatorio de pago por WhatsApp">
+                    <i class="bi bi-cash-coin"></i>
+                  </a>
+                  {% endif %}
+                  {% endif %}
                   {% if q.order_status != 'pago_recibido' and q.order_status != 'enviado' and q.order_status != 'recibido' and q.order_status != 'modificado_y_enviado' and q.quotation_status != 'cancelada' and q.quotation_status != 'cerrada' %}
                   <a href="{% url 'store:quotation_edit' quotation_id=q.id %}"
                      class="btn btn-outline-primary btn-sm"

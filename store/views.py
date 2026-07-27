@@ -3362,27 +3362,63 @@ def quotation_list(request):
 
 @staff_member_required
 def quotation_wa_share(request, quotation_id):
-    """Abre WhatsApp con el mensaje de la cotización para el cliente."""
+    """Envía la cotización al cliente por la API WhatsApp (webhook n8n)."""
     q = get_object_or_404(Quotation.objects.select_related('existing_client'), id=quotation_id)
-    urls = _quotation_client_wa_urls(q, request=request)
-    if not urls['wa_share_url']:
+    next_url = request.POST.get('next') or request.GET.get('next') or reverse(
+        'store:quotation_detail', kwargs={'quotation_id': q.id}
+    )
+
+    if request.method != 'POST':
+        return redirect(next_url)
+
+    phone = _wa_normalize_phone(q.display_client_phone or q.client_phone or '')
+    if not phone:
         messages.error(request, 'Esta cotización no tiene un teléfono de cliente válido para WhatsApp.')
-        return redirect('store:quotation_detail', quotation_id=q.id)
-    return redirect(urls['wa_share_url'])
+        return redirect(next_url)
+
+    message = _quotation_wa_share_message(q, request=request)
+    ok = _notify_whatsapp_n8n(message=message, phone=phone, request=request)
+    if ok:
+        messages.success(request, f'Cotización COT-{q.id} enviada por WhatsApp a {phone}.')
+    else:
+        messages.error(
+            request,
+            'No se pudo enviar por WhatsApp. Revisa que n8n esté activo y el webhook configurado.',
+        )
+    return redirect(next_url)
 
 
 @staff_member_required
 def quotation_wa_payment_reminder(request, quotation_id):
-    """Abre WhatsApp con el recordatorio de pago para el cliente."""
+    """Envía recordatorio de pago al cliente por la API WhatsApp (webhook n8n)."""
     q = get_object_or_404(Quotation.objects.select_related('existing_client'), id=quotation_id)
+    next_url = request.POST.get('next') or request.GET.get('next') or reverse(
+        'store:quotation_detail', kwargs={'quotation_id': q.id}
+    )
+
+    if request.method != 'POST':
+        return redirect(next_url)
+
     urls = _quotation_client_wa_urls(q, request=request)
     if urls['is_fully_paid']:
         messages.info(request, 'Esta cotización ya está pagada; no hace falta recordatorio.')
-        return redirect('store:quotation_detail', quotation_id=q.id)
-    if not urls['wa_payment_reminder_url']:
+        return redirect(next_url)
+
+    phone = _wa_normalize_phone(q.display_client_phone or q.client_phone or '')
+    if not phone:
         messages.error(request, 'Esta cotización no tiene un teléfono de cliente válido para WhatsApp.')
-        return redirect('store:quotation_detail', quotation_id=q.id)
-    return redirect(urls['wa_payment_reminder_url'])
+        return redirect(next_url)
+
+    message = _quotation_wa_payment_reminder_message(q, request=request)
+    ok = _notify_whatsapp_n8n(message=message, phone=phone, request=request)
+    if ok:
+        messages.success(request, f'Recordatorio de pago COT-{q.id} enviado por WhatsApp a {phone}.')
+    else:
+        messages.error(
+            request,
+            'No se pudo enviar el recordatorio. Revisa que n8n esté activo y el webhook configurado.',
+        )
+    return redirect(next_url)
 
 
 @staff_member_required

@@ -45,7 +45,12 @@
     border: 1px solid transparent;
     text-decoration: none;
     line-height: 1.1;
+    cursor: pointer;
     transition: transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease;
+  }
+  button.qd-btn {
+    appearance: none;
+    -webkit-appearance: none;
   }
   .qd-btn:hover { transform: translateY(-1px); }
   .qd-btn-dark {
@@ -365,17 +370,23 @@
       {% endif %}
 
       {% if client_wa.has_phone %}
-      <a class="qd-btn qd-btn-wa" href="{% url 'store:quotation_wa_share' quotation_id=quote.id %}"
-         target="_blank" rel="noopener noreferrer"
-         title="Abrir WhatsApp con la cotización para el cliente">
-        <i class="bi bi-whatsapp"></i> Enviar cotización por WA
-      </a>
+      <form method="post" action="{% url 'store:quotation_wa_share' quotation_id=quote.id %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit" class="qd-btn qd-btn-wa"
+                title="Enviar cotización al cliente por la API de WhatsApp">
+          <i class="bi bi-whatsapp"></i> Enviar cotización por WA
+        </button>
+      </form>
       {% if client_wa.needs_payment %}
-      <a class="qd-btn qd-btn-wa-soft" href="{% url 'store:quotation_wa_payment_reminder' quotation_id=quote.id %}"
-         target="_blank" rel="noopener noreferrer"
-         title="Recordatorio de pago por WhatsApp">
-        <i class="bi bi-whatsapp"></i> Recordatorio de pago
-      </a>
+      <form method="post" action="{% url 'store:quotation_wa_payment_reminder' quotation_id=quote.id %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit" class="qd-btn qd-btn-wa-soft"
+                title="Enviar recordatorio de pago por la API de WhatsApp">
+          <i class="bi bi-whatsapp"></i> Recordatorio de pago
+        </button>
+      </form>
       {% endif %}
       {% else %}
       <span class="qd-btn qd-btn-wa-disabled" title="Agrega un teléfono al cliente para enviar por WhatsApp">

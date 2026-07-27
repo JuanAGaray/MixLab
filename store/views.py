@@ -26,7 +26,7 @@ from decimal import Decimal
 from .models import (
     Product, Category, Cart, CartItem, Order, OrderItem,
     ProductImage, ProductVariation, ProductVariationImage, ProductTechnicalSpec, ProductAttribute,
-    ProductRentalPrice,
+    ProductRentalPrice, RentalCombo, RentalComboItem,
     DilutionBaseProduct, SiteSettings, PaymentMethod,
     RentalContractRequirements, RentalDeliveryActa,
     FinanceRecord,
@@ -1822,11 +1822,21 @@ def inventory_dashboard(request):
     sale_page_obj = Paginator(sale_products, 15).get_page(request.GET.get('sale_page'))
     rental_page_obj = Paginator(rental_products, 15).get_page(request.GET.get('rental_page'))
 
+    combos_qs = RentalCombo.objects.prefetch_related('items').order_by('-created_at')
+    combo_page_obj = Paginator(combos_qs, 15).get_page(request.GET.get('combo_page'))
+    combo_stats = {
+        'total': combos_qs.count(),
+        'available': combos_qs.filter(available=True).count(),
+        'for_events': combos_qs.filter(for_events=True).count(),
+    }
+
     context = {
         'sale_stats': sale_stats,
         'rental_stats': rental_stats,
         'sale_page_obj': sale_page_obj,
         'rental_page_obj': rental_page_obj,
+        'combo_page_obj': combo_page_obj,
+        'combo_stats': combo_stats,
     }
     return render(request, 'store/inventory/dashboard.html', context)
 
@@ -2601,6 +2611,312 @@ def inventory_create_category(request):
         'form': form,
     }
     return render(request, 'store/inventory/create_category_modal.html', context)
+
+
+def _unique_combo_slug(name: str, exclude_id=None) -> str:
+    base = slugify(name) or 'combo'
+    slug = base
+    n = 2
+    qs = RentalCombo.objects.all()
+    if exclude_id:
+        qs = qs.exclude(pk=exclude_id)
+    while qs.filter(slug=slug).exists():
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _default_unit_cost_for_product(product, rental_price_id=None) -> Decimal:
+    """Costo sugerido: tarifa elegida, o diaria, o primera activa, o precio de catálogo."""
+    if rental_price_id:
+        rp = ProductRentalPrice.objects.filter(
+            id=rental_price_id, product=product, is_active=True,
+        ).first()
+        if rp:
+            return Decimal(str(rp.price))
+    preferred = product.rental_prices.filter(is_active=True, period_type='daily').first()
+    if preferred:
+        return Decimal(str(preferred.price))
+    any_tariff = product.rental_prices.filter(is_active=True).order_by('order').first()
+    if any_tariff:
+        return Decimal(str(any_tariff.price))
+    return Decimal(str(product.selling_price or 0))
+
+
+def _parse_combo_items_from_post(request) -> list:
+    """Lee filas item_type_N / item_*_N del POST y devuelve dicts listos para crear."""
+    items = []
+    indices = set()
+    for key in request.POST:
+        if key.startswith('item_type_'):
+            try:
+                indices.add(int(key.split('_')[-1]))
+            except (TypeError, ValueError):
+                pass
+    for idx in sorted(indices):
+        item_type = (request.POST.get(f'item_type_{idx}') or '').strip()
+        qty_raw = (request.POST.get(f'item_qty_{idx}') or '1').strip()
+        cost_raw = (request.POST.get(f'item_cost_{idx}') or '0').strip().replace(',', '.')
+        notes = (request.POST.get(f'item_notes_{idx}') or '').strip()
+        try:
+            quantity = max(1, int(qty_raw))
+        except (TypeError, ValueError):
+            quantity = 1
+        try:
+            unit_cost = Decimal(cost_raw)
+            if unit_cost < 0:
+                unit_cost = Decimal('0.00')
+        except Exception:
+            unit_cost = Decimal('0.00')
+
+        if item_type == 'inventory':
+            product_id = (request.POST.get(f'item_product_{idx}') or '').strip()
+            if not product_id:
+                continue
+            product = Product.objects.filter(id=product_id).first()
+            if not product:
+                continue
+            rp_id = (request.POST.get(f'item_tariff_{idx}') or '').strip()
+            rental_price = None
+            if rp_id:
+                rental_price = ProductRentalPrice.objects.filter(
+                    id=rp_id, product=product,
+                ).first()
+            items.append({
+                'product': product,
+                'rental_price': rental_price,
+                'custom_name': '',
+                'quantity': quantity,
+                'unit_cost': unit_cost,
+                'notes': notes,
+            })
+        else:
+            custom_name = (request.POST.get(f'item_custom_name_{idx}') or '').strip()
+            if not custom_name:
+                continue
+            items.append({
+                'product': None,
+                'rental_price': None,
+                'custom_name': custom_name,
+                'quantity': quantity,
+                'unit_cost': unit_cost,
+                'notes': notes,
+            })
+    return items
+
+
+def _save_combo_from_request(request, combo=None):
+    """Crea o actualiza un RentalCombo + sus items a partir del POST."""
+    name = (request.POST.get('name') or '').strip()
+    if not name:
+        raise ValidationError('El nombre del combo es obligatorio.')
+
+    description = (request.POST.get('description') or '').strip()
+    notes = (request.POST.get('notes') or '').strip()
+    period_type = (request.POST.get('period_type') or 'event').strip()
+    if period_type not in dict(RentalCombo.PERIOD_CHOICES):
+        period_type = 'event'
+    for_events = request.POST.get('for_events') == 'on'
+    available = request.POST.get('available') == 'on'
+
+    package_raw = (request.POST.get('package_price') or '').strip().replace(',', '.')
+    package_price = None
+    if package_raw:
+        try:
+            package_price = Decimal(package_raw)
+            if package_price < 0:
+                package_price = Decimal('0.00')
+        except Exception:
+            package_price = None
+
+    items_data = _parse_combo_items_from_post(request)
+    if not items_data:
+        raise ValidationError('Agrega al menos un elemento al combo (inventario o extra).')
+
+    creating = combo is None
+    if creating:
+        combo = RentalCombo(slug=_unique_combo_slug(name))
+    else:
+        if combo.name != name:
+            combo.slug = _unique_combo_slug(name, exclude_id=combo.id)
+
+    combo.name = name
+    combo.description = description
+    combo.notes = notes
+    combo.period_type = period_type
+    combo.for_events = for_events
+    combo.available = available
+    combo.package_price = package_price
+
+    if request.FILES.get('image'):
+        combo.image = request.FILES['image']
+    elif request.POST.get('clear_image') == '1':
+        combo.image = None
+
+    combo.save()
+
+    combo.items.all().delete()
+    for order, data in enumerate(items_data):
+        RentalComboItem.objects.create(
+            combo=combo,
+            product=data['product'],
+            rental_price=data['rental_price'],
+            custom_name=data['custom_name'],
+            quantity=data['quantity'],
+            unit_cost=data['unit_cost'],
+            notes=data['notes'],
+            order=order,
+        )
+    return combo
+
+
+def _combo_form_context(combo=None):
+    inventory_products = (
+        Product.objects.filter(available=True)
+        .prefetch_related(
+            Prefetch(
+                'rental_prices',
+                queryset=ProductRentalPrice.objects.filter(is_active=True).order_by('order', 'period_type'),
+            )
+        )
+        .order_by('product_type', 'name')
+    )
+    products_payload = []
+    for p in inventory_products:
+        tariffs = [
+            {
+                'id': t.id,
+                'label': t.get_period_type_display(),
+                'period': t.period_type,
+                'price': float(t.price),
+            }
+            for t in p.rental_prices.all()
+        ]
+        default_cost = float(_default_unit_cost_for_product(p))
+        products_payload.append({
+            'id': p.id,
+            'name': p.name,
+            'type': p.product_type,
+            'type_label': p.get_product_type_display(),
+            'default_cost': default_cost,
+            'tariffs': tariffs,
+        })
+
+    existing_items = []
+    if combo:
+        for item in combo.items.select_related('product', 'rental_price').all():
+            existing_items.append({
+                'type': 'inventory' if item.product_id else 'custom',
+                'product_id': item.product_id or '',
+                'tariff_id': item.rental_price_id or '',
+                'custom_name': item.custom_name or '',
+                'quantity': item.quantity,
+                'unit_cost': float(item.unit_cost),
+                'notes': item.notes or '',
+            })
+
+    return {
+        'combo': combo,
+        'period_choices': RentalCombo.PERIOD_CHOICES,
+        'inventory_products_json': json.dumps(products_payload, ensure_ascii=False),
+        'existing_items_json': json.dumps(existing_items, ensure_ascii=False),
+        'is_edit': combo is not None,
+    }
+
+
+@staff_member_required
+def inventory_combo_create(request):
+    """Crear combo de alquiler (eventos) con elementos de inventario y extras."""
+    if request.method == 'POST':
+        try:
+            combo = _save_combo_from_request(request)
+            messages.success(request, f'Combo «{combo.name}» creado correctamente.')
+            return redirect('store:inventory_combo_detail', combo_id=combo.id)
+        except ValidationError as e:
+            messages.error(request, str(getattr(e, 'message', e)))
+        except Exception:
+            logger.exception('Error creando combo de alquiler')
+            messages.error(request, 'No se pudo guardar el combo. Revisa los datos.')
+
+    return render(request, 'store/inventory/combo_form.html', _combo_form_context())
+
+
+@staff_member_required
+def inventory_combo_edit(request, combo_id):
+    combo = get_object_or_404(RentalCombo, id=combo_id)
+    if request.method == 'POST':
+        try:
+            combo = _save_combo_from_request(request, combo=combo)
+            messages.success(request, f'Combo «{combo.name}» actualizado.')
+            return redirect('store:inventory_combo_detail', combo_id=combo.id)
+        except ValidationError as e:
+            messages.error(request, str(getattr(e, 'message', e)))
+        except Exception:
+            logger.exception('Error editando combo de alquiler')
+            messages.error(request, 'No se pudo guardar el combo. Revisa los datos.')
+
+    return render(request, 'store/inventory/combo_form.html', _combo_form_context(combo))
+
+
+@staff_member_required
+def inventory_combo_detail(request, combo_id):
+    combo = get_object_or_404(
+        RentalCombo.objects.prefetch_related(
+            Prefetch('items', queryset=RentalComboItem.objects.select_related('product', 'rental_price'))
+        ),
+        id=combo_id,
+    )
+    return render(request, 'store/inventory/combo_detail.html', {'combo': combo})
+
+
+@staff_member_required
+def inventory_combo_delete(request, combo_id):
+    combo = get_object_or_404(RentalCombo, id=combo_id)
+    if request.method == 'POST':
+        name = combo.name
+        combo.delete()
+        messages.success(request, f'Combo «{name}» eliminado.')
+        return redirect('store:inventory_dashboard')
+    return render(request, 'store/inventory/combo_confirm_delete.html', {'combo': combo})
+
+
+@staff_member_required
+def inventory_combo_toggle_available(request, combo_id):
+    combo = get_object_or_404(RentalCombo, id=combo_id)
+    combo.available = not combo.available
+    combo.save(update_fields=['available', 'updated_at'])
+    messages.success(
+        request,
+        f'Combo «{combo.name}» ahora {"disponible" if combo.available else "no disponible"}.',
+    )
+    next_url = request.GET.get('next') or reverse('store:inventory_dashboard')
+    if next_url == 'dashboard':
+        next_url = reverse('store:inventory_dashboard') + '#combos'
+    return redirect(next_url)
+
+
+@staff_member_required
+def inventory_combo_product_price(request):
+    """AJAX: precio sugerido al elegir un producto/tarifa del inventario."""
+    product_id = request.GET.get('product_id')
+    tariff_id = request.GET.get('tariff_id')
+    product = get_object_or_404(Product, id=product_id)
+    cost = _default_unit_cost_for_product(product, rental_price_id=tariff_id or None)
+    tariffs = list(
+        product.rental_prices.filter(is_active=True).order_by('order', 'period_type').values(
+            'id', 'period_type', 'price',
+        )
+    )
+    for t in tariffs:
+        t['label'] = dict(ProductRentalPrice.PERIOD_CHOICES).get(t['period_type'], t['period_type'])
+        t['price'] = float(t['price'])
+    return JsonResponse({
+        'ok': True,
+        'unit_cost': float(cost),
+        'product_name': product.name,
+        'product_type': product.product_type,
+        'tariffs': tariffs,
+    })
 
 
 def quotation(request):
@@ -4853,16 +5169,23 @@ def _notify_whatsapp_n8n(*, message: str, link: str = '', phone: str = '', reque
     if absolute_link and absolute_link not in final_message:
         final_message = _wa_build_message(final_message, [], link=absolute_link)
 
+    # No enviar "link": "" — en n8n la cadena vacía NO cuenta como vacío
+    # (el campo existe). Solo incluir link cuando haya URL real; si no, omitirlo.
+    # El enlace de la cotización ya va dentro de `message`.
     payload = {
         'phone': target,
-        # Vacío a propósito: el link ya va dentro de message (estilo pagos).
-        'link': '',
         'message': final_message,
     }
+    if absolute_link:
+        payload['link'] = absolute_link
+
     try:
         import requests
         resp = requests.post(webhook, json=payload, timeout=12)
-        logger.info('[WA-N8N] POST %s status=%s phone=%s', webhook, resp.status_code, target)
+        logger.info(
+            '[WA-N8N] POST %s status=%s phone=%s has_link=%s',
+            webhook, resp.status_code, target, bool(absolute_link),
+        )
         return 200 <= resp.status_code < 300
     except Exception:
         logger.exception('[WA-N8N] Error enviando webhook')

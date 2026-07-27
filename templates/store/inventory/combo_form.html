@@ -1,0 +1,371 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}{% if is_edit %}Editar combo{% else %}Nuevo combo{% endif %} - MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .combo-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .combo-card .head {
+    padding: 0.9rem 1.1rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .combo-card .body { padding: 1.1rem; }
+  .item-row {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    padding: 0.85rem;
+    margin-bottom: 0.75rem;
+    background: #fafbfc;
+  }
+  .item-row.is-inventory { border-left: 4px solid #7c3aed; }
+  .item-row.is-custom { border-left: 4px solid #047857; }
+  .totals-box {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 0.85rem;
+    padding: 0.9rem 1rem;
+  }
+  .totals-box .big {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #047857;
+  }
+  .type-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+  }
+  .type-badge.inv { background: #f3e8ff; color: #7c3aed; }
+  .type-badge.ext { background: #ecfdf5; color: #047857; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 920px;">
+  <a href="{% url 'store:inventory_dashboard' %}#combos" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a inventario
+  </a>
+  <h1 class="h4 fw-bold mt-2 mb-1">
+    {% if is_edit %}Editar combo{% else %}Nuevo combo de alquiler{% endif %}
+  </h1>
+  <p class="text-muted">
+    Arma un paquete (ideal para eventos) con máquinas del inventario y extras con costo propio.
+  </p>
+
+  <form method="post" enctype="multipart/form-data" id="combo-form">
+    {% csrf_token %}
+
+    <div class="combo-card">
+      <div class="head">1. Datos del combo</div>
+      <div class="body">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold" for="name">Nombre *</label>
+            <input type="text" class="form-control form-control-lg" id="name" name="name" required
+                   value="{% if combo %}{{ combo.name }}{% endif %}"
+                   placeholder="Ej: Combo granizados para evento">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="period_type">Periodo</label>
+            <select class="form-select form-select-lg" id="period_type" name="period_type">
+              {% for value, label in period_choices %}
+              <option value="{{ value }}" {% if combo and combo.period_type == value %}selected{% elif not combo and value == 'event' %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" for="description">Descripción</label>
+            <textarea class="form-control" id="description" name="description" rows="2"
+                      placeholder="Qué incluye el paquete, a quién va dirigido…">{% if combo %}{{ combo.description }}{% endif %}</textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="image">Imagen</label>
+            <input type="file" class="form-control" id="image" name="image" accept="image/*">
+            {% if combo and combo.image %}
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="clear_image" value="1" id="clear_image">
+              <label class="form-check-label small" for="clear_image">Quitar imagen actual</label>
+            </div>
+            <img src="{{ combo.image.url }}" alt="" class="rounded mt-2" style="max-height:80px;">
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="package_price">Precio del paquete (opcional)</label>
+            <input type="number" class="form-control" id="package_price" name="package_price" min="0" step="0.01"
+                   value="{% if combo and combo.package_price != None %}{{ combo.package_price }}{% endif %}"
+                   placeholder="Vacío = suma de elementos">
+            <div class="form-text">Si lo dejas vacío, se cobra la suma de los elementos.</div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" type="checkbox" id="for_events" name="for_events"
+                     {% if not combo or combo.for_events %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="for_events">Para eventos</label>
+            </div>
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" type="checkbox" id="available" name="available"
+                     {% if not combo or combo.available %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="available">Disponible</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="notes">Notas internas</label>
+            <textarea class="form-control" id="notes" name="notes" rows="2">{% if combo %}{{ combo.notes }}{% endif %}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="combo-card">
+      <div class="head d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>2. Elementos del combo</span>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-inventory">
+            <i class="bi bi-box-seam"></i> Del inventario
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-success" id="btn-add-custom">
+            <i class="bi bi-plus-circle"></i> Extra (sin inventario)
+          </button>
+        </div>
+      </div>
+      <div class="body">
+        <p class="small text-muted mb-3">
+          <strong>Inventario:</strong> el costo se precarga con la tarifa del producto (puedes ajustarlo).
+          <strong>Extra:</strong> defines nombre y costo (mesas, personal, decoración, etc.).
+        </p>
+        <div id="items-container"></div>
+        <div id="items-empty" class="text-center text-muted py-4 border border-dashed rounded-3">
+          Aún no hay elementos. Agrega máquinas del inventario o extras.
+        </div>
+      </div>
+    </div>
+
+    <div class="totals-box mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <div class="small text-muted">Suma de elementos</div>
+        <div class="big" id="items-subtotal">$0</div>
+      </div>
+      <div class="text-end">
+        <div class="small text-muted">Precio a cobrar</div>
+        <div class="big" id="selling-price">$0</div>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+      <button type="submit" class="btn btn-primary btn-lg">
+        <i class="bi bi-check2-circle"></i>
+        {% if is_edit %}Guardar cambios{% else %}Crear combo{% endif %}
+      </button>
+      <a href="{% url 'store:inventory_dashboard' %}#combos" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  var PRODUCTS = {{ inventory_products_json|safe }};
+  var EXISTING = {{ existing_items_json|safe }};
+  var container = document.getElementById('items-container');
+  var emptyEl = document.getElementById('items-empty');
+  var rowIndex = 0;
+
+  function money(n) {
+    try {
+      return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
+    } catch (e) {
+      return '$' + Math.round(n || 0);
+    }
+  }
+
+  function productById(id) {
+    id = String(id);
+    for (var i = 0; i < PRODUCTS.length; i++) {
+      if (String(PRODUCTS[i].id) === id) return PRODUCTS[i];
+    }
+    return null;
+  }
+
+  function recalc() {
+    var total = 0;
+    container.querySelectorAll('.item-row').forEach(function (row) {
+      var qty = parseFloat(row.querySelector('.js-qty').value) || 0;
+      var cost = parseFloat(row.querySelector('.js-cost').value) || 0;
+      var line = qty * cost;
+      row.querySelector('.js-line').textContent = money(line);
+      total += line;
+    });
+    document.getElementById('items-subtotal').textContent = money(total);
+    var pkg = parseFloat(document.getElementById('package_price').value);
+    var sell = (!isNaN(pkg) && document.getElementById('package_price').value !== '') ? pkg : total;
+    document.getElementById('selling-price').textContent = money(sell);
+    emptyEl.style.display = container.children.length ? 'none' : 'block';
+  }
+
+  function buildProductOptions(selectedId) {
+    var html = '<option value="">— Elegir producto —</option>';
+    var groups = { rental: 'Alquiler', sale: 'Venta' };
+    ['rental', 'sale'].forEach(function (type) {
+      var opts = PRODUCTS.filter(function (p) { return p.type === type; });
+      if (!opts.length) return;
+      html += '<optgroup label="' + groups[type] + '">';
+      opts.forEach(function (p) {
+        html += '<option value="' + p.id + '"' + (String(p.id) === String(selectedId) ? ' selected' : '') + '>' +
+          p.name + ' · ' + money(p.default_cost) + '</option>';
+      });
+      html += '</optgroup>';
+    });
+    return html;
+  }
+
+  function buildTariffOptions(product, selectedId) {
+    if (!product || !product.tariffs || !product.tariffs.length) {
+      return '<option value="">Sin tarifas (usa precio catálogo)</option>';
+    }
+    var html = '<option value="">Tarifa sugerida</option>';
+    product.tariffs.forEach(function (t) {
+      html += '<option value="' + t.id + '"' + (String(t.id) === String(selectedId) ? ' selected' : '') + '>' +
+        t.label + ' · ' + money(t.price) + '</option>';
+    });
+    return html;
+  }
+
+  function addRow(data) {
+    data = data || { type: 'inventory' };
+    var idx = rowIndex++;
+    var isInv = data.type !== 'custom';
+    var row = document.createElement('div');
+    row.className = 'item-row ' + (isInv ? 'is-inventory' : 'is-custom');
+    row.dataset.idx = idx;
+
+    var typeInput = '<input type="hidden" name="item_type_' + idx + '" value="' + (isInv ? 'inventory' : 'custom') + '">';
+    var header = '<div class="d-flex justify-content-between align-items-center mb-2">' +
+      '<span class="type-badge ' + (isInv ? 'inv' : 'ext') + '">' + (isInv ? 'Inventario' : 'Extra') + '</span>' +
+      '<button type="button" class="btn btn-sm btn-outline-danger js-remove"><i class="bi bi-trash"></i></button>' +
+      '</div>';
+
+    var body = '';
+    if (isInv) {
+      var p = productById(data.product_id);
+      body =
+        '<div class="row g-2">' +
+          '<div class="col-md-5">' +
+            '<label class="form-label small mb-1">Producto</label>' +
+            '<select class="form-select js-product" name="item_product_' + idx + '">' + buildProductOptions(data.product_id) + '</select>' +
+          '</div>' +
+          '<div class="col-md-3">' +
+            '<label class="form-label small mb-1">Tarifa</label>' +
+            '<select class="form-select js-tariff" name="item_tariff_' + idx + '">' + buildTariffOptions(p, data.tariff_id) + '</select>' +
+          '</div>' +
+          '<div class="col-md-2">' +
+            '<label class="form-label small mb-1">Cant.</label>' +
+            '<input type="number" class="form-control js-qty" name="item_qty_' + idx + '" min="1" value="' + (data.quantity || 1) + '">' +
+          '</div>' +
+          '<div class="col-md-2">' +
+            '<label class="form-label small mb-1">Costo unit.</label>' +
+            '<input type="number" class="form-control js-cost" name="item_cost_' + idx + '" min="0" step="0.01" value="' + (data.unit_cost != null ? data.unit_cost : (p ? p.default_cost : 0)) + '">' +
+          '</div>' +
+          '<div class="col-md-9">' +
+            '<input type="text" class="form-control form-control-sm" name="item_notes_' + idx + '" placeholder="Notas (opcional)" value="' + (data.notes || '').replace(/"/g, '&quot;') + '">' +
+          '</div>' +
+          '<div class="col-md-3 text-end small pt-2">Línea: <strong class="js-line">$0</strong></div>' +
+        '</div>';
+    } else {
+      body =
+        '<div class="row g-2">' +
+          '<div class="col-md-6">' +
+            '<label class="form-label small mb-1">Nombre del extra</label>' +
+            '<input type="text" class="form-control" name="item_custom_name_' + idx + '" required placeholder="Ej: Meseros, mantel, luces…" value="' + (data.custom_name || '').replace(/"/g, '&quot;') + '">' +
+          '</div>' +
+          '<div class="col-md-2">' +
+            '<label class="form-label small mb-1">Cant.</label>' +
+            '<input type="number" class="form-control js-qty" name="item_qty_' + idx + '" min="1" value="' + (data.quantity || 1) + '">' +
+          '</div>' +
+          '<div class="col-md-2">' +
+            '<label class="form-label small mb-1">Costo unit.</label>' +
+            '<input type="number" class="form-control js-cost" name="item_cost_' + idx + '" min="0" step="0.01" value="' + (data.unit_cost != null ? data.unit_cost : 0) + '">' +
+          '</div>' +
+          '<div class="col-md-2 text-end small pt-4">Línea: <strong class="js-line">$0</strong></div>' +
+          '<div class="col-12">' +
+            '<input type="text" class="form-control form-control-sm" name="item_notes_' + idx + '" placeholder="Notas (opcional)" value="' + (data.notes || '').replace(/"/g, '&quot;') + '">' +
+          '</div>' +
+        '</div>';
+    }
+
+    row.innerHTML = typeInput + header + body;
+    container.appendChild(row);
+
+    row.querySelector('.js-remove').addEventListener('click', function () {
+      row.remove();
+      recalc();
+    });
+    row.querySelectorAll('.js-qty, .js-cost').forEach(function (el) {
+      el.addEventListener('input', recalc);
+    });
+
+    if (isInv) {
+      var productSel = row.querySelector('.js-product');
+      var tariffSel = row.querySelector('.js-tariff');
+      var costInput = row.querySelector('.js-cost');
+
+      function applyProduct(fillCost) {
+        var p = productById(productSel.value);
+        tariffSel.innerHTML = buildTariffOptions(p, '');
+        if (fillCost && p) {
+          costInput.value = p.default_cost;
+        }
+        recalc();
+      }
+
+      productSel.addEventListener('change', function () { applyProduct(true); });
+      tariffSel.addEventListener('change', function () {
+        var p = productById(productSel.value);
+        if (!p) return;
+        var tid = tariffSel.value;
+        if (!tid) {
+          costInput.value = p.default_cost;
+        } else {
+          var t = (p.tariffs || []).find(function (x) { return String(x.id) === String(tid); });
+          if (t) costInput.value = t.price;
+        }
+        recalc();
+      });
+    }
+
+    recalc();
+  }
+
+  document.getElementById('btn-add-inventory').addEventListener('click', function () {
+    addRow({ type: 'inventory', quantity: 1, unit_cost: 0 });
+  });
+  document.getElementById('btn-add-custom').addEventListener('click', function () {
+    addRow({ type: 'custom', quantity: 1, unit_cost: 0, custom_name: '' });
+  });
+  document.getElementById('package_price').addEventListener('input', recalc);
+
+  if (EXISTING && EXISTING.length) {
+    EXISTING.forEach(function (item) { addRow(item); });
+  } else {
+    recalc();
+  }
+
+  document.getElementById('combo-form').addEventListener('submit', function (e) {
+    if (!container.children.length) {
+      e.preventDefault();
+      alert('Agrega al menos un elemento al combo.');
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -357,6 +357,148 @@ class ProductRentalPrice(models.Model):
         return labels.get(self.period_type, '')
 
 
+class RentalCombo(models.Model):
+    """Paquete / combo de alquiler (p. ej. para eventos)."""
+
+    PERIOD_CHOICES = [
+        ('event', 'Por evento'),
+        ('daily', 'Por día'),
+        ('hourly', 'Por hora'),
+        ('weekly', 'Por semana'),
+    ]
+
+    name = models.CharField(max_length=200, verbose_name='Nombre del combo')
+    slug = models.SlugField(unique=True, verbose_name='Slug')
+    description = models.TextField(blank=True, default='', verbose_name='Descripción')
+    image = models.ImageField(
+        upload_to='rental_combos/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen',
+    )
+    for_events = models.BooleanField(
+        default=True,
+        verbose_name='Para eventos',
+        help_text='Marca si este combo está pensado para alquiler de eventos.',
+    )
+    period_type = models.CharField(
+        max_length=20,
+        choices=PERIOD_CHOICES,
+        default='event',
+        verbose_name='Periodo del paquete',
+    )
+    package_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Precio del paquete',
+        help_text='Si lo dejas vacío se usa la suma de los elementos. Si lo defines, es el precio cobrado del combo.',
+    )
+    available = models.BooleanField(default=True, verbose_name='Disponible')
+    notes = models.TextField(blank=True, default='', verbose_name='Notas internas')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Combo de alquiler'
+        verbose_name_plural = 'Combos de alquiler'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def items_subtotal(self) -> Decimal:
+        total = Decimal('0.00')
+        for item in self.items.all():
+            total += item.line_total
+        return total
+
+    @property
+    def selling_price(self) -> Decimal:
+        if self.package_price is not None:
+            return Decimal(str(self.package_price))
+        return self.items_subtotal
+
+    @property
+    def items_count(self) -> int:
+        return self.items.count()
+
+
+class RentalComboItem(models.Model):
+    """Elemento dentro de un combo: del inventario o un extra con costo propio."""
+
+    combo = models.ForeignKey(
+        RentalCombo,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='Combo',
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_usages',
+        verbose_name='Producto de inventario',
+        help_text='Si se elige, el costo puede tomarse de la tarifa del inventario.',
+    )
+    rental_price = models.ForeignKey(
+        ProductRentalPrice,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_usages',
+        verbose_name='Tarifa de alquiler',
+    )
+    custom_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Nombre del extra',
+        help_text='Para elementos que no están en inventario (mesas, decoración, personal, etc.).',
+    )
+    quantity = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    unit_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Costo unitario',
+        help_text='Costo estipulado dentro del combo (puede sobrescribir el del inventario).',
+    )
+    notes = models.CharField(max_length=255, blank=True, default='', verbose_name='Notas')
+    order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Elemento de combo'
+        verbose_name_plural = 'Elementos de combo'
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f'{self.display_name} × {self.quantity}'
+
+    @property
+    def is_inventory_item(self) -> bool:
+        return bool(self.product_id)
+
+    @property
+    def display_name(self) -> str:
+        if self.product_id:
+            name = self.product.name
+            if self.rental_price_id:
+                name = f'{name} ({self.rental_price.get_period_type_display()})'
+            return name
+        return (self.custom_name or '').strip() or 'Extra'
+
+    @property
+    def line_total(self) -> Decimal:
+        return Decimal(str(self.unit_cost or 0)) * Decimal(self.quantity or 0)
+
+
 class ProductImage(models.Model):
     """Additional images for products"""
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')

@@ -41,6 +41,10 @@
     background: #f3e8ff;
     color: #7c3aed;
 }
+.inv-section-badge.is-combo {
+    background: #ecfdf5;
+    color: #047857;
+}
 
 .stat-bar {
     display: flex;
@@ -132,6 +136,9 @@
         <h2 class="h5 mb-0 fw-normal text-muted">Inventario</h2>
         <div class="d-flex gap-2">
             <a href="{% url 'store:inventory_list' %}" class="btn btn-sm btn-outline-secondary">Ver todos</a>
+            <a href="{% url 'store:inventory_combo_create' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-boxes"></i> Nuevo combo
+            </a>
             <a href="{% url 'store:inventory_create' %}" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus"></i> Nuevo producto
             </a>
@@ -447,6 +454,124 @@
                         {% if rental_page_obj.has_next %}
                         <li class="page-item">
                             <a class="page-link" href="?rental_page={{ rental_page_obj.next_page_number }}{% if request.GET.sale_page %}&sale_page={{ request.GET.sale_page }}{% endif %}#alquiler">Siguiente</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    {# ─────────── COMBOS DE ALQUILER ─────────── #}
+    <section class="inv-section" id="combos">
+        <div class="inv-section-header">
+            <h3 class="inv-section-title">
+                <i class="bi bi-boxes" style="color:#047857;"></i>
+                Combos de alquiler
+                <span class="inv-section-badge is-combo">Eventos / paquetes</span>
+            </h3>
+            <a href="{% url 'store:inventory_combo_create' %}" class="btn btn-sm btn-success">
+                <i class="bi bi-plus-lg"></i> Crear combo
+            </a>
+        </div>
+
+        <div class="stat-bar">
+            <div class="stat-item">
+                <span class="stat-value">{{ combo_stats.total }}</span>
+                <span class="stat-label">Combos</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ combo_stats.available }}</span>
+                <span class="stat-label">Disponibles</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ combo_stats.for_events }}</span>
+                <span class="stat-label">Para eventos</span>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 inv-table">
+                        <thead class="small text-muted">
+                            <tr>
+                                <th>Combo</th>
+                                <th>Periodo</th>
+                                <th>Elementos</th>
+                                <th>Suma ítems</th>
+                                <th>Precio paquete</th>
+                                <th>Estado</th>
+                                <th style="width: 1px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for combo in combo_page_obj %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if combo.image %}
+                                        <img src="{{ combo.image.url }}" alt="{{ combo.name }}" class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
+                                        {% else %}
+                                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                            <i class="bi bi-boxes text-muted" style="font-size: 0.7rem;"></i>
+                                        </div>
+                                        {% endif %}
+                                        <div>
+                                            <a href="{% url 'store:inventory_combo_detail' combo.id %}" class="text-decoration-none text-dark fw-medium">{{ combo.name }}</a>
+                                            {% if combo.for_events %}
+                                            <br><small class="text-success">Eventos</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="small">{{ combo.get_period_type_display }}</td>
+                                <td class="small">{{ combo.items_count }}</td>
+                                <td class="small">{{ combo.items_subtotal|pesos_colombianos }}</td>
+                                <td class="small fw-semibold">{{ combo.selling_price|pesos_colombianos }}</td>
+                                <td>
+                                    <form action="{% url 'store:inventory_combo_toggle_available' combo.id %}" method="get" class="d-inline">
+                                        <input type="hidden" name="next" value="dashboard">
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" {% if combo.available %}checked{% endif %} onchange="this.form.submit()" title="Activar/Desactivar">
+                                        </div>
+                                    </form>
+                                </td>
+                                <td class="text-end" style="min-width: 100px;">
+                                    <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                                        <a href="{% url 'store:inventory_combo_detail' combo.id %}" class="btn btn-light btn-sm" title="Ver"><i class="bi bi-eye"></i></a>
+                                        <a href="{% url 'store:inventory_combo_edit' combo.id %}" class="btn btn-light btn-sm" title="Modificar"><i class="bi bi-pencil"></i></a>
+                                        <a href="{% url 'store:inventory_combo_delete' combo.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar"><i class="bi bi-trash"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    Aún no hay combos.
+                                    <a href="{% url 'store:inventory_combo_create' %}">Crear el primero</a>
+                                    (ideal para paquetes de eventos).
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if combo_page_obj.has_other_pages %}
+                <nav class="p-3 border-top">
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        {% if combo_page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?combo_page={{ combo_page_obj.previous_page_number }}#combos">Anterior</a>
+                        </li>
+                        {% endif %}
+                        <li class="page-item disabled">
+                            <span class="page-link">{{ combo_page_obj.number }} / {{ combo_page_obj.paginator.num_pages }}</span>
+                        </li>
+                        {% if combo_page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?combo_page={{ combo_page_obj.next_page_number }}#combos">Siguiente</a>
                         </li>
                         {% endif %}
                     </ul>

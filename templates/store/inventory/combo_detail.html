@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}{{ combo.name }} · Combo - MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 860px;">
+  <a href="{% url 'store:inventory_dashboard' %}#combos" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a inventario
+  </a>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mt-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{{ combo.name }}</h1>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge text-bg-{% if combo.available %}success{% else %}secondary{% endif %}">
+          {% if combo.available %}Disponible{% else %}No disponible{% endif %}
+        </span>
+        {% if combo.for_events %}<span class="badge text-bg-success">Para eventos</span>{% endif %}
+        <span class="badge text-bg-light text-dark border">{{ combo.get_period_type_display }}</span>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'store:inventory_combo_edit' combo.id %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
+      <a href="{% url 'store:inventory_combo_delete' combo.id %}" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-trash"></i> Eliminar
+      </a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        {% if combo.image %}
+        <div class="col-md-3">
+          <img src="{{ combo.image.url }}" alt="{{ combo.name }}" class="img-fluid rounded">
+        </div>
+        {% endif %}
+        <div class="{% if combo.image %}col-md-9{% else %}col-12{% endif %}">
+          {% if combo.description %}
+          <p class="mb-2">{{ combo.description|linebreaksbr }}</p>
+          {% else %}
+          <p class="text-muted mb-2">Sin descripción.</p>
+          {% endif %}
+          <div class="row g-2">
+            <div class="col-sm-4">
+              <div class="small text-muted">Suma de elementos</div>
+              <div class="fw-semibold">{{ combo.items_subtotal|pesos_colombianos }}</div>
+            </div>
+            <div class="col-sm-4">
+              <div class="small text-muted">Precio del paquete</div>
+              <div class="fw-bold text-success fs-5">{{ combo.selling_price|pesos_colombianos }}</div>
+              {% if combo.package_price != None %}
+              <div class="small text-muted">Precio fijo definido</div>
+              {% else %}
+              <div class="small text-muted">= suma de elementos</div>
+              {% endif %}
+            </div>
+            <div class="col-sm-4">
+              <div class="small text-muted">Elementos</div>
+              <div class="fw-semibold">{{ combo.items_count }}</div>
+            </div>
+          </div>
+          {% if combo.notes %}
+          <div class="mt-3 small">
+            <span class="text-muted">Notas:</span> {{ combo.notes }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-bold">Elementos incluidos</div>
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead class="small text-muted">
+          <tr>
+            <th>Elemento</th>
+            <th>Origen</th>
+            <th>Cant.</th>
+            <th>Costo unit.</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in combo.items.all %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ item.display_name }}</div>
+              {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
+            </td>
+            <td>
+              {% if item.is_inventory_item %}
+              <span class="badge" style="background:#f3e8ff;color:#7c3aed;">Inventario</span>
+              {% if item.product %}
+              <a class="small d-block" href="{% url 'store:inventory_detail' item.product.id %}">Ver producto</a>
+              {% endif %}
+              {% else %}
+              <span class="badge" style="background:#ecfdf5;color:#047857;">Extra</span>
+              {% endif %}
+            </td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.unit_cost|pesos_colombianos }}</td>
+            <td class="fw-semibold">{{ item.line_total|pesos_colombianos }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">Sin elementos</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="text-end fw-semibold">Total elementos</td>
+            <td class="fw-bold">{{ combo.items_subtotal|pesos_colombianos }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

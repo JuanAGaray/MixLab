@@ -3186,6 +3186,20 @@ def inventory_combo_booking_edit(request, booking_id):
                 + '.',
             )
 
+            try:
+                wa_ok = bool(_notify_wa_combo_booking(booking, request=request, event='actualizado'))
+                if not wa_ok:
+                    messages.warning(
+                        request,
+                        'La fecha se guardó, pero no se pudo notificar a WhatsApp.',
+                    )
+            except Exception:
+                logger.exception('Error notificando WA al actualizar agenda de combo')
+                messages.warning(
+                    request,
+                    'La fecha se guardó, pero no se pudo notificar a WhatsApp.',
+                )
+
             if next_url and next_url.startswith('/'):
                 return redirect(next_url)
             if quote:
@@ -3798,10 +3812,26 @@ def inventory_combo_schedule(request, combo_id):
                         },
                     )
 
-            messages.success(
-                request,
-                f'Combo «{combo.name}» agendado. Se generó la cotización COT-{quotation.id}.',
-            )
+            wa_ok = False
+            try:
+                wa_ok = bool(_notify_wa_combo_booking(booking, request=request, event='nuevo'))
+            except Exception:
+                logger.exception('Error notificando WA del agendamiento de combo')
+
+            if wa_ok:
+                messages.success(
+                    request,
+                    f'Combo «{combo.name}» agendado. Se generó COT-{quotation.id} y se envió a WhatsApp.',
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Combo «{combo.name}» agendado. Se generó COT-{quotation.id}.',
+                )
+                messages.warning(
+                    request,
+                    'No se pudo notificar a WhatsApp. Revisa n8n / webhook en Configuración del sitio.',
+                )
             return redirect('store:quotation_detail', quotation_id=quotation.id)
         except ValidationError as e:
             form_error = str(getattr(e, 'message', e))
@@ -6555,6 +6585,82 @@ def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia',
 
     message = _wa_build_message(title, lines, link=_absolute_url(link, request=request))
     _notify_whatsapp_n8n(message=message, link='', request=request)
+
+
+def _notify_wa_combo_booking(booking: ComboBooking, *, request=None, event: str = 'nuevo') -> bool:
+    """WhatsApp: agenda de combo (nuevo o fecha actualizada)."""
+    quote = booking.quotation
+    if quote:
+        try:
+            quote.sync_client_snapshot_from_profile(save=True)
+        except Exception:
+            pass
+
+    if event == 'actualizado':
+        title = '📅 *Agenda de combo actualizada*'
+    else:
+        title = '📅 *Nuevo agendamiento de combo*'
+
+    date_txt = booking.event_date.strftime('%d/%m/%Y') if booking.event_date else '—'
+    if booking.event_time:
+        date_txt = f'{date_txt} {booking.event_time.strftime("%H:%M")}'
+
+    client = (
+        booking.client_name
+        or (quote.display_client_name if quote else '')
+        or '—'
+    )
+    phone = (
+        booking.client_phone
+        or (quote.display_client_phone if quote else '')
+        or '—'
+    )
+    combo_name = booking.combo.name if booking.combo_id else 'Combo'
+    lines = [
+        f"Combo: {combo_name}",
+        f"Estado: {booking.get_status_display()}",
+        f"Evento: {date_txt}",
+        f"Cliente: {client}",
+        f"Tel: {phone}",
+        f"Lugar: {booking.location_text or '—'}",
+        f"Paquete: {_wa_money(booking.package_price)}",
+    ]
+    if quote:
+        lines.insert(1, f"COT-{quote.id}")
+        lines.append(f"Total COT: {_wa_money(quote.total)}")
+    if booking.maps_url:
+        lines.append(f"Maps: {booking.maps_url}")
+    if booking.notes:
+        lines.append(f"Notas: {booking.notes}")
+    if booking.created_by_id:
+        lines.append(
+            f"Agendó: {booking.created_by.get_full_name() or booking.created_by.username}"
+        )
+
+    link = ''
+    if quote:
+        if request is not None:
+            try:
+                link = request.build_absolute_uri(
+                    reverse('store:quotation_detail', kwargs={'quotation_id': quote.id})
+                )
+            except Exception:
+                link = f"/cotizaciones/{quote.id}/"
+        else:
+            link = f"/cotizaciones/{quote.id}/"
+    else:
+        if request is not None:
+            try:
+                link = request.build_absolute_uri(
+                    reverse('store:inventory_combo_detail', kwargs={'combo_id': booking.combo_id})
+                )
+            except Exception:
+                link = f"/inventory/combos/{booking.combo_id}/"
+        else:
+            link = f"/inventory/combos/{booking.combo_id}/"
+
+    message = _wa_build_message(title, lines, link=_absolute_url(link, request=request))
+    return _notify_whatsapp_n8n(message=message, link='', request=request)
 
 
 def _notify_wa_finance_record(record: FinanceRecord, request=None) -> None:

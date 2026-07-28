@@ -3,30 +3,227 @@
 
 {% block title %}{{ combo.name }} · Combo - MixLab{% endblock %}
 
+{% block extra_css %}
+<style>
+  .combo-detail-page { max-width: 1100px; }
+  .combo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+  }
+  .combo-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    min-height: 2.15rem;
+    padding: .4rem .9rem;
+    border-radius: .65rem;
+    font-size: .875rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .combo-actions .btn i { font-size: .95rem; }
+  .combo-meta-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: center;
+  }
+  .combo-meta-badges .badge {
+    font-weight: 600;
+    font-size: .72rem;
+    letter-spacing: .02em;
+    padding: .35rem .65rem;
+  }
+  .agenda-pill {
+    font-size: .72rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: .25rem .65rem;
+  }
+
+  .combo-cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: 1rem;
+  }
+  .combo-cal-nav h6 {
+    margin: 0;
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #0f172a;
+  }
+  .combo-cal {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: .4rem;
+  }
+  .combo-cal-head {
+    text-align: center;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #64748b;
+    padding: .35rem 0;
+  }
+  .combo-cal-day {
+    min-height: 108px;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    background: #fff;
+    padding: .4rem .45rem;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+  }
+  .combo-cal-day.out {
+    background: #f8fafc;
+    opacity: .65;
+  }
+  .combo-cal-day.today {
+    border-color: #0f6fff;
+    box-shadow: 0 0 0 1px rgba(15, 111, 255, .25);
+  }
+  .combo-cal-day.has-events {
+    background: #f0fdf4;
+    border-color: #86efac;
+  }
+  .combo-cal-daynum {
+    font-size: .78rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+  }
+  .combo-cal-day.today .combo-cal-daynum {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    background: #0f6fff;
+    color: #fff;
+  }
+  .combo-event-chip {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    border-radius: .5rem;
+    background: #047857;
+    color: #fff;
+    padding: .28rem .4rem;
+    font-size: .68rem;
+    line-height: 1.25;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .combo-event-chip:hover {
+    background: #065f46;
+    color: #fff;
+  }
+  .combo-cal.is-loading {
+    opacity: .55;
+    pointer-events: none;
+  }
+  .combo-event-modal .modal-label {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: .15rem;
+  }
+  .combo-event-modal .modal-value {
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: .85rem;
+  }
+  .combo-event-chip .chip-time {
+    font-weight: 800;
+    display: block;
+  }
+  .combo-event-chip .chip-place {
+    opacity: .92;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .combo-day-list .day-block {
+    border: 1px solid #e2e8f0;
+    border-radius: .85rem;
+    padding: .85rem 1rem;
+    margin-bottom: .75rem;
+    background: #fff;
+  }
+  .combo-day-list .day-title {
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: .55rem;
+  }
+  .combo-day-list .event-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .85rem;
+    align-items: flex-start;
+    padding: .45rem 0;
+    border-top: 1px dashed #e2e8f0;
+  }
+  .combo-day-list .event-row:first-of-type { border-top: 0; padding-top: 0; }
+  .combo-day-list .event-meta {
+    min-width: 4.5rem;
+    font-weight: 800;
+    color: #047857;
+  }
+  @media (max-width: 767.98px) {
+    .combo-cal { gap: .25rem; }
+    .combo-cal-day { min-height: 84px; padding: .3rem; }
+    .combo-event-chip { font-size: .62rem; padding: .22rem .3rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container my-4" style="max-width: 860px;">
+<div class="container my-4 combo-detail-page">
   <a href="{% url 'store:inventory_dashboard' %}#combos" class="text-decoration-none small text-muted">
     <i class="bi bi-arrow-left"></i> Volver a inventario
   </a>
 
-  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mt-2 mb-3">
-    <div>
-      <h1 class="h4 fw-bold mb-1">{{ combo.name }}</h1>
-      <div class="d-flex flex-wrap gap-2 align-items-center">
-        <span class="badge text-bg-{% if combo.available %}success{% else %}secondary{% endif %}">
-          {% if combo.available %}Disponible{% else %}No disponible{% endif %}
-        </span>
-        {% if combo.for_events %}<span class="badge text-bg-success">Para eventos</span>{% endif %}
-        <span class="badge text-bg-light text-dark border">{{ combo.get_period_type_display }}</span>
+  <div class="mt-2 mb-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3">
+      <div class="flex-grow-1">
+        <h1 class="h4 fw-bold mb-2">{{ combo.name }}</h1>
+        <div class="combo-meta-badges">
+          <span class="badge text-bg-{% if combo.available %}success{% else %}secondary{% endif %}">
+            {% if combo.available %}Disponible{% else %}No disponible{% endif %}
+          </span>
+          {% if combo.for_events %}<span class="badge text-bg-success">Para eventos</span>{% endif %}
+          <span class="badge text-bg-light text-dark border">{{ combo.get_period_type_display }}</span>
+          {% if future_has_events %}
+          <span class="badge text-bg-info">
+            <i class="bi bi-calendar2-week me-1"></i>Futuros agendamientos: {{ future_total }}
+          </span>
+          {% endif %}
+        </div>
       </div>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="{% url 'store:inventory_combo_edit' combo.id %}" class="btn btn-primary btn-sm">
-        <i class="bi bi-pencil"></i> Editar
-      </a>
-      <a href="{% url 'store:inventory_combo_delete' combo.id %}" class="btn btn-outline-danger btn-sm">
-        <i class="bi bi-trash"></i> Eliminar
-      </a>
+      <div class="combo-actions">
+        <a href="{% url 'store:inventory_combo_schedule' combo.id %}" class="btn btn-success">
+          <i class="bi bi-calendar-plus"></i> Agendar
+        </a>
+        <a href="{% url 'store:inventory_combo_edit' combo.id %}" class="btn btn-outline-primary">
+          <i class="bi bi-pencil"></i> Editar
+        </a>
+        <a href="{% url 'store:inventory_combo_delete' combo.id %}" class="btn btn-outline-danger">
+          <i class="bi bi-trash"></i> Eliminar
+        </a>
+      </div>
     </div>
   </div>
 
@@ -73,6 +270,209 @@
     </div>
   </div>
 
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="fw-bold"><i class="bi bi-calendar3 me-1"></i> Agenda de este combo</span>
+      <div class="d-flex flex-wrap gap-2">
+        {% if next_week_has_events %}
+        <span class="agenda-pill text-bg-success">Próxima semana: {{ next_week_total }}</span>
+        {% endif %}
+        {% if future_has_events %}
+        <span class="agenda-pill text-bg-info">Futuros: {{ future_total }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body" id="combo-agenda-root"
+         data-combo-id="{{ combo.id }}"
+         data-cal="{{ cal_year }}-{{ cal_month|stringformat:'02d' }}"
+         data-calendar-url="{% url 'store:inventory_combo_calendar_ajax' combo.id %}"
+         data-booking-detail-url-template="{% url 'store:inventory_combo_booking_detail_ajax' booking_id=0 %}">
+      <div class="combo-cal-nav">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="combo-cal-prev"
+                data-cal="{{ prev_cal }}">
+          <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <h6 id="combo-cal-label">{{ cal_month_label }}</h6>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="combo-cal-next"
+                data-cal="{{ next_cal }}">
+          Siguiente <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+
+      <div class="combo-cal mb-2" id="combo-cal-grid">
+        <div class="combo-cal-head">Lun</div>
+        <div class="combo-cal-head">Mar</div>
+        <div class="combo-cal-head">Mié</div>
+        <div class="combo-cal-head">Jue</div>
+        <div class="combo-cal-head">Vie</div>
+        <div class="combo-cal-head">Sáb</div>
+        <div class="combo-cal-head">Dom</div>
+        {% include 'store/inventory/partials/combo_calendar_grid.html' %}
+      </div>
+      <div class="small text-muted mb-4">
+        Cada día muestra la <strong>hora</strong> y el <strong>lugar</strong>.
+        Haz clic en un evento para ver el detalle.
+      </div>
+
+      <div class="combo-day-list mb-4" id="combo-cal-detail">
+        {% include 'store/inventory/partials/combo_calendar_detail.html' %}
+      </div>
+
+      <hr class="my-3">
+
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="fw-semibold mb-2">Esta semana</div>
+          {% if this_week_rows %}
+            {% for row in this_week_rows %}
+              <div class="small mb-2">
+                <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
+                {% for b in row.bookings %}
+                <div class="text-muted">
+                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                          data-booking-id="{{ b.id }}">
+                    {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
+                    {{ b.client_name|default:"Cliente" }}
+                  </button>
+                  {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-muted small">Sin eventos programados.</div>
+          {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div class="fw-semibold">Próxima semana</div>
+            <span class="badge {% if next_week_has_events %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+              {{ next_week_total|default:0 }}
+            </span>
+          </div>
+          {% if next_week_rows %}
+            {% for row in next_week_rows %}
+              <div class="small mb-2">
+                <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
+                {% for b in row.bookings %}
+                <div class="text-muted">
+                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                          data-booking-id="{{ b.id }}">
+                    {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
+                    {{ b.client_name|default:"Cliente" }}
+                  </button>
+                  {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-muted small">Sin eventos la siguiente semana.</div>
+          {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div class="fw-semibold">Futuros agendamientos</div>
+            <span class="badge {% if future_has_events %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+              {{ future_total|default:0 }}
+            </span>
+          </div>
+          <div class="small text-muted mb-2">Después de la próxima semana</div>
+          {% if future_rows %}
+            {% for row in future_rows %}
+              <div class="small mb-2">
+                <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
+                {% for b in row.bookings %}
+                <div class="text-muted">
+                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                          data-booking-id="{{ b.id }}">
+                    {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
+                    {{ b.client_name|default:"Cliente" }}
+                  </button>
+                  {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-muted small">No hay agendamientos posteriores.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade combo-event-modal" id="comboEventDetailModal" tabindex="-1" aria-labelledby="comboEventDetailLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content rounded-3 shadow">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold" id="comboEventDetailLabel">Detalle del evento</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div id="combo-event-modal-loading" class="text-muted py-4 text-center d-none">
+            Cargando detalle…
+          </div>
+          <div id="combo-event-modal-error" class="alert alert-danger d-none mb-0"></div>
+          <div id="combo-event-modal-body" class="d-none">
+            <div class="row g-2">
+              <div class="col-md-8">
+                <div class="modal-label">Cliente</div>
+                <div class="modal-value" id="ev-client"></div>
+              </div>
+              <div class="col-md-4">
+                <div class="modal-label">Estado agenda</div>
+                <div class="modal-value" id="ev-status"></div>
+              </div>
+              <div class="col-md-4">
+                <div class="modal-label">Fecha</div>
+                <div class="modal-value" id="ev-date"></div>
+              </div>
+              <div class="col-md-4">
+                <div class="modal-label">Hora</div>
+                <div class="modal-value" id="ev-time"></div>
+              </div>
+              <div class="col-md-4">
+                <div class="modal-label">Cotización</div>
+                <div class="modal-value" id="ev-quote"></div>
+              </div>
+              <div class="col-12">
+                <div class="modal-label">Lugar</div>
+                <div class="modal-value" id="ev-place"></div>
+              </div>
+              <div class="col-md-6">
+                <div class="modal-label">Teléfono</div>
+                <div class="modal-value" id="ev-phone"></div>
+              </div>
+              <div class="col-md-6">
+                <div class="modal-label">Pedido</div>
+                <div class="modal-value" id="ev-order-status"></div>
+              </div>
+              <div class="col-12">
+                <div class="modal-label">Notas</div>
+                <div class="modal-value fw-normal" id="ev-notes"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <a href="#" class="btn btn-outline-dark d-none" id="ev-quote-btn" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-text"></i> Ver COT
+          </a>
+          <a href="#" class="btn btn-outline-primary d-none" id="ev-maps-btn" target="_blank" rel="noopener">
+            <i class="bi bi-geo-alt"></i> Abrir Maps
+          </a>
+          <a href="#" class="btn btn-primary" id="ev-edit-btn">
+            <i class="bi bi-calendar-event"></i> Editar fecha
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white fw-bold">Elementos incluidos</div>
     <div class="table-responsive">
@@ -81,6 +481,7 @@
           <tr>
             <th>Elemento</th>
             <th>Origen</th>
+            <th>Al agendar</th>
             <th>Cant.</th>
             <th>Costo unit.</th>
             <th>Total</th>
@@ -95,12 +496,22 @@
             </td>
             <td>
               {% if item.is_inventory_item %}
-              <span class="badge" style="background:#f3e8ff;color:#7c3aed;">Inventario</span>
+              <span class="badge" style="background:#f3e8ff;color:#7c3aed;">Producto</span>
               {% if item.product %}
               <a class="small d-block" href="{% url 'store:inventory_detail' item.product.id %}">Ver producto</a>
               {% endif %}
+              {% elif item.is_category_item %}
+              <span class="badge" style="background:#e0f2fe;color:#0369a1;">Categoría</span>
+              <div class="small text-muted">Al confirmar: 1 ítem disponible</div>
               {% else %}
               <span class="badge" style="background:#ecfdf5;color:#047857;">Extra</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.is_modifiable %}
+              <span class="badge text-bg-warning">Modificable</span>
+              {% else %}
+              <span class="badge text-bg-secondary">Obligatorio</span>
               {% endif %}
             </td>
             <td>{{ item.quantity }}</td>
@@ -108,12 +519,12 @@
             <td class="fw-semibold">{{ item.line_total|pesos_colombianos }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">Sin elementos</td></tr>
+          <tr><td colspan="6" class="text-center text-muted py-4">Sin elementos</td></tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="4" class="text-end fw-semibold">Total elementos</td>
+            <td colspan="5" class="text-end fw-semibold">Total elementos</td>
             <td class="fw-bold">{{ combo.items_subtotal|pesos_colombianos }}</td>
           </tr>
         </tfoot>
@@ -121,4 +532,150 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const root = document.getElementById('combo-agenda-root');
+  if (!root) return;
+
+  const calendarUrl = root.dataset.calendarUrl;
+  const detailTpl = root.dataset.bookingDetailUrlTemplate || '';
+  const labelEl = document.getElementById('combo-cal-label');
+  const prevBtn = document.getElementById('combo-cal-prev');
+  const nextBtn = document.getElementById('combo-cal-next');
+  const gridEl = document.getElementById('combo-cal-grid');
+  const detailEl = document.getElementById('combo-cal-detail');
+  const modalEl = document.getElementById('comboEventDetailModal');
+  const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+
+  const loadingEl = document.getElementById('combo-event-modal-loading');
+  const errorEl = document.getElementById('combo-event-modal-error');
+  const bodyEl = document.getElementById('combo-event-modal-body');
+
+  function bookingDetailUrl(id) {
+    return detailTpl.replace('/0/', '/' + id + '/');
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value || '—';
+  }
+
+  function setLink(id, url, visible) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (visible && url) {
+      el.href = url;
+      el.classList.remove('d-none');
+    } else {
+      el.href = '#';
+      el.classList.add('d-none');
+    }
+  }
+
+  function headsHtml() {
+    return [
+      'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'
+    ].map(function (d) {
+      return '<div class="combo-cal-head">' + d + '</div>';
+    }).join('');
+  }
+
+  function loadMonth(cal) {
+    if (!cal || !calendarUrl) return;
+    gridEl.classList.add('is-loading');
+    fetch(calendarUrl + '?cal=' + encodeURIComponent(cal), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) throw new Error('No se pudo cargar el calendario');
+        root.dataset.cal = data.cal;
+        if (labelEl) labelEl.textContent = data.cal_month_label;
+        if (prevBtn) prevBtn.dataset.cal = data.prev_cal;
+        if (nextBtn) nextBtn.dataset.cal = data.next_cal;
+        gridEl.innerHTML = headsHtml() + (data.calendar_html || '');
+        if (detailEl) detailEl.innerHTML = data.detail_html || '';
+        if (window.history && window.history.replaceState) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('cal', data.cal);
+          window.history.replaceState({}, '', url.toString());
+        }
+      })
+      .catch(function () {
+        alert('No se pudo cambiar de mes. Intenta de nuevo.');
+      })
+      .finally(function () {
+        gridEl.classList.remove('is-loading');
+      });
+  }
+
+  function openBookingDetail(bookingId) {
+    if (!modal || !bookingId) return;
+    loadingEl.classList.remove('d-none');
+    errorEl.classList.add('d-none');
+    bodyEl.classList.add('d-none');
+    modal.show();
+
+    fetch(bookingDetailUrl(bookingId), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) throw new Error('Evento no encontrado');
+        loadingEl.classList.add('d-none');
+        bodyEl.classList.remove('d-none');
+
+        setText('ev-client', data.client_name);
+        setText('ev-status', data.status_display);
+        setText('ev-date', data.event_date);
+        setText('ev-time', data.event_time || 'Sin hora');
+        setText('ev-phone', data.client_phone || '—');
+        setText('ev-order-status', data.order_status || '—');
+        setText('ev-notes', data.notes || 'Sin notas');
+        setText('ev-place', data.location_text || 'Sin lugar registrado');
+
+        if (data.quotation_id && data.quotation_url) {
+          document.getElementById('ev-quote').innerHTML =
+            '<a href="' + data.quotation_url + '">COT-' + data.quotation_id + '</a>';
+        } else {
+          setText('ev-quote', '—');
+        }
+
+        const next = '{% url "store:inventory_combo_detail" combo.id %}?cal=' + (root.dataset.cal || '');
+        const editUrl = data.edit_url + (data.edit_url.indexOf('?') >= 0 ? '&' : '?') + 'next=' + encodeURIComponent(next);
+        setLink('ev-edit-btn', editUrl, true);
+        setLink('ev-quote-btn', data.quotation_url, !!data.quotation_url);
+        setLink('ev-maps-btn', data.maps_url, !!data.maps_url);
+      })
+      .catch(function () {
+        loadingEl.classList.add('d-none');
+        errorEl.textContent = 'No se pudo cargar el detalle del evento.';
+        errorEl.classList.remove('d-none');
+      });
+  }
+
+  if (prevBtn) {
+    prevBtn.addEventListener('click', function () {
+      loadMonth(prevBtn.dataset.cal);
+    });
+  }
+  if (nextBtn) {
+    nextBtn.addEventListener('click', function () {
+      loadMonth(nextBtn.dataset.cal);
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-booking-id]');
+    if (!btn || !root.contains(btn)) return;
+    e.preventDefault();
+    openBookingDetail(btn.getAttribute('data-booking-id'));
+  });
+})();
+</script>
 {% endblock %}

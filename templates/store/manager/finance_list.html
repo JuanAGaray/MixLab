@@ -8,19 +8,37 @@
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
     <div>
       <h2 class="h4 mb-1">Gastos y pagos</h2>
-      <p class="text-muted small mb-0">Registra movimientos de caja. Cada registro se notifica a WhatsApp (n8n).</p>
+      <p class="text-muted small mb-0">
+        <strong>Pagos</strong> = total cancelado en cotizaciones (abonos).
+        <strong>Gastos</strong> = movimientos manuales de caja.
+      </p>
     </div>
     <a href="{% url 'store:site_settings_edit' %}" class="btn btn-sm btn-outline-secondary rounded-pill">
       Configurar WhatsApp n8n
     </a>
   </div>
 
+  <div class="alert alert-light border small mb-4">
+    <strong>Fórmula:</strong>
+    Ingresos = abonos de cotizaciones
+    {% if total_pagos_manuales %} + otros ingresos manuales{% endif %}
+    − gastos =
+    <strong>balance</strong>.
+    Hoy hay {{ quotation_payments_count }} abono{{ quotation_payments_count|pluralize:"s" }} en cotizaciones.
+  </div>
+
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
-          <div class="small text-muted text-uppercase fw-bold">Total pagos</div>
+          <div class="small text-muted text-uppercase fw-bold">Pagos (cotizaciones)</div>
           <div class="fs-4 fw-bold text-success">{{ total_pagos|pesos_colombianos }}</div>
+          <div class="small text-muted">Suma de abonos registrados en COT</div>
+          {% if total_pagos_manuales %}
+          <div class="small text-muted mt-1">
+            + otros ingresos: {{ total_pagos_manuales|pesos_colombianos }}
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -29,6 +47,7 @@
         <div class="card-body">
           <div class="small text-muted text-uppercase fw-bold">Total gastos</div>
           <div class="fs-4 fw-bold text-danger">{{ total_gastos|pesos_colombianos }}</div>
+          <div class="small text-muted">Registros manuales de egreso</div>
         </div>
       </div>
     </div>
@@ -39,6 +58,7 @@
           <div class="fs-4 fw-bold {% if balance >= 0 %}text-primary{% else %}text-danger{% endif %}">
             {{ balance|pesos_colombianos }}
           </div>
+          <div class="small text-muted">Ingresos − gastos</div>
         </div>
       </div>
     </div>
@@ -48,12 +68,18 @@
     <div class="col-lg-4">
       <div class="card border-0 shadow-sm">
         <div class="card-body">
-          <h3 class="h6 text-uppercase text-muted mb-3">Registrar movimiento</h3>
+          <h3 class="h6 text-uppercase text-muted mb-1">Registrar gasto</h3>
+          <p class="small text-muted mb-3">
+            Los pagos de clientes ya entran solos cuando registras un abono en la cotización.
+          </p>
           <form method="post" enctype="multipart/form-data" class="row g-2">
             {% csrf_token %}
             <div class="col-12">
               <label class="form-label small">{{ form.record_type.label }}</label>
               {{ form.record_type }}
+              {% if form.record_type.help_text %}
+              <div class="form-text">{{ form.record_type.help_text }}</div>
+              {% endif %}
             </div>
             <div class="col-12">
               <label class="form-label small">{{ form.amount.label }}</label>
@@ -100,13 +126,13 @@
           <form method="get" class="row g-2 align-items-end">
             <div class="col-md-5">
               <label class="form-label small text-muted mb-1">Buscar</label>
-              <input type="search" name="q" value="{{ filter_q }}" class="form-control form-control-sm" placeholder="Descripción, notas…">
+              <input type="search" name="q" value="{{ filter_q }}" class="form-control form-control-sm" placeholder="COT, cliente, descripción…">
             </div>
             <div class="col-md-3">
               <label class="form-label small text-muted mb-1">Tipo</label>
               <select name="tipo" class="form-select form-select-sm">
                 <option value="">Todos</option>
-                <option value="pago" {% if filter_tipo == 'pago' %}selected{% endif %}>Pagos</option>
+                <option value="pago" {% if filter_tipo == 'pago' %}selected{% endif %}>Pagos / ingresos</option>
                 <option value="gasto" {% if filter_tipo == 'gasto' %}selected{% endif %}>Gastos</option>
               </select>
             </div>
@@ -136,28 +162,45 @@
                 <td class="small">{{ r.recorded_at|date:"d/m/Y" }}</td>
                 <td>
                   <span class="badge text-bg-{% if r.record_type == 'pago' %}success{% else %}danger{% endif %}">
-                    {{ r.get_record_type_display }}
+                    {% if r.record_type == 'pago' %}Pago{% else %}Gasto{% endif %}
                   </span>
-                  <div class="small text-muted">{{ r.get_category_display }}</div>
+                  <div class="small text-muted">
+                    {% if r.source == 'cotizacion' %}
+                      Desde cotización · {{ r.category_label }}
+                    {% else %}
+                      Manual · {{ r.category_label }}
+                    {% endif %}
+                  </div>
                 </td>
                 <td>
                   <div class="fw-semibold">{{ r.description }}</div>
-                  {% if r.related_quotation_id %}
-                  <a class="small" href="{% url 'store:quotation_detail' quotation_id=r.related_quotation_id %}">COT-{{ r.related_quotation_id }}</a>
+                  {% if r.quotation_id %}
+                  <a class="small" href="{% url 'store:quotation_detail' quotation_id=r.quotation_id %}">COT-{{ r.quotation_id }}</a>
                   {% endif %}
-                  {% if r.receipt %}
-                  <div><a class="small" href="{{ r.receipt.url }}" target="_blank" rel="noopener">Ver comprobante</a></div>
+                  {% if r.receipt_url %}
+                  <div><a class="small" href="{{ r.receipt_url }}" target="_blank" rel="noopener">Ver comprobante</a></div>
+                  {% endif %}
+                  {% if r.notes %}
+                  <div class="small text-muted">{{ r.notes|truncatechars:80 }}</div>
                   {% endif %}
                 </td>
                 <td class="text-end fw-bold {% if r.record_type == 'pago' %}text-success{% else %}text-danger{% endif %}">
                   {{ r.amount|pesos_colombianos }}
                 </td>
                 <td class="text-end">
-                  <a href="{% url 'store:finance_delete' record_id=r.id %}" class="btn btn-sm btn-outline-danger">Eliminar</a>
+                  {% if r.can_delete and r.delete_id %}
+                  <a href="{% url 'store:finance_delete' record_id=r.delete_id %}" class="btn btn-sm btn-outline-danger">Eliminar</a>
+                  {% else %}
+                  <span class="small text-muted">—</span>
+                  {% endif %}
                 </td>
               </tr>
               {% empty %}
-              <tr><td colspan="5" class="text-center text-muted py-4">Sin movimientos aún.</td></tr>
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  Sin movimientos. Los abonos de cotizaciones aparecerán aquí automáticamente.
+                </td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>

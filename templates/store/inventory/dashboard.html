@@ -538,8 +538,9 @@
                                         </div>
                                     </form>
                                 </td>
-                                <td class="text-end" style="min-width: 100px;">
+                                <td class="text-end" style="min-width: 140px;">
                                     <div class="row-actions d-inline-flex align-items-center justify-content-end">
+                                        <a href="{% url 'store:inventory_combo_schedule' combo.id %}" class="btn btn-success btn-sm" title="Agendar"><i class="bi bi-calendar-plus"></i></a>
                                         <a href="{% url 'store:inventory_combo_detail' combo.id %}" class="btn btn-light btn-sm" title="Ver"><i class="bi bi-eye"></i></a>
                                         <a href="{% url 'store:inventory_combo_edit' combo.id %}" class="btn btn-light btn-sm" title="Modificar"><i class="bi bi-pencil"></i></a>
                                         <a href="{% url 'store:inventory_combo_delete' combo.id %}" class="btn btn-light btn-sm text-danger" title="Eliminar"><i class="bi bi-trash"></i></a>

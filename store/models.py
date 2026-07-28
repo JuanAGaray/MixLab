@@ -368,7 +368,7 @@ class RentalCombo(models.Model):
     ]
 
     name = models.CharField(max_length=200, verbose_name='Nombre del combo')
-    slug = models.SlugField(unique=True, verbose_name='Slug')
+    slug = models.SlugField(max_length=200, unique=True, verbose_name='Slug')
     description = models.TextField(blank=True, default='', verbose_name='Descripción')
     image = models.ImageField(
         upload_to='rental_combos/',
@@ -428,7 +428,7 @@ class RentalCombo(models.Model):
 
 
 class RentalComboItem(models.Model):
-    """Elemento dentro de un combo: del inventario o un extra con costo propio."""
+    """Elemento dentro de un combo: producto, categoría (slot) o extra con costo propio."""
 
     combo = models.ForeignKey(
         RentalCombo,
@@ -443,7 +443,16 @@ class RentalComboItem(models.Model):
         blank=True,
         related_name='combo_usages',
         verbose_name='Producto de inventario',
-        help_text='Si se elige, el costo puede tomarse de la tarifa del inventario.',
+        help_text='Producto fijo. El costo se toma del costo de compra.',
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_usages',
+        verbose_name='Categoría (slot)',
+        help_text='Al confirmar el pedido se toma un producto disponible de esta categoría.',
     )
     rental_price = models.ForeignKey(
         ProductRentalPrice,
@@ -466,7 +475,13 @@ class RentalComboItem(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.00'))],
         verbose_name='Costo unitario',
-        help_text='Costo estipulado dentro del combo (puede sobrescribir el del inventario).',
+        help_text='Costo de compra / costo estipulado (no el precio de venta).',
+    )
+    is_modifiable = models.BooleanField(
+        default=False,
+        verbose_name='Modificable al agendar',
+        help_text='Si está activo, al agendar se puede cambiar cantidad, producto/tipo y valor. '
+                  'Si está apagado, el elemento es obligatorio y queda fijo.',
     )
     notes = models.CharField(max_length=255, blank=True, default='', verbose_name='Notas')
     order = models.PositiveIntegerField(default=0, verbose_name='Orden')
@@ -486,17 +501,54 @@ class RentalComboItem(models.Model):
         return bool(self.product_id)
 
     @property
+    def is_category_item(self) -> bool:
+        return bool(self.category_id) and not self.product_id
+
+    @property
     def display_name(self) -> str:
         if self.product_id:
             name = self.product.name
             if self.rental_price_id:
                 name = f'{name} ({self.rental_price.get_period_type_display()})'
             return name
+        if self.category_id:
+            return f'Categoría: {self.category.name}'
         return (self.custom_name or '').strip() or 'Extra'
 
     @property
     def line_total(self) -> Decimal:
         return Decimal(str(self.unit_cost or 0)) * Decimal(self.quantity or 0)
+
+    def category_products_qs(self):
+        """Productos candidatos de la categoría (disponibles, con stock)."""
+        if not self.category_id:
+            return Product.objects.none()
+        return (
+            Product.objects.filter(category_id=self.category_id, available=True)
+            .order_by('-stock', 'name')
+        )
+
+    def pick_available_product(self, *, prefer_rental: bool = True):
+        """
+        Al confirmar un pedido: toma UN producto de la categoría (o el fijo).
+        Prefiere alquiler con stock > 0; si no hay, cualquier disponible.
+        """
+        if self.product_id:
+            return self.product
+        if not self.category_id:
+            return None
+        qs = self.category_products_qs()
+        if prefer_rental:
+            rental = qs.filter(product_type='rental', stock__gt=0).first()
+            if rental:
+                return rental
+            rental_any = qs.filter(product_type='rental').first()
+            if rental_any:
+                return rental_any
+        with_stock = qs.filter(stock__gt=0).first()
+        if with_stock:
+            return with_stock
+        return qs.first()
 
 
 class ProductImage(models.Model):
@@ -874,12 +926,44 @@ class Quotation(models.Model):
 
     @property
     def amount_paid(self) -> Decimal:
-        """Monto abonado: parcial registrado o total si ya está pagado completo."""
+        """Monto abonado: suma de pagos registrados, o total si ya está pagado completo."""
         if self.order_status in ('pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'):
             return Decimal(str(self.total or 0))
+        payments_total = Decimal('0.00')
+        try:
+            for pay in self.payments.all():
+                payments_total += Decimal(str(pay.amount or 0))
+        except Exception:
+            payments_total = Decimal('0.00')
+        if payments_total > 0:
+            return payments_total
         if self.partial_payment_amount is not None:
             return Decimal(str(self.partial_payment_amount))
         return Decimal('0.00')
+
+    def sync_payment_totals(self, *, save: bool = True) -> Decimal:
+        """Recalcula partial_payment_amount como suma de abonos y actualiza estado si corresponde."""
+        total = Decimal(str(self.total or 0))
+        paid = Decimal('0.00')
+        for pay in self.payments.all():
+            paid += Decimal(str(pay.amount or 0))
+
+        update_fields = ['partial_payment_amount', 'order_status', 'updated_at']
+        if total > 0 and paid >= total:
+            self.order_status = 'pago_recibido'
+            self.partial_payment_amount = None
+            if self.quotation_status != 'cerrada':
+                self.quotation_status = 'cerrada'
+                update_fields.append('quotation_status')
+        elif paid > 0:
+            self.order_status = 'pago_parcial'
+            self.partial_payment_amount = paid
+        else:
+            self.partial_payment_amount = None
+
+        if save:
+            self.save(update_fields=list(dict.fromkeys(update_fields)))
+        return paid
 
     @property
     def remaining_balance(self) -> Decimal:
@@ -1024,7 +1108,22 @@ class QuotationItem(models.Model):
     """Line items for a quotation"""
 
     quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='items', verbose_name='Cotización')
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='quotation_items', verbose_name='Producto')
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='quotation_items',
+        verbose_name='Producto',
+        help_text='Vacío si es un extra / línea personalizada (p. ej. combo o complemento).',
+    )
+    custom_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Nombre personalizado',
+        help_text='Para extras o el paquete combo sin producto de inventario.',
+    )
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)], verbose_name='Cantidad')
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Precio unitario')
     list_unit_price = models.DecimalField(
@@ -1050,11 +1149,251 @@ class QuotationItem(models.Model):
         verbose_name_plural = 'Items de Cotización'
 
     def __str__(self):
-        return f'{self.quantity}x {self.product.name} (Cotización #{self.quotation_id})'
+        return f'{self.quantity}x {self.display_name} (Cotización #{self.quotation_id})'
+
+    @property
+    def display_name(self) -> str:
+        if self.product_id:
+            name = self.product.name
+            if self.rental_price_id:
+                try:
+                    name = f'{name} ({self.rental_price.get_period_type_display()})'
+                except Exception:
+                    pass
+            return name
+        return (self.custom_name or '').strip() or 'Ítem'
 
     def save(self, *args, **kwargs):
         self.subtotal = (self.unit_price or Decimal('0.00')) * (self.quantity or 1)
         super().save(*args, **kwargs)
+
+
+class QuotationPayment(models.Model):
+    """Abono / pago registrado sobre una cotización (permite varios pagos parciales)."""
+
+    PAYMENT_TYPE_CHOICES = [
+        ('parcial', 'Parcial'),
+        ('total', 'Total'),
+    ]
+
+    quotation = models.ForeignKey(
+        Quotation,
+        on_delete=models.CASCADE,
+        related_name='payments',
+        verbose_name='Cotización',
+    )
+    payment_type = models.CharField(
+        max_length=20,
+        choices=PAYMENT_TYPE_CHOICES,
+        default='parcial',
+        verbose_name='Tipo de pago',
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name='Monto',
+    )
+    proof = models.ImageField(
+        upload_to='quotations/payment_proofs/',
+        verbose_name='Comprobante',
+    )
+    notes = models.CharField(max_length=255, blank=True, default='', verbose_name='Notas')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quotation_payments',
+        verbose_name='Registrado por',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Pago de cotización'
+        verbose_name_plural = 'Pagos de cotización'
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return f'Pago COT-{self.quotation_id}: {self.amount}'
+
+
+class ComboBooking(models.Model):
+    """Agenda de un combo para un cliente (registrado o sin registro) con ubicación en mapa."""
+
+    STATUS_CHOICES = [
+        ('agendado', 'Agendado'),
+        ('confirmado', 'Confirmado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    CLIENT_KIND_CHOICES = [
+        ('existing', 'Cliente existente'),
+        ('natural', 'Persona natural'),
+        ('empresa', 'Empresa'),
+    ]
+
+    combo = models.ForeignKey(
+        RentalCombo,
+        on_delete=models.PROTECT,
+        related_name='bookings',
+        verbose_name='Combo',
+    )
+    quotation = models.OneToOneField(
+        Quotation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_booking',
+        verbose_name='Cotización generada',
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_bookings_created',
+        verbose_name='Agendado por',
+    )
+    existing_client = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_bookings',
+        verbose_name='Cliente existente',
+    )
+    client_kind = models.CharField(
+        max_length=20,
+        choices=CLIENT_KIND_CHOICES,
+        default='natural',
+        verbose_name='Tipo de cliente',
+    )
+    client_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre / razón social')
+    client_email = models.EmailField(blank=True, default='', verbose_name='Correo')
+    client_phone = models.CharField(max_length=30, blank=True, default='', verbose_name='Teléfono')
+    client_document = models.CharField(max_length=30, blank=True, default='', verbose_name='Documento')
+    client_departamento = models.CharField(max_length=100, blank=True, default='', verbose_name='Departamento')
+    client_city = models.CharField(max_length=100, blank=True, default='', verbose_name='Ciudad')
+
+    event_date = models.DateField(verbose_name='Fecha del evento')
+    event_time = models.TimeField(null=True, blank=True, verbose_name='Hora del evento')
+    location_text = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='Dirección / ubicación',
+    )
+    maps_url = models.URLField(max_length=500, blank=True, default='', verbose_name='Enlace Google Maps')
+    latitude = models.DecimalField(
+        max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='Latitud',
+    )
+    longitude = models.DecimalField(
+        max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='Longitud',
+    )
+
+    package_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Precio del paquete cobrado',
+    )
+    notes = models.TextField(blank=True, default='', verbose_name='Notas')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='agendado',
+        verbose_name='Estado',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Agenda de combo'
+        verbose_name_plural = 'Agendas de combos'
+        ordering = ['-event_date', '-created_at']
+
+    def __str__(self):
+        return f'{self.combo.name} · {self.client_name or "Cliente"} · {self.event_date}'
+
+    @property
+    def extras_total(self) -> Decimal:
+        total = Decimal('0.00')
+        for extra in self.extras.all():
+            total += extra.line_total
+        return total
+
+    @property
+    def grand_total(self) -> Decimal:
+        return Decimal(str(self.package_price or 0)) + self.extras_total
+
+    @property
+    def display_client_name(self) -> str:
+        if self.existing_client_id:
+            try:
+                name = (self.existing_client.get_full_name() or self.existing_client.username or '').strip()
+                if name:
+                    return name
+            except Exception:
+                pass
+        return (self.client_name or '').strip() or '—'
+
+
+class ComboBookingExtra(models.Model):
+    """Variante / complemento agregado al combo en una agenda concreta."""
+
+    booking = models.ForeignKey(
+        ComboBooking,
+        on_delete=models.CASCADE,
+        related_name='extras',
+        verbose_name='Agenda',
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_booking_extras',
+        verbose_name='Producto',
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_booking_extras',
+        verbose_name='Categoría',
+    )
+    custom_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre del extra')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    unit_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Precio unitario',
+    )
+    notes = models.CharField(max_length=255, blank=True, default='', verbose_name='Notas')
+    order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Extra de agenda'
+        verbose_name_plural = 'Extras de agenda'
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f'{self.display_name} × {self.quantity}'
+
+    @property
+    def display_name(self) -> str:
+        if self.product_id:
+            return self.product.name
+        if self.category_id:
+            return f'Categoría: {self.category.name}'
+        return (self.custom_name or '').strip() or 'Extra'
+
+    @property
+    def line_total(self) -> Decimal:
+        return Decimal(str(self.unit_price or 0)) * Decimal(self.quantity or 0)
 
 
 class RentalContractRequirements(models.Model):

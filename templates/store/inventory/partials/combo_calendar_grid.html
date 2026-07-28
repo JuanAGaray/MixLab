@@ -1,0 +1,20 @@
+{% for week in calendar_weeks %}
+  {% for day in week %}
+  <div class="combo-cal-day {% if not day.in_month %}out{% endif %} {% if day.is_today %}today{% endif %} {% if day.bookings %}has-events{% endif %}">
+    <div class="combo-cal-daynum">{{ day.date.day }}</div>
+    {% for b in day.bookings %}
+    <button type="button"
+            class="combo-event-chip"
+            data-booking-id="{{ b.id }}"
+            title="{{ b.client_name }} · {% if b.location_text %}{{ b.location_text }}{% else %}Sin lugar{% endif %}">
+      <span class="chip-time">
+        {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}Sin hora{% endif %}
+      </span>
+      <span class="chip-place">
+        {% if b.location_text %}{{ b.location_text|truncatechars:28 }}{% else %}Sin lugar{% endif %}
+      </span>
+    </button>
+    {% endfor %}
+  </div>
+  {% endfor %}
+{% endfor %}

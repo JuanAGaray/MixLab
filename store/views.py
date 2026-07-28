@@ -27,6 +27,7 @@ from .models import (
     Product, Category, Cart, CartItem, Order, OrderItem,
     ProductImage, ProductVariation, ProductVariationImage, ProductTechnicalSpec, ProductAttribute,
     ProductRentalPrice, RentalCombo, RentalComboItem,
+    ComboBooking, ComboBookingExtra, QuotationPayment,
     DilutionBaseProduct, SiteSettings, PaymentMethod,
     RentalContractRequirements, RentalDeliveryActa,
     FinanceRecord,
@@ -2614,33 +2615,41 @@ def inventory_create_category(request):
 
 
 def _unique_combo_slug(name: str, exclude_id=None) -> str:
-    base = slugify(name) or 'combo'
+    base = (slugify(name) or 'combo')[:180]
     slug = base
     n = 2
     qs = RentalCombo.objects.all()
     if exclude_id:
         qs = qs.exclude(pk=exclude_id)
     while qs.filter(slug=slug).exists():
-        slug = f'{base}-{n}'
+        suffix = f'-{n}'
+        slug = f'{base[:200 - len(suffix)]}{suffix}'
         n += 1
     return slug
 
 
 def _default_unit_cost_for_product(product, rental_price_id=None) -> Decimal:
-    """Costo sugerido: tarifa elegida, o diaria, o primera activa, o precio de catálogo."""
-    if rental_price_id:
-        rp = ProductRentalPrice.objects.filter(
-            id=rental_price_id, product=product, is_active=True,
-        ).first()
-        if rp:
-            return Decimal(str(rp.price))
-    preferred = product.rental_prices.filter(is_active=True, period_type='daily').first()
-    if preferred:
-        return Decimal(str(preferred.price))
-    any_tariff = product.rental_prices.filter(is_active=True).order_by('order').first()
-    if any_tariff:
-        return Decimal(str(any_tariff.price))
-    return Decimal(str(product.selling_price or 0))
+    """Costo de compra del producto (NO el precio de venta ni la tarifa)."""
+    try:
+        return Decimal(str(getattr(product, 'purchase_cost', 0) or 0))
+    except Exception:
+        return Decimal('0.00')
+
+
+def _default_unit_cost_for_category(category) -> Decimal:
+    """Costo sugerido de una categoría: promedio de costos de compra de sus productos."""
+    products = Product.objects.filter(category=category).only('purchase_cost')
+    costs = []
+    for p in products:
+        try:
+            c = Decimal(str(p.purchase_cost or 0))
+        except Exception:
+            c = Decimal('0.00')
+        if c > 0:
+            costs.append(c)
+    if not costs:
+        return Decimal('0.00')
+    return (sum(costs) / Decimal(len(costs))).quantize(Decimal('0.01'))
 
 
 def _parse_combo_items_from_post(request) -> list:
@@ -2658,6 +2667,7 @@ def _parse_combo_items_from_post(request) -> list:
         qty_raw = (request.POST.get(f'item_qty_{idx}') or '1').strip()
         cost_raw = (request.POST.get(f'item_cost_{idx}') or '0').strip().replace(',', '.')
         notes = (request.POST.get(f'item_notes_{idx}') or '').strip()
+        is_modifiable = request.POST.get(f'item_modifiable_{idx}') == 'on'
         try:
             quantity = max(1, int(qty_raw))
         except (TypeError, ValueError):
@@ -2676,18 +2686,31 @@ def _parse_combo_items_from_post(request) -> list:
             product = Product.objects.filter(id=product_id).first()
             if not product:
                 continue
-            rp_id = (request.POST.get(f'item_tariff_{idx}') or '').strip()
-            rental_price = None
-            if rp_id:
-                rental_price = ProductRentalPrice.objects.filter(
-                    id=rp_id, product=product,
-                ).first()
             items.append({
                 'product': product,
-                'rental_price': rental_price,
+                'category': None,
+                'rental_price': None,
                 'custom_name': '',
                 'quantity': quantity,
                 'unit_cost': unit_cost,
+                'is_modifiable': is_modifiable,
+                'notes': notes,
+            })
+        elif item_type == 'category':
+            category_id = (request.POST.get(f'item_category_{idx}') or '').strip()
+            if not category_id:
+                continue
+            category = Category.objects.filter(id=category_id).first()
+            if not category:
+                continue
+            items.append({
+                'product': None,
+                'category': category,
+                'rental_price': None,
+                'custom_name': '',
+                'quantity': quantity,
+                'unit_cost': unit_cost,
+                'is_modifiable': is_modifiable,
                 'notes': notes,
             })
         else:
@@ -2696,10 +2719,12 @@ def _parse_combo_items_from_post(request) -> list:
                 continue
             items.append({
                 'product': None,
+                'category': None,
                 'rental_price': None,
                 'custom_name': custom_name,
                 'quantity': quantity,
                 'unit_cost': unit_cost,
+                'is_modifiable': is_modifiable,
                 'notes': notes,
             })
     return items
@@ -2731,7 +2756,7 @@ def _save_combo_from_request(request, combo=None):
 
     items_data = _parse_combo_items_from_post(request)
     if not items_data:
-        raise ValidationError('Agrega al menos un elemento al combo (inventario o extra).')
+        raise ValidationError('Agrega al menos un elemento al combo (producto, categoría o extra).')
 
     creating = combo is None
     if creating:
@@ -2760,10 +2785,12 @@ def _save_combo_from_request(request, combo=None):
         RentalComboItem.objects.create(
             combo=combo,
             product=data['product'],
-            rental_price=data['rental_price'],
+            category=data.get('category'),
+            rental_price=data.get('rental_price'),
             custom_name=data['custom_name'],
             quantity=data['quantity'],
             unit_cost=data['unit_cost'],
+            is_modifiable=bool(data.get('is_modifiable')),
             notes=data['notes'],
             order=order,
         )
@@ -2773,45 +2800,47 @@ def _save_combo_from_request(request, combo=None):
 def _combo_form_context(combo=None):
     inventory_products = (
         Product.objects.filter(available=True)
-        .prefetch_related(
-            Prefetch(
-                'rental_prices',
-                queryset=ProductRentalPrice.objects.filter(is_active=True).order_by('order', 'period_type'),
-            )
-        )
+        .select_related('category')
         .order_by('product_type', 'name')
     )
     products_payload = []
     for p in inventory_products:
-        tariffs = [
-            {
-                'id': t.id,
-                'label': t.get_period_type_display(),
-                'period': t.period_type,
-                'price': float(t.price),
-            }
-            for t in p.rental_prices.all()
-        ]
-        default_cost = float(_default_unit_cost_for_product(p))
         products_payload.append({
             'id': p.id,
             'name': p.name,
             'type': p.product_type,
             'type_label': p.get_product_type_display(),
-            'default_cost': default_cost,
-            'tariffs': tariffs,
+            'category_id': p.category_id,
+            'default_cost': float(_default_unit_cost_for_product(p)),
+        })
+
+    categories_payload = []
+    for cat in Category.objects.order_by('name'):
+        count = Product.objects.filter(category=cat, available=True).count()
+        categories_payload.append({
+            'id': cat.id,
+            'name': cat.name,
+            'product_count': count,
+            'default_cost': float(_default_unit_cost_for_category(cat)),
         })
 
     existing_items = []
     if combo:
-        for item in combo.items.select_related('product', 'rental_price').all():
+        for item in combo.items.select_related('product', 'category', 'rental_price').all():
+            if item.category_id and not item.product_id:
+                item_type = 'category'
+            elif item.product_id:
+                item_type = 'inventory'
+            else:
+                item_type = 'custom'
             existing_items.append({
-                'type': 'inventory' if item.product_id else 'custom',
+                'type': item_type,
                 'product_id': item.product_id or '',
-                'tariff_id': item.rental_price_id or '',
+                'category_id': item.category_id or '',
                 'custom_name': item.custom_name or '',
                 'quantity': item.quantity,
                 'unit_cost': float(item.unit_cost),
+                'is_modifiable': bool(item.is_modifiable),
                 'notes': item.notes or '',
             })
 
@@ -2819,6 +2848,7 @@ def _combo_form_context(combo=None):
         'combo': combo,
         'period_choices': RentalCombo.PERIOD_CHOICES,
         'inventory_products_json': json.dumps(products_payload, ensure_ascii=False),
+        'categories_json': json.dumps(categories_payload, ensure_ascii=False),
         'existing_items_json': json.dumps(existing_items, ensure_ascii=False),
         'is_edit': combo is not None,
     }
@@ -2858,15 +2888,322 @@ def inventory_combo_edit(request, combo_id):
     return render(request, 'store/inventory/combo_form.html', _combo_form_context(combo))
 
 
+def _parse_cal_year_month(cal_raw, today):
+    """Parsea ?cal=YYYY-MM; fallback al mes actual."""
+    cal_year, cal_month = today.year, today.month
+    if cal_raw:
+        try:
+            parts = cal_raw.split('-')
+            cal_year, cal_month = int(parts[0]), int(parts[1])
+            if not (1 <= cal_month <= 12):
+                raise ValueError
+        except (ValueError, IndexError, TypeError):
+            cal_year, cal_month = today.year, today.month
+    return cal_year, cal_month
+
+
+def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
+    """Construye datos del calendario mensual del combo."""
+    from calendar import monthrange
+    from datetime import date as _date
+
+    def _group_rows(bookings):
+        by_date = {}
+        for b in bookings:
+            by_date.setdefault(b.event_date, []).append(b)
+        return [
+            {'date': d, 'bookings': by_date[d]}
+            for d in sorted(by_date.keys())
+        ]
+
+    month_start = _date(cal_year, cal_month, 1)
+    days_in_month = monthrange(cal_year, cal_month)[1]
+    month_end = _date(cal_year, cal_month, days_in_month)
+    grid_start = month_start - timedelta(days=month_start.weekday())
+    grid_end = month_end + timedelta(days=(6 - month_end.weekday()))
+
+    month_bookings = list(
+        bookings_qs.filter(event_date__range=(grid_start, grid_end))
+    )
+    bookings_by_date = {}
+    for b in month_bookings:
+        bookings_by_date.setdefault(b.event_date, []).append(b)
+
+    calendar_weeks = []
+    cursor = grid_start
+    while cursor <= grid_end:
+        week = []
+        for _ in range(7):
+            week.append({
+                'date': cursor,
+                'in_month': cursor.month == cal_month,
+                'is_today': cursor == today,
+                'bookings': bookings_by_date.get(cursor, []),
+            })
+            cursor += timedelta(days=1)
+        calendar_weeks.append(week)
+
+    if cal_month == 1:
+        prev_cal = f'{cal_year - 1}-12'
+    else:
+        prev_cal = f'{cal_year}-{cal_month - 1:02d}'
+    if cal_month == 12:
+        next_cal = f'{cal_year + 1}-01'
+    else:
+        next_cal = f'{cal_year}-{cal_month + 1:02d}'
+
+    month_names = (
+        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    )
+    return {
+        'combo': combo,
+        'calendar_weeks': calendar_weeks,
+        'cal_month_label': f'{month_names[cal_month]} {cal_year}',
+        'cal_year': cal_year,
+        'cal_month': cal_month,
+        'prev_cal': prev_cal,
+        'next_cal': next_cal,
+        'month_event_rows': _group_rows(
+            bookings_qs.filter(event_date__range=(month_start, month_end)),
+        ),
+    }
+
+
+def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
+    """JSON con detalle de un evento agendado para modal."""
+    quote = booking.quotation
+    edit_url = reverse('store:inventory_combo_booking_edit', kwargs={'booking_id': booking.id})
+    quote_url = (
+        reverse('store:quotation_detail', kwargs={'quotation_id': quote.id})
+        if quote else ''
+    )
+    combo_url = reverse('store:inventory_combo_detail', kwargs={'combo_id': booking.combo_id})
+    return {
+        'ok': True,
+        'id': booking.id,
+        'combo_name': booking.combo.name if booking.combo_id else '',
+        'combo_url': combo_url,
+        'client_name': booking.client_name or (quote.display_client_name if quote else '') or 'Cliente',
+        'client_phone': booking.client_phone or (quote.display_client_phone if quote else '') or '',
+        'client_email': booking.client_email or '',
+        'event_date': booking.event_date.strftime('%d/%m/%Y'),
+        'event_date_iso': booking.event_date.isoformat(),
+        'event_time': booking.event_time.strftime('%H:%M') if booking.event_time else '',
+        'location_text': booking.location_text or '',
+        'maps_url': booking.maps_url or '',
+        'status': booking.status,
+        'status_display': booking.get_status_display(),
+        'notes': booking.notes or '',
+        'package_price': float(booking.package_price or 0),
+        'quotation_id': quote.id if quote else None,
+        'quotation_url': quote_url,
+        'order_status': quote.get_order_status_display() if quote else '',
+        'edit_url': edit_url,
+    }
+
+
 @staff_member_required
 def inventory_combo_detail(request, combo_id):
     combo = get_object_or_404(
         RentalCombo.objects.prefetch_related(
-            Prefetch('items', queryset=RentalComboItem.objects.select_related('product', 'rental_price'))
+            Prefetch(
+                'items',
+                queryset=RentalComboItem.objects.select_related('product', 'category', 'rental_price'),
+            )
         ),
         id=combo_id,
     )
-    return render(request, 'store/inventory/combo_detail.html', {'combo': combo})
+    today = timezone.now().date()
+    week_start = today - timedelta(days=today.weekday())  # lunes
+    this_week_end = week_start + timedelta(days=6)
+    next_week_start = week_start + timedelta(days=7)
+    next_week_end = next_week_start + timedelta(days=6)
+
+    bookings_qs = (
+        ComboBooking.objects
+        .filter(combo=combo)
+        .exclude(status='cancelado')
+        .select_related('quotation')
+        .order_by('event_date', 'event_time', 'created_at')
+    )
+
+    def _group_rows(bookings):
+        by_date = {}
+        for b in bookings:
+            by_date.setdefault(b.event_date, []).append(b)
+        return [
+            {'date': d, 'bookings': by_date[d]}
+            for d in sorted(by_date.keys())
+        ]
+
+    this_week_rows = _group_rows(
+        bookings_qs.filter(event_date__range=(week_start, this_week_end)),
+    )
+    next_week_rows = _group_rows(
+        bookings_qs.filter(event_date__range=(next_week_start, next_week_end)),
+    )
+    # Futuros: después de la próxima semana (ni esta ni la siguiente)
+    future_rows = _group_rows(
+        bookings_qs.filter(event_date__gt=next_week_end),
+    )
+    next_week_has_events = bool(next_week_rows)
+    next_week_total = sum(len(r['bookings']) for r in next_week_rows)
+    future_has_events = bool(future_rows)
+    future_total = sum(len(r['bookings']) for r in future_rows)
+
+    cal_year, cal_month = _parse_cal_year_month((request.GET.get('cal') or '').strip(), today)
+    cal_data = _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today)
+
+    return render(request, 'store/inventory/combo_detail.html', {
+        'combo': combo,
+        'today': today,
+        'this_week_rows': this_week_rows,
+        'next_week_rows': next_week_rows,
+        'next_week_has_events': next_week_has_events,
+        'next_week_total': next_week_total,
+        'future_rows': future_rows,
+        'future_has_events': future_has_events,
+        'future_total': future_total,
+        **cal_data,
+    })
+
+
+@staff_member_required
+def inventory_combo_calendar_ajax(request, combo_id):
+    """AJAX: HTML del calendario + detalle del mes."""
+    combo = get_object_or_404(RentalCombo, id=combo_id)
+    today = timezone.now().date()
+    cal_year, cal_month = _parse_cal_year_month((request.GET.get('cal') or '').strip(), today)
+    bookings_qs = (
+        ComboBooking.objects
+        .filter(combo=combo)
+        .exclude(status='cancelado')
+        .select_related('quotation')
+        .order_by('event_date', 'event_time', 'created_at')
+    )
+    cal_data = _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today)
+    calendar_html = render(
+        request,
+        'store/inventory/partials/combo_calendar_grid.html',
+        cal_data,
+    ).content.decode('utf-8')
+    detail_html = render(
+        request,
+        'store/inventory/partials/combo_calendar_detail.html',
+        cal_data,
+    ).content.decode('utf-8')
+    return JsonResponse({
+        'ok': True,
+        'cal': f'{cal_year}-{cal_month:02d}',
+        'cal_year': cal_year,
+        'cal_month': cal_month,
+        'cal_month_label': cal_data['cal_month_label'],
+        'prev_cal': cal_data['prev_cal'],
+        'next_cal': cal_data['next_cal'],
+        'calendar_html': calendar_html,
+        'detail_html': detail_html,
+    })
+
+
+@staff_member_required
+def inventory_combo_booking_detail_ajax(request, booking_id):
+    """AJAX: detalle de un evento para el modal."""
+    booking = get_object_or_404(
+        ComboBooking.objects.select_related('combo', 'quotation', 'existing_client'),
+        id=booking_id,
+    )
+    return JsonResponse(_combo_booking_detail_payload(booking))
+
+
+@staff_member_required
+def inventory_combo_booking_edit(request, booking_id):
+    """Permite corregir fecha/hora/estado de un evento agendado (combo)."""
+    booking = get_object_or_404(
+        ComboBooking.objects.select_related('combo', 'quotation', 'existing_client'),
+        id=booking_id,
+    )
+    next_url = (request.GET.get('next') or request.POST.get('next') or '').strip()
+
+    if request.method == 'POST':
+        try:
+            event_date_raw = (request.POST.get('event_date') or '').strip()
+            if not event_date_raw:
+                raise ValidationError('La fecha del evento es obligatoria.')
+            from datetime import datetime as _dt
+            try:
+                event_date = _dt.strptime(event_date_raw, '%Y-%m-%d').date()
+            except ValueError:
+                raise ValidationError('Fecha del evento inválida.')
+
+            event_time = None
+            event_time_raw = (request.POST.get('event_time') or '').strip()
+            if event_time_raw:
+                try:
+                    event_time = _dt.strptime(event_time_raw, '%H:%M').time()
+                except ValueError:
+                    try:
+                        event_time = _dt.strptime(event_time_raw, '%H:%M:%S').time()
+                    except ValueError:
+                        raise ValidationError('Hora del evento inválida.')
+
+            status = (request.POST.get('status') or booking.status or 'agendado').strip()
+            valid_statuses = {c[0] for c in ComboBooking.STATUS_CHOICES}
+            if status not in valid_statuses:
+                status = booking.status or 'agendado'
+
+            notes = (request.POST.get('notes') or '').strip()
+
+            old_date = booking.event_date
+            old_time = booking.event_time
+            booking.event_date = event_date
+            booking.event_time = event_time
+            booking.status = status
+            booking.notes = notes
+            booking.save(update_fields=['event_date', 'event_time', 'status', 'notes', 'updated_at'])
+
+            # Sincronizar la línea "Fecha evento:" en notas de la cotización
+            quote = booking.quotation
+            if quote:
+                date_txt = event_date.strftime('%d/%m/%Y')
+                if event_time:
+                    date_txt = f'{date_txt} {event_time.strftime("%H:%M")}'
+                notes_q = quote.notes or ''
+                new_line = f'Fecha evento: {date_txt}'
+                if re.search(r'^Fecha evento:.*$', notes_q, flags=re.MULTILINE):
+                    notes_q = re.sub(r'^Fecha evento:.*$', new_line, notes_q, count=1, flags=re.MULTILINE)
+                else:
+                    notes_q = (notes_q.rstrip() + '\n' + new_line).strip()
+                quote.notes = notes_q
+                quote.save(update_fields=['notes', 'updated_at'])
+
+            messages.success(
+                request,
+                f'Evento actualizado: {old_date.strftime("%d/%m/%Y")}'
+                + (f' {old_time.strftime("%H:%M")}' if old_time else '')
+                + f' → {event_date.strftime("%d/%m/%Y")}'
+                + (f' {event_time.strftime("%H:%M")}' if event_time else '')
+                + '.',
+            )
+
+            if next_url and next_url.startswith('/'):
+                return redirect(next_url)
+            if quote:
+                return redirect('store:quotation_detail', quotation_id=quote.id)
+            return redirect('store:inventory_combo_detail', combo_id=booking.combo_id)
+        except ValidationError as e:
+            messages.error(request, str(getattr(e, 'message', e)))
+        except Exception:
+            logger.exception('Error editando agenda de combo')
+            messages.error(request, 'No se pudo guardar la fecha del evento.')
+
+    return render(request, 'store/inventory/combo_booking_edit.html', {
+        'booking': booking,
+        'combo': booking.combo,
+        'quote': booking.quotation,
+        'next_url': next_url,
+        'status_choices': ComboBooking.STATUS_CHOICES,
+    })
 
 
 @staff_member_required
@@ -2897,25 +3234,594 @@ def inventory_combo_toggle_available(request, combo_id):
 
 @staff_member_required
 def inventory_combo_product_price(request):
-    """AJAX: precio sugerido al elegir un producto/tarifa del inventario."""
+    """AJAX: costo de compra sugerido al elegir producto o categoría."""
     product_id = request.GET.get('product_id')
-    tariff_id = request.GET.get('tariff_id')
+    category_id = request.GET.get('category_id')
+    if category_id:
+        category = get_object_or_404(Category, id=category_id)
+        cost = _default_unit_cost_for_category(category)
+        count = Product.objects.filter(category=category, available=True).count()
+        return JsonResponse({
+            'ok': True,
+            'unit_cost': float(cost),
+            'category_name': category.name,
+            'product_count': count,
+        })
     product = get_object_or_404(Product, id=product_id)
-    cost = _default_unit_cost_for_product(product, rental_price_id=tariff_id or None)
-    tariffs = list(
-        product.rental_prices.filter(is_active=True).order_by('order', 'period_type').values(
-            'id', 'period_type', 'price',
-        )
-    )
-    for t in tariffs:
-        t['label'] = dict(ProductRentalPrice.PERIOD_CHOICES).get(t['period_type'], t['period_type'])
-        t['price'] = float(t['price'])
+    cost = _default_unit_cost_for_product(product)
     return JsonResponse({
         'ok': True,
         'unit_cost': float(cost),
+        'unit_price': float(product.price or 0),
         'product_name': product.name,
         'product_type': product.product_type,
-        'tariffs': tariffs,
+        'purchase_cost': float(product.purchase_cost or 0),
+    })
+
+
+def _parse_booking_extras_from_post(request) -> list:
+    """Extras / variantes adicionales en el formulario de agendar combo."""
+    types = request.POST.getlist('extra_type')
+    product_ids = request.POST.getlist('extra_product_id')
+    category_ids = request.POST.getlist('extra_category_id')
+    custom_names = request.POST.getlist('extra_custom_name')
+    quantities = request.POST.getlist('extra_quantity')
+    unit_prices = request.POST.getlist('extra_unit_price')
+    notes_list = request.POST.getlist('extra_notes')
+
+    n = max(len(types), len(product_ids), len(category_ids), len(custom_names), len(quantities), len(unit_prices))
+    extras = []
+    for i in range(n):
+        etype = (types[i] if i < len(types) else 'custom') or 'custom'
+        try:
+            qty = max(1, int(quantities[i] if i < len(quantities) else 1 or 1))
+        except (TypeError, ValueError):
+            qty = 1
+        try:
+            price = Decimal(str(unit_prices[i] if i < len(unit_prices) else '0').replace(',', '.') or '0')
+        except Exception:
+            price = Decimal('0.00')
+        if price < 0:
+            price = Decimal('0.00')
+        note = (notes_list[i] if i < len(notes_list) else '') or ''
+        product = None
+        category = None
+        custom_name = ''
+        if etype == 'inventory':
+            pid = product_ids[i] if i < len(product_ids) else ''
+            if not pid:
+                continue
+            product = Product.objects.filter(id=pid).first()
+            if not product:
+                continue
+        elif etype == 'category':
+            cid = category_ids[i] if i < len(category_ids) else ''
+            if not cid:
+                continue
+            category = Category.objects.filter(id=cid).first()
+            if not category:
+                continue
+        else:
+            custom_name = (custom_names[i] if i < len(custom_names) else '') or ''
+            custom_name = custom_name.strip()
+            if not custom_name:
+                continue
+        extras.append({
+            'type': etype,
+            'product': product,
+            'category': category,
+            'custom_name': custom_name,
+            'quantity': qty,
+            'unit_price': price,
+            'notes': note.strip()[:255],
+            'order': i,
+        })
+    return extras
+
+
+def _default_schedule_unit_price(item: RentalComboItem) -> Decimal:
+    """Referencia de costo (compra), no precio de venta. Solo informativo."""
+    return Decimal(str(item.unit_cost or 0))
+
+
+def _resolve_combo_lines_for_schedule(request, combo: RentalCombo) -> list:
+    """
+    Resuelve cada elemento del combo para la agenda.
+    Si is_modifiable: permite cambiar tipo/producto/cantidad.
+    El cobro NO usa valor unitario por ítem: va en el precio del paquete.
+    Retorna lista de dicts con product/qty para inventario (unit_price siempre 0).
+    """
+    lines = []
+    for item in combo.items.all():
+        modifiable = bool(item.is_modifiable)
+        prefix = f'item_{item.id}_'
+
+        # Cantidad
+        if modifiable:
+            try:
+                qty = max(1, int((request.POST.get(prefix + 'qty') or item.quantity or 1)))
+            except (TypeError, ValueError):
+                qty = item.quantity or 1
+        else:
+            qty = item.quantity or 1
+
+        # Tipo / producto
+        if modifiable:
+            etype = (request.POST.get(prefix + 'type') or '').strip()
+            if etype not in ('inventory', 'category', 'custom'):
+                if item.is_inventory_item:
+                    etype = 'inventory'
+                elif item.is_category_item:
+                    etype = 'category'
+                else:
+                    etype = 'custom'
+        else:
+            if item.is_inventory_item:
+                etype = 'inventory'
+            elif item.is_category_item:
+                etype = 'category'
+            else:
+                etype = 'custom'
+
+        product = None
+        category = None
+        custom_name = ''
+        rental_price = item.rental_price if item.rental_price_id else None
+        # Incluidos en el paquete: sin cobro por línea
+        unit_price = Decimal('0.00')
+
+        if etype == 'inventory':
+            if modifiable:
+                pid = (request.POST.get(prefix + 'product') or '').strip()
+                product = Product.objects.filter(id=pid).first() if pid else None
+                if not product:
+                    product = item.product
+            else:
+                product = item.product
+            if not product:
+                raise ValidationError(f'Falta producto en «{item.display_name}».')
+        elif etype == 'category':
+            if modifiable:
+                cid = (request.POST.get(prefix + 'category') or '').strip()
+                category = Category.objects.filter(id=cid).first() if cid else item.category
+            else:
+                category = item.category
+            if not category:
+                raise ValidationError(f'Falta categoría en «{item.display_name}».')
+
+            # Una selección por unidad: item_{id}_slot_product repetido N veces
+            pick_ids = [
+                (pid or '').strip()
+                for pid in request.POST.getlist(prefix + 'slot_product')
+            ]
+            if not pick_ids:
+                legacy = (request.POST.get(f'slot_{item.id}_product') or '').strip()
+                if legacy:
+                    pick_ids = [legacy]
+
+            while len(pick_ids) < qty:
+                pick_ids.append('')
+            pick_ids = pick_ids[:qty]
+
+            candidates = list(
+                Product.objects.filter(category_id=category.id, available=True)
+                .order_by('-stock', 'name')
+            )
+            if not candidates:
+                raise ValidationError(
+                    f'No hay producto disponible para «{category.name}».'
+                )
+
+            used: dict[int, int] = {}
+            resolved_products: list = []
+
+            def _next_auto():
+                ranked = sorted(
+                    candidates,
+                    key=lambda p: (
+                        0 if getattr(p, 'product_type', '') == 'rental' else 1,
+                        -max(0, int(p.stock or 0) - used.get(p.id, 0)),
+                        p.name,
+                    ),
+                )
+                for p in ranked:
+                    free = max(0, int(p.stock or 0) - used.get(p.id, 0))
+                    if free > 0 or used.get(p.id, 0) == 0:
+                        return p
+                return ranked[0] if ranked else None
+
+            for pid in pick_ids:
+                product = None
+                if pid:
+                    product = next((p for p in candidates if str(p.id) == str(pid)), None)
+                    if product is None:
+                        product = Product.objects.filter(id=pid, category_id=category.id).first()
+                if not product:
+                    product = _next_auto()
+                if not product:
+                    raise ValidationError(
+                        f'No hay suficientes productos en «{category.name}» para la cantidad {qty}.'
+                    )
+                used[product.id] = used.get(product.id, 0) + 1
+                resolved_products.append(product)
+
+            from collections import Counter
+            counts = Counter(p.id for p in resolved_products)
+            product_by_id = {p.id: p for p in resolved_products}
+            for pid, count in counts.items():
+                lines.append({
+                    'item': item,
+                    'type': etype,
+                    'product': product_by_id[pid],
+                    'category': category,
+                    'custom_name': '',
+                    'quantity': count,
+                    'unit_price': unit_price,
+                    'rental_price': None,
+                })
+            continue
+        else:
+            if modifiable:
+                custom_name = (request.POST.get(prefix + 'custom_name') or '').strip() or (item.custom_name or 'Extra')
+            else:
+                custom_name = (item.custom_name or '').strip() or 'Extra'
+
+        lines.append({
+            'item': item,
+            'type': etype,
+            'product': product,
+            'category': category,
+            'custom_name': custom_name,
+            'quantity': qty,
+            'unit_price': unit_price,
+            'rental_price': rental_price,
+        })
+    return lines
+
+
+@staff_member_required
+def inventory_combo_schedule(request, combo_id):
+    """
+    Agendar un combo para un cliente (registrado o sin registro):
+    ubicación en mapa, fecha, y variantes/extras adicionales.
+    Genera una cotización vinculada.
+    """
+    combo = get_object_or_404(
+        RentalCombo.objects.prefetch_related(
+            Prefetch(
+                'items',
+                queryset=RentalComboItem.objects.select_related('product', 'category', 'rental_price'),
+            )
+        ),
+        id=combo_id,
+    )
+    clients = (
+        User.objects.filter(is_staff=False)
+        .select_related('profile')
+        .order_by('first_name', 'last_name', 'username')
+    )
+    inventory_products = (
+        Product.objects.filter(available=True)
+        .select_related('category')
+        .order_by('product_type', 'name')
+    )
+    categories = Category.objects.order_by('name')
+
+    # Productos por categoría (para slots del combo + filas modificables)
+    category_products = {}
+    for item in combo.items.all():
+        if item.category_id:
+            category_products[item.id] = list(
+                Product.objects.filter(category_id=item.category_id, available=True)
+                .order_by('-stock', 'name')
+                .values('id', 'name', 'stock', 'product_type', 'price')
+            )
+
+    # Filas del combo con valor sugerido para el formulario
+    schedule_items = []
+    for item in combo.items.all():
+        if item.is_inventory_item:
+            itype = 'inventory'
+        elif item.is_category_item:
+            itype = 'category'
+        else:
+            itype = 'custom'
+        schedule_items.append({
+            'item': item,
+            'type': itype,
+            'suggested_price': _default_schedule_unit_price(item),
+            'slot_products': category_products.get(item.id, []),
+        })
+
+    products_payload = [
+        {
+            'id': p.id,
+            'name': p.name,
+            'type': p.product_type,
+            'price': float(p.price or 0),
+            'category_id': p.category_id,
+        }
+        for p in inventory_products
+    ]
+    categories_payload = [
+        {
+            'id': c.id,
+            'name': c.name,
+            'default_price': float(_default_unit_cost_for_category(c)),
+            'products': [
+                {
+                    'id': p['id'],
+                    'name': p['name'],
+                    'stock': p['stock'],
+                    'product_type': p['product_type'],
+                    'price': float(p['price'] or 0),
+                }
+                for p in Product.objects.filter(category=c, available=True)
+                .order_by('-stock', 'name')
+                .values('id', 'name', 'stock', 'product_type', 'price')
+            ],
+        }
+        for c in categories
+    ]
+
+    form_error = None
+    if request.method == 'POST':
+        try:
+            unregistered = (request.POST.get('client_mode') or '') == 'guest'
+            selected_client = None
+            client_kind = 'natural'
+            client_name = ''
+            client_email = ''
+            client_phone = ''
+            client_document = ''
+            client_departamento = ''
+            client_city = ''
+
+            if not unregistered:
+                client_id = (request.POST.get('existing_client') or '').strip()
+                if not client_id:
+                    raise ValidationError('Selecciona un cliente registrado o marca cliente sin registro.')
+                selected_client = get_object_or_404(User, id=client_id, is_staff=False)
+                client_name = (selected_client.get_full_name() or selected_client.username or '').strip()
+                client_email = (selected_client.email or '').strip()
+                client_kind = 'existing'
+                profile = getattr(selected_client, 'profile', None)
+                if profile:
+                    client_phone = (profile.phone or '').strip()
+                    client_document = (getattr(profile, 'document_number', '') or '').strip()
+                    if (profile.client_type or '') in ('natural', 'empresa'):
+                        client_kind = profile.client_type
+                    client_departamento = (profile.departamento or '').strip()
+                    client_city = (profile.city or '').strip()
+            else:
+                client_kind = (request.POST.get('client_kind') or 'natural').strip()
+                if client_kind not in ('natural', 'empresa'):
+                    client_kind = 'natural'
+                client_name = (request.POST.get('client_name') or '').strip()
+                client_email = (request.POST.get('client_email') or '').strip()
+                client_phone = (request.POST.get('client_phone') or '').strip()
+                client_document = (request.POST.get('client_document') or '').strip()
+                client_departamento = (request.POST.get('client_departamento') or '').strip()
+                client_city = (request.POST.get('client_city') or '').strip()
+                if not client_name:
+                    raise ValidationError('El nombre del cliente es obligatorio.')
+                if not client_phone:
+                    raise ValidationError('El teléfono del cliente es obligatorio.')
+
+            event_date_raw = (request.POST.get('event_date') or '').strip()
+            if not event_date_raw:
+                raise ValidationError('La fecha del evento es obligatoria.')
+            try:
+                from datetime import datetime as _dt
+                event_date = _dt.strptime(event_date_raw, '%Y-%m-%d').date()
+            except ValueError:
+                raise ValidationError('Fecha del evento inválida.')
+
+            event_time = None
+            event_time_raw = (request.POST.get('event_time') or '').strip()
+            if event_time_raw:
+                try:
+                    from datetime import datetime as _dt
+                    event_time = _dt.strptime(event_time_raw, '%H:%M').time()
+                except ValueError:
+                    try:
+                        from datetime import datetime as _dt
+                        event_time = _dt.strptime(event_time_raw, '%H:%M:%S').time()
+                    except ValueError:
+                        raise ValidationError('Hora del evento inválida.')
+
+            location_text = (request.POST.get('location_text') or '').strip()
+            maps_url = (request.POST.get('maps_url') or '').strip()
+            lat_raw = (request.POST.get('latitude') or '').strip()
+            lng_raw = (request.POST.get('longitude') or '').strip()
+            latitude = longitude = None
+            if lat_raw and lng_raw:
+                try:
+                    latitude = Decimal(lat_raw)
+                    longitude = Decimal(lng_raw)
+                except Exception:
+                    raise ValidationError('Coordenadas del mapa inválidas.')
+
+            if not location_text and not (latitude and longitude):
+                raise ValidationError('Marca la ubicación en el mapa o escribe la dirección.')
+
+            notes = (request.POST.get('notes') or '').strip()
+            extras_data = _parse_booking_extras_from_post(request)
+            combo_lines = _resolve_combo_lines_for_schedule(request, combo)
+
+            package_raw = (request.POST.get('package_price') or '').strip().replace(',', '.')
+            if package_raw == '':
+                package_price = Decimal(str(combo.selling_price or 0))
+            else:
+                try:
+                    package_price = Decimal(package_raw)
+                except Exception:
+                    raise ValidationError('Precio del paquete inválido.')
+            if package_price < 0:
+                raise ValidationError('El precio del paquete no puede ser negativo.')
+
+            from django.db import transaction
+            with transaction.atomic():
+                quote_notes_parts = [
+                    f'Agenda combo: {combo.name}',
+                    f'Fecha evento: {event_date.strftime("%d/%m/%Y")}'
+                    + (f' {event_time.strftime("%H:%M")}' if event_time else ''),
+                ]
+                if location_text:
+                    quote_notes_parts.append(f'Ubicación: {location_text}')
+                if maps_url:
+                    quote_notes_parts.append(f'Maps: {maps_url}')
+                if notes:
+                    quote_notes_parts.append(notes)
+                quote_notes = '\n'.join(quote_notes_parts)
+
+                quotation = Quotation.objects.create(
+                    created_by=request.user,
+                    existing_client=selected_client if not unregistered else None,
+                    client_kind=client_kind if unregistered else (client_kind or 'existing'),
+                    client_name=client_name,
+                    client_email=client_email,
+                    client_phone=client_phone,
+                    client_document=client_document,
+                    client_departamento=client_departamento,
+                    client_city=client_city,
+                    notes=quote_notes,
+                    total=Decimal('0.00'),
+                    quotation_status='generada',
+                    order_status='sin_respuesta',
+                )
+
+                running_total = Decimal('0.00')
+                has_inventory_lines = False
+
+                # Cobro = precio del paquete (los elementos del combo van incluidos a $0)
+                package_line = QuotationItem(
+                    quotation=quotation,
+                    product=None,
+                    custom_name=f'Combo: {combo.name}',
+                    quantity=1,
+                    unit_price=package_price,
+                    list_unit_price=package_price,
+                )
+                package_line.save()
+                running_total += package_line.subtotal
+
+                for line in combo_lines:
+                    product = line['product']
+                    custom_name = ''
+                    if not product:
+                        custom_name = line['custom_name'] or 'Extra'
+                    qi = QuotationItem(
+                        quotation=quotation,
+                        product=product,
+                        custom_name=custom_name,
+                        quantity=line['quantity'],
+                        unit_price=Decimal('0.00'),
+                        list_unit_price=Decimal('0.00'),
+                        rental_price=line.get('rental_price'),
+                    )
+                    qi.save()
+                    if product:
+                        has_inventory_lines = True
+
+                for ex in extras_data:
+                    product = ex['product']
+                    if ex['type'] == 'category' and not product and ex['category']:
+                        product = (
+                            Product.objects.filter(category=ex['category'], available=True)
+                            .order_by('-stock', 'name')
+                            .first()
+                        )
+                    custom_name = ''
+                    if not product:
+                        custom_name = ex['custom_name'] or (
+                            f'Categoría: {ex["category"].name}' if ex['category'] else 'Extra'
+                        )
+                    qi = QuotationItem(
+                        quotation=quotation,
+                        product=product,
+                        custom_name=custom_name,
+                        quantity=ex['quantity'],
+                        unit_price=ex['unit_price'],
+                        list_unit_price=ex['unit_price'],
+                    )
+                    qi.save()
+                    running_total += qi.subtotal
+                    if product:
+                        has_inventory_lines = True
+
+                quotation.total = running_total
+                quotation.save(update_fields=['total', 'updated_at'])
+
+                booking = ComboBooking.objects.create(
+                    combo=combo,
+                    quotation=quotation,
+                    created_by=request.user,
+                    existing_client=selected_client if not unregistered else None,
+                    client_kind=client_kind,
+                    client_name=client_name,
+                    client_email=client_email,
+                    client_phone=client_phone,
+                    client_document=client_document,
+                    client_departamento=client_departamento,
+                    client_city=client_city,
+                    event_date=event_date,
+                    event_time=event_time,
+                    location_text=location_text,
+                    maps_url=maps_url,
+                    latitude=latitude,
+                    longitude=longitude,
+                    package_price=package_price,
+                    notes=notes,
+                    status='agendado',
+                )
+                for ex in extras_data:
+                    ComboBookingExtra.objects.create(
+                        booking=booking,
+                        product=ex['product'],
+                        category=ex['category'],
+                        custom_name=ex['custom_name'],
+                        quantity=ex['quantity'],
+                        unit_price=ex['unit_price'],
+                        notes=ex['notes'],
+                        order=ex['order'],
+                    )
+
+                if quotation.has_rental_items or has_inventory_lines:
+                    RentalContractRequirements.objects.update_or_create(
+                        quotation=quotation,
+                        defaults={
+                            'location_text': location_text,
+                            'maps_url': maps_url,
+                            'latitude': latitude,
+                            'longitude': longitude,
+                        },
+                    )
+
+            messages.success(
+                request,
+                f'Combo «{combo.name}» agendado. Se generó la cotización COT-{quotation.id}.',
+            )
+            return redirect('store:quotation_detail', quotation_id=quotation.id)
+        except ValidationError as e:
+            form_error = str(getattr(e, 'message', e))
+            messages.error(request, form_error)
+        except Exception:
+            logger.exception('Error agendando combo')
+            form_error = 'No se pudo agendar el combo. Revisa los datos e intenta de nuevo.'
+            messages.error(request, form_error)
+
+    return render(request, 'store/inventory/combo_schedule.html', {
+        'combo': combo,
+        'clients': clients,
+        'inventory_products': inventory_products,
+        'categories': categories,
+        'category_products': category_products,
+        'schedule_items': schedule_items,
+        'products_payload_json': json.dumps(products_payload, ensure_ascii=False),
+        'categories_payload_json': json.dumps(categories_payload, ensure_ascii=False),
+        'default_package_price': combo.selling_price,
+        'form_error': form_error,
     })
 
 
@@ -3320,43 +4226,81 @@ def quotation_edit_cancel(request, quotation_id):
 
 @staff_member_required
 def quotation_list(request):
-    """Listado (registro) de cotizaciones realizadas con filtros por cliente, manager y estado."""
-    quotes = Quotation.objects.select_related('existing_client', 'created_by').order_by('-created_at')
-    # Marca cotizaciones con líneas de alquiler (para botón de contrato)
+    """
+    Registro de cotizaciones en tablas separadas:
+    - Confirmadas pendientes de pago
+    - Cerradas / pago recibido (con total cancelado)
+    Solo se usa estado del pedido (sin columna de estado de cotización).
+    """
     from django.db.models import Exists, OuterRef
+
+    quotes = Quotation.objects.select_related('existing_client', 'created_by').order_by('-created_at')
     rental_lines = QuotationItem.objects.filter(
         quotation_id=OuterRef('pk'),
         product__product_type='rental',
     )
     quotes = quotes.annotate(includes_rental=Exists(rental_lines))
-    # Filtro por búsqueda de cliente (nombre o email)
+
     client_search = (request.GET.get('cliente') or '').strip()
     if client_search:
         quotes = quotes.filter(
             Q(client_name__icontains=client_search) | Q(client_email__icontains=client_search)
         )
-    # Filtro por manager (creado por)
+
     manager_id = request.GET.get('manager')
     if manager_id:
         try:
             quotes = quotes.filter(created_by_id=int(manager_id))
         except ValueError:
             pass
-    # Filtro por estado de cotización
-    status_filter = request.GET.get('estado')
-    if status_filter and status_filter in dict(Quotation.QUOTATION_STATUS_CHOICES):
-        quotes = quotes.filter(quotation_status=status_filter)
-    # Usuarios que han creado al menos una cotización (para el dropdown manager)
-    manager_ids = Quotation.objects.exclude(created_by_id__isnull=True).values_list('created_by_id', flat=True).distinct()
+
+    order_filter = (request.GET.get('pedido') or '').strip()
+    if order_filter and order_filter in dict(Quotation.ORDER_STATUS_CHOICES):
+        quotes = quotes.filter(order_status=order_filter)
+
+    paid_statuses = list(_fully_paid_statuses())
+    pending_statuses = ('aceptado', 'esperando_pago')
+    other_statuses = ('sin_respuesta', 'rechazado')
+
+    pending_qs = quotes.filter(order_status__in=pending_statuses)
+    partial_qs = quotes.filter(order_status='pago_parcial')
+    paid_qs = quotes.filter(order_status__in=paid_statuses)
+    other_qs = quotes.filter(order_status__in=other_statuses)
+
+    def _section(qs, *, is_partial=False):
+        items = list(qs)
+        total = sum((Decimal(str(q.total or 0)) for q in items), Decimal('0.00'))
+        data = {
+            'items': items,
+            'total': total,
+            'count': len(items),
+        }
+        if is_partial:
+            paid_sum = sum((q.amount_paid for q in items), Decimal('0.00'))
+            remaining_sum = sum((q.remaining_balance for q in items), Decimal('0.00'))
+            data['paid_total'] = paid_sum
+            data['remaining_total'] = remaining_sum
+        return data
+
+    manager_ids = (
+        Quotation.objects.exclude(created_by_id__isnull=True)
+        .values_list('created_by_id', flat=True)
+        .distinct()
+    )
     managers = User.objects.filter(id__in=manager_ids).order_by('username')
+
     return render(request, 'store/quotation_list.html', {
-        'quotes': quotes,
+        'pending': _section(pending_qs),
+        'partial': _section(partial_qs, is_partial=True),
+        'paid': _section(paid_qs),
+        'other': _section(other_qs),
         'managers': managers,
         'filter_cliente': client_search,
         'filter_manager': manager_id,
-        'filter_estado': status_filter,
-        'quotation_status_choices': Quotation.QUOTATION_STATUS_CHOICES,
+        'filter_pedido': order_filter,
         'order_status_choices': Quotation.ORDER_STATUS_CHOICES,
+        'paid_statuses': paid_statuses,
+        'pending_statuses': list(pending_statuses),
     })
 
 
@@ -3501,25 +4445,20 @@ def sales_list(request):
 
 @staff_member_required
 def finance_list(request):
-    """Listado de gastos y pagos + formularios rápidos."""
+    """
+    Gastos y pagos (caja).
+
+    Fórmula de ingresos:
+      Total pagos = suma de abonos registrados en cotizaciones (QuotationPayment)
+    Gastos:
+      se registran manualmente en FinanceRecord (tipo=gasto)
+    Balance = pagos (cotizaciones) − gastos
+    """
     from .forms import FinanceRecordForm
     from datetime import date as date_cls
 
-    records = FinanceRecord.objects.select_related(
-        'created_by', 'related_quotation'
-    ).order_by('-recorded_at', '-id')
-
     tipo = (request.GET.get('tipo') or '').strip()
-    if tipo in dict(FinanceRecord.TYPE_CHOICES):
-        records = records.filter(record_type=tipo)
-
     q = (request.GET.get('q') or '').strip()
-    if q:
-        records = records.filter(
-            Q(description__icontains=q)
-            | Q(notes__icontains=q)
-            | Q(category__icontains=q)
-        )
 
     form = FinanceRecordForm(initial={'recorded_at': date_cls.today(), 'record_type': 'gasto'})
     if request.method == 'POST':
@@ -3527,6 +4466,10 @@ def finance_list(request):
         if form.is_valid():
             record = form.save(commit=False)
             record.created_by = request.user
+            # Los pagos de clientes ya vienen de cotizaciones; este formulario
+            # queda orientado a gastos / otros movimientos manuales.
+            if not record.record_type:
+                record.record_type = 'gasto'
             record.save()
             _notify_wa_finance_record(record, request=request)
             messages.success(
@@ -3535,10 +4478,108 @@ def finance_list(request):
             )
             return redirect('store:finance_list')
 
-    gastos = FinanceRecord.objects.filter(record_type='gasto').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-    pagos = FinanceRecord.objects.filter(record_type='pago').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    # ── Totales (fórmula) ──────────────────────────────────────────────
+    total_pagos = (
+        QuotationPayment.objects.aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    )
+    total_gastos = (
+        FinanceRecord.objects.filter(record_type='gasto').aggregate(s=Sum('amount'))['s']
+        or Decimal('0.00')
+    )
+    # Pagos manuales residuales (otros ingresos no ligados a cotización)
+    total_pagos_manuales = (
+        FinanceRecord.objects.filter(record_type='pago').aggregate(s=Sum('amount'))['s']
+        or Decimal('0.00')
+    )
+    total_ingresos = total_pagos + total_pagos_manuales
+    balance = total_ingresos - total_gastos
 
-    paginator = Paginator(records, 25)
+    # ── Movimientos unificados ─────────────────────────────────────────
+    movements = []
+
+    if tipo in ('', 'pago'):
+        qp_qs = (
+            QuotationPayment.objects
+            .select_related('quotation', 'created_by')
+            .order_by('-created_at', '-id')
+        )
+        if q:
+            qp_filter = (
+                Q(notes__icontains=q)
+                | Q(quotation__client_name__icontains=q)
+            )
+            q_digits = ''.join(ch for ch in q if ch.isdigit())
+            if q_digits:
+                try:
+                    qp_filter = qp_filter | Q(quotation_id=int(q_digits))
+                except (TypeError, ValueError):
+                    pass
+            qp_qs = qp_qs.filter(qp_filter)
+        for pay in qp_qs[:200]:
+            client = ''
+            if pay.quotation_id:
+                client = pay.quotation.display_client_name or ''
+            movements.append({
+                'source': 'cotizacion',
+                'record_type': 'pago',
+                'recorded_at': pay.created_at.date() if pay.created_at else None,
+                'created_at': pay.created_at,
+                'amount': pay.amount,
+                'description': (
+                    f'Abono COT-{pay.quotation_id}'
+                    + (f' · {client}' if client else '')
+                ),
+                'category_label': pay.get_payment_type_display(),
+                'quotation_id': pay.quotation_id,
+                'receipt_url': pay.proof.url if pay.proof else '',
+                'can_delete': False,
+                'delete_id': None,
+                'notes': pay.notes or '',
+            })
+
+    if tipo in ('', 'gasto', 'pago'):
+        fr_qs = (
+            FinanceRecord.objects
+            .select_related('created_by', 'related_quotation')
+            .order_by('-recorded_at', '-id')
+        )
+        if tipo == 'gasto':
+            fr_qs = fr_qs.filter(record_type='gasto')
+        elif tipo == 'pago':
+            # Solo pagos manuales (otros ingresos); los de cotización ya van arriba
+            fr_qs = fr_qs.filter(record_type='pago')
+        if q:
+            fr_qs = fr_qs.filter(
+                Q(description__icontains=q)
+                | Q(notes__icontains=q)
+                | Q(category__icontains=q)
+            )
+        for r in fr_qs[:200]:
+            movements.append({
+                'source': 'manual',
+                'record_type': r.record_type,
+                'recorded_at': r.recorded_at,
+                'created_at': r.created_at,
+                'amount': r.amount,
+                'description': r.description,
+                'category_label': r.get_category_display(),
+                'quotation_id': r.related_quotation_id,
+                'receipt_url': r.receipt.url if r.receipt else '',
+                'can_delete': True,
+                'delete_id': r.id,
+                'notes': r.notes or '',
+            })
+
+    # Orden: más reciente primero
+    movements.sort(
+        key=lambda m: (
+            m['recorded_at'] or date_cls.min,
+            m['created_at'] or timezone.now(),
+        ),
+        reverse=True,
+    )
+
+    paginator = Paginator(movements, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
 
     return render(request, 'store/manager/finance_list.html', {
@@ -3546,9 +4587,12 @@ def finance_list(request):
         'form': form,
         'filter_tipo': tipo,
         'filter_q': q,
-        'total_gastos': gastos,
-        'total_pagos': pagos,
-        'balance': pagos - gastos,
+        'total_pagos': total_pagos,
+        'total_pagos_manuales': total_pagos_manuales,
+        'total_ingresos': total_ingresos,
+        'total_gastos': total_gastos,
+        'balance': balance,
+        'quotation_payments_count': QuotationPayment.objects.count(),
     })
 
 
@@ -3625,49 +4669,87 @@ def quotation_ajax_set_status(request):
 
 def quotation_detail(request, quotation_id):
     """Vista HTML final de una cotización"""
-    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    q = get_object_or_404(
+        Quotation.objects.select_related(
+            'existing_client', 'created_by', 'combo_booking', 'combo_booking__combo',
+        ),
+        id=quotation_id,
+    )
     items = q.items.select_related('product', 'product__category').all()
     expires_at = q.created_at + timedelta(days=1)
+    try:
+        combo_booking = q.combo_booking
+    except ComboBooking.DoesNotExist:
+        combo_booking = None
 
-    # Subir referencia de pago (solo staff) — parcial o total actualiza el estado
+    # Subir referencia de pago (solo staff) — permite varios abonos parciales
     if request.method == 'POST' and request.user.is_authenticated and request.user.is_staff and request.FILES.get('payment_proof'):
         payment_type = (request.POST.get('payment_type') or 'total').strip().lower()
         if payment_type not in ('parcial', 'total'):
             payment_type = 'total'
 
         previous_status = q.order_status
-        new_status = 'pago_parcial' if payment_type == 'parcial' else 'pago_recibido'
         quote_total = Decimal(str(q.total or 0))
-        partial_amount = None
+        already_paid = q.amount_paid
+        if q.order_status in ('pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'):
+            messages.warning(request, 'Esta cotización ya está pagada por completo.')
+            return redirect('store:quotation_detail', quotation_id=q.id)
+
+        remaining = quote_total - already_paid
+        if remaining < 0:
+            remaining = Decimal('0.00')
+
+        proof_file = request.FILES['payment_proof']
+        payment_amount = None
 
         if payment_type == 'parcial':
             raw_amount = (request.POST.get('partial_payment_amount') or '').strip().replace(',', '.')
             try:
-                partial_amount = Decimal(raw_amount)
+                payment_amount = Decimal(raw_amount)
             except Exception:
-                partial_amount = None
-            if partial_amount is None or partial_amount <= 0:
+                payment_amount = None
+            if payment_amount is None or payment_amount <= 0:
                 messages.error(request, 'Indica el valor del pago parcial (mayor a 0).')
                 return redirect('store:quotation_detail', quotation_id=q.id)
-            if quote_total > 0 and partial_amount >= quote_total:
+            if remaining > 0 and payment_amount > remaining:
+                messages.error(
+                    request,
+                    f'El abono ({payment_amount}) supera el saldo pendiente ({remaining}). '
+                    'Ajusta el monto o registra pago Total.',
+                )
+                return redirect('store:quotation_detail', quotation_id=q.id)
+            if quote_total > 0 and payment_amount >= quote_total and already_paid <= 0:
                 messages.error(
                     request,
                     f'El abono debe ser menor al total ({quote_total}). '
                     'Si ya pagó todo, elige pago Total.',
                 )
                 return redirect('store:quotation_detail', quotation_id=q.id)
-
-        q.payment_proof = request.FILES['payment_proof']
-        q.order_status = new_status
-        update_fields = ['payment_proof', 'order_status', 'updated_at', 'partial_payment_amount']
-        if payment_type == 'parcial':
-            q.partial_payment_amount = partial_amount
+            # Si con este abono se completa el total, tratarlo como cierre
+            if remaining > 0 and payment_amount >= remaining:
+                payment_type = 'total'
+                payment_amount = remaining
         else:
-            q.partial_payment_amount = None
-            if _close_quotation_on_full_payment(q):
-                update_fields.append('quotation_status')
-        q.save(update_fields=update_fields)
+            # Pago total: registra el saldo pendiente (o el total si no hay abonos)
+            payment_amount = remaining if remaining > 0 else quote_total
+            if payment_amount <= 0:
+                payment_amount = quote_total if quote_total > 0 else Decimal('0.01')
 
+        QuotationPayment.objects.create(
+            quotation=q,
+            payment_type='total' if payment_type == 'total' else 'parcial',
+            amount=payment_amount,
+            proof=proof_file,
+            created_by=request.user,
+        )
+        # Campo legado: apunta al último comprobante en storage
+        last_pay = q.payments.order_by('-created_at', '-id').first()
+        if last_pay and last_pay.proof:
+            q.payment_proof = last_pay.proof.name
+            q.save(update_fields=['payment_proof', 'updated_at'])
+        paid_now = q.sync_payment_totals(save=True)
+
+        new_status = q.order_status
         commit_statuses = _stock_commit_statuses()
         if new_status in commit_statuses and (
             previous_status not in commit_statuses or not q.stock_deducted
@@ -3679,21 +4761,22 @@ def quotation_detail(request, quotation_id):
         else:
             _notify_wa_quotation_payment(
                 q,
-                event='pago_parcial' if payment_type == 'parcial' else 'referencia',
+                event='pago_parcial' if new_status == 'pago_parcial' else 'referencia',
                 request=request,
             )
 
-        if payment_type == 'parcial':
+        if new_status == 'pago_parcial':
             messages.success(
                 request,
-                f'Referencia de pago parcial subida por {_wa_money(partial_amount)}. '
+                f'Abono de {_wa_money(payment_amount)} registrado. '
+                f'Total abonado: {_wa_money(paid_now)}. '
                 f'Saldo pendiente: {_wa_money(q.remaining_balance)}. '
-                'Estado actualizado a «Pago parcial».',
+                'Puedes seguir agregando pagos parciales.',
             )
         else:
             messages.success(
                 request,
-                'Pago total registrado. Cotización cerrada como «Pagada». Ya puedes descargar la factura.',
+                'Pago completo registrado. Cotización cerrada como «Pagada». Ya puedes descargar la factura.',
             )
         return redirect('store:quotation_detail', quotation_id=q.id)
 
@@ -3789,6 +4872,10 @@ def quotation_detail(request, quotation_id):
             'is_quote_closed': q.quotation_status == 'cerrada' or q.order_status in _fully_paid_statuses(),
             'can_edit_quote': _quotation_can_edit(q),
             'client_wa': _quotation_client_wa_urls(q, request=request),
+            'payment_records': list(q.payments.select_related('created_by').all()),
+            'amount_paid': q.amount_paid,
+            'remaining_balance': q.remaining_balance,
+            'combo_booking': combo_booking,
         },
     )
 
@@ -3796,6 +4883,8 @@ def quotation_detail(request, quotation_id):
 def _infer_quotation_list_unit_price(product, unit_price) -> Decimal:
     """Infer catalog/tariff list price for a saved quotation line (legacy items)."""
     unit = unit_price if unit_price is not None else Decimal('0.00')
+    if not product:
+        return unit
     if getattr(product, 'is_rental', False) or getattr(product, 'product_type', '') == 'rental':
         tariffs = [
             rp.price
@@ -5225,7 +6314,7 @@ def _quotation_wa_share_message(quote: Quotation, request=None) -> str:
     items = list(quote.items.select_related('product')[:8])
     item_lines = []
     for it in items:
-        pname = getattr(it.product, 'name', 'Producto')
+        pname = getattr(it, 'display_name', None) or getattr(it.product, 'name', None) or 'Producto'
         item_lines.append(f"• {pname} x{it.quantity} — {_wa_money(it.subtotal)}")
     more = quote.items.count() - len(items)
     if more > 0:
@@ -5395,7 +6484,7 @@ def _notify_wa_new_quotation(quote: Quotation, *, source: str = '', request=None
     items = list(quote.items.select_related('product')[:6])
     lines_items = []
     for it in items:
-        name = getattr(it.product, 'name', 'Producto')
+        name = getattr(it, 'display_name', None) or getattr(it.product, 'name', None) or 'Producto'
         lines_items.append(f"• {name} x{it.quantity}")
     more = quote.items.count() - len(items)
     if more > 0:

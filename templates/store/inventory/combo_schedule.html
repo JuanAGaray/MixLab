@@ -1,0 +1,710 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Agendar · {{ combo.name }} - MixLab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+  .sch-card {
+    background:#fff; border:1px solid #e2e8f0; border-radius:1rem;
+    box-shadow:0 6px 18px rgba(15,23,42,.04); margin-bottom:1rem; overflow:hidden;
+  }
+  .sch-card .head {
+    padding:.9rem 1.1rem; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+    font-weight:800; color:#0f172a; display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+  }
+  .sch-card .body { padding:1.1rem; }
+  #schedule-map {
+    height: 320px; width:100%; border-radius:.85rem; border:1px solid #e2e8f0; z-index:1;
+  }
+  .extra-row {
+    border:1px solid #e2e8f0; border-radius:.85rem; padding:.85rem; margin-bottom:.75rem; background:#fafbfc;
+  }
+  .extra-row.is-inventory { border-left:4px solid #7c3aed; }
+  .extra-row.is-category { border-left:4px solid #0369a1; }
+  .extra-row.is-custom { border-left:4px solid #047857; }
+  .totals-box {
+    background:#ecfdf5; border:1px solid #a7f3d0; border-radius:.85rem; padding:.9rem 1rem;
+  }
+  .totals-box .big { font-size:1.35rem; font-weight:800; color:#047857; }
+  .slot-box {
+    border:1px dashed #94a3b8; border-radius:.75rem; padding:.75rem; background:#f8fafc; margin-bottom:.5rem;
+  }
+  .type-badge {
+    font-size:.72rem; font-weight:700; padding:.15rem .5rem; border-radius:999px;
+  }
+  .type-badge.inv { background:#f3e8ff; color:#7c3aed; }
+  .type-badge.cat { background:#e0f2fe; color:#0369a1; }
+  .type-badge.ext { background:#ecfdf5; color:#047857; }
+  .mode-pill {
+    border:1px solid #e2e8f0; border-radius:999px; padding:.45rem .9rem; cursor:pointer;
+    font-weight:700; font-size:.88rem; background:#fff; color:#475569;
+  }
+  .mode-pill.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .guest-fields.d-none, .registered-fields.d-none { display:none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 960px;">
+  <a href="{% url 'store:inventory_dashboard' %}#combos" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a inventario
+  </a>
+  <h1 class="h4 fw-bold mt-2 mb-1">
+    <i class="bi bi-calendar-plus text-success"></i> Agendar combo
+  </h1>
+  <p class="text-muted mb-3">
+    {{ combo.name }} · {{ combo.get_period_type_display }}
+    {% if combo.for_events %}· Eventos{% endif %}
+  </p>
+
+  <form method="post" id="schedule-form" novalidate>
+    {% csrf_token %}
+
+    {# ─── 1. Cliente ─── #}
+    <div class="sch-card">
+      <div class="head">1. Cliente</div>
+      <div class="body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <label class="mode-pill active" id="pill-registered">
+            <input type="radio" name="client_mode" value="registered" class="d-none" checked>
+            Cliente registrado
+          </label>
+          <label class="mode-pill" id="pill-guest">
+            <input type="radio" name="client_mode" value="guest" class="d-none">
+            Sin registro
+          </label>
+        </div>
+
+        <div class="registered-fields" id="registered-fields">
+          <label class="form-label fw-semibold" for="existing_client">Seleccionar cliente *</label>
+          <select class="form-select form-select-lg" name="existing_client" id="existing_client">
+            <option value="">— Elegir cliente —</option>
+            {% for c in clients %}
+            <option value="{{ c.id }}">
+              {{ c.get_full_name|default:c.username }}
+              {% if c.email %} · {{ c.email }}{% endif %}
+              {% if c.profile.phone %} · {{ c.profile.phone }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="guest-fields d-none" id="guest-fields">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Tipo *</label>
+              <select class="form-select" name="client_kind" id="client_kind">
+                <option value="natural">Persona natural</option>
+                <option value="empresa">Empresa</option>
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-semibold" for="client_name">Nombre / razón social *</label>
+              <input type="text" class="form-control" name="client_name" id="client_name" placeholder="Nombre del cliente">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold" for="client_phone">Teléfono *</label>
+              <input type="text" class="form-control" name="client_phone" id="client_phone" placeholder="300…">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold" for="client_email">Correo</label>
+              <input type="email" class="form-control" name="client_email" id="client_email">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold" for="client_document">Documento</label>
+              <input type="text" class="form-control" name="client_document" id="client_document">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="client_departamento">Departamento</label>
+              <select class="form-select" name="client_departamento" id="client_departamento">
+                <option value="">— Departamento —</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="client_city">Ciudad</label>
+              <select class="form-select" name="client_city" id="client_city">
+                <option value="">— Ciudad —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── 2. Fecha y ubicación ─── #}
+    <div class="sch-card">
+      <div class="head">2. Fecha y ubicación en el mapa</div>
+      <div class="body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="event_date">Fecha del evento *</label>
+            <input type="date" class="form-control form-control-lg" name="event_date" id="event_date" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="event_time">Hora (opcional)</label>
+            <input type="time" class="form-control form-control-lg" name="event_time" id="event_time">
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-primary w-100" id="btn-my-location">
+              <i class="bi bi-geo-alt"></i> Usar mi ubicación
+            </button>
+          </div>
+        </div>
+
+        <label class="form-label fw-semibold">Marca el punto en el mapa *</label>
+        <div id="schedule-map" class="mb-3"></div>
+        <input type="hidden" name="latitude" id="latitude" value="">
+        <input type="hidden" name="longitude" id="longitude" value="">
+
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold" for="location_text">Dirección / referencia</label>
+            <input type="text" class="form-control" name="location_text" id="location_text"
+                   placeholder="Ej: Calle 30 #…, salón de eventos…">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" for="maps_url">Enlace Maps</label>
+            <input type="url" class="form-control" name="maps_url" id="maps_url" placeholder="Se genera al marcar">
+          </div>
+        </div>
+        <div class="form-text mt-1">Haz clic en el mapa o arrastra el pin. También puedes escribir la dirección.</div>
+      </div>
+    </div>
+
+    {# ─── 3. Contenido del combo ─── #}
+    <div class="sch-card">
+      <div class="head">
+        <span>3. Incluido en el combo</span>
+        <span class="small text-muted fw-normal">{{ combo.items_count }} elemento(s)</span>
+      </div>
+      <div class="body">
+        <p class="small text-muted mb-3">
+          Los elementos <span class="badge text-bg-secondary">Obligatorios</span> quedan fijos.
+          Los <span class="badge text-bg-warning">Modificables</span> permiten cambiar cantidad y tipo/producto.
+          El cobro es el <strong>precio del paquete</strong> (abajo); los ítems van incluidos (el costo de compra es solo referencia).
+        </p>
+
+        {% for row in schedule_items %}
+        {% with item=row.item %}
+        <div class="extra-row mb-3 schedule-item {% if item.is_modifiable %}is-custom{% else %}border-secondary{% endif %}"
+             data-item-id="{{ item.id }}"
+             data-modifiable="{{ item.is_modifiable|yesno:'1,0' }}"
+             data-base-type="{{ row.type }}">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              {% if row.type == 'inventory' %}
+              <span class="type-badge inv">Producto</span>
+              {% elif row.type == 'category' %}
+              <span class="type-badge cat">Categoría</span>
+              {% else %}
+              <span class="type-badge ext">Extra</span>
+              {% endif %}
+              <strong>{{ item.display_name }}</strong>
+              {% if item.is_modifiable %}
+              <span class="badge text-bg-warning">Modificable</span>
+              {% else %}
+              <span class="badge text-bg-secondary">Obligatorio</span>
+              {% endif %}
+            </div>
+            <div class="small text-muted">Línea: <strong class="text-success">Incluido</strong></div>
+          </div>
+
+          {% if item.is_modifiable %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Tipo</label>
+              <select class="form-select form-select-sm js-item-type" name="item_{{ item.id }}_type">
+                <option value="inventory" {% if row.type == 'inventory' %}selected{% endif %}>Producto</option>
+                <option value="category" {% if row.type == 'category' %}selected{% endif %}>Categoría</option>
+                <option value="custom" {% if row.type == 'custom' %}selected{% endif %}>Extra libre</option>
+              </select>
+            </div>
+            <div class="col-md-4 js-type-inventory {% if row.type != 'inventory' %}d-none{% endif %}">
+              <label class="form-label small mb-1">Producto</label>
+              <select class="form-select form-select-sm js-item-product" name="item_{{ item.id }}_product">
+                <option value="">— Producto —</option>
+                {% for p in inventory_products %}
+                <option value="{{ p.id }}"
+                        {% if item.product_id == p.id %}selected{% endif %}>
+                  {{ p.name }} ({{ p.get_product_type_display }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4 js-type-category {% if row.type != 'category' %}d-none{% endif %}">
+              <label class="form-label small mb-1">Categoría</label>
+              <select class="form-select form-select-sm js-item-category" name="item_{{ item.id }}_category">
+                <option value="">— Categoría —</option>
+                {% for c in categories %}
+                <option value="{{ c.id }}" {% if item.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4 js-type-custom {% if row.type != 'custom' %}d-none{% endif %}">
+              <label class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" name="item_{{ item.id }}_custom_name"
+                     value="{{ item.custom_name }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Cantidad</label>
+              <input type="number" min="1" class="form-control form-control-sm js-item-qty"
+                     name="item_{{ item.id }}_qty" value="{{ item.quantity }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Costo (ref.)</label>
+              <div class="form-control form-control-sm bg-light text-muted">
+                {{ item.unit_cost|pesos_colombianos }}
+              </div>
+              <div class="form-text">Costo de compra · no se cobra aquí</div>
+            </div>
+          </div>
+          <div class="js-type-category mt-2 {% if row.type != 'category' %}d-none{% endif %}">
+            <label class="form-label small mb-1">
+              Productos concretos
+              <span class="text-muted fw-normal">(elige uno por cada unidad)</span>
+            </label>
+            <div class="row g-2 js-slot-picks" data-name="item_{{ item.id }}_slot_product"></div>
+            <div class="form-text">Si dejas alguno en «Auto», se asigna un disponible de la categoría.</div>
+          </div>
+          {% else %}
+          {# Obligatorio: campos fijos + slot de categoría si aplica #}
+          <input type="hidden" name="item_{{ item.id }}_type" value="{{ row.type }}">
+          <input type="hidden" name="item_{{ item.id }}_qty" value="{{ item.quantity }}" class="js-item-qty">
+          {% if row.type == 'inventory' %}
+          <input type="hidden" name="item_{{ item.id }}_product" value="{{ item.product_id }}">
+          <div class="small text-muted">Cant. {{ item.quantity }} · Incluido en el paquete · Costo ref. {{ item.unit_cost|pesos_colombianos }}</div>
+          {% elif row.type == 'category' %}
+          <input type="hidden" name="item_{{ item.id }}_category" value="{{ item.category_id }}">
+          <label class="form-label small mb-1">
+            Elegir {{ item.quantity }} producto{{ item.quantity|pluralize:"s" }} de la categoría
+          </label>
+          <div class="row g-2 js-slot-picks" data-name="item_{{ item.id }}_slot_product" data-fixed-qty="{{ item.quantity }}"></div>
+          <div class="small text-muted mt-1">Cant. fija {{ item.quantity }} · Incluido en el paquete · Costo ref. {{ item.unit_cost|pesos_colombianos }}</div>
+          {% else %}
+          <input type="hidden" name="item_{{ item.id }}_custom_name" value="{{ item.custom_name }}">
+          <div class="small text-muted">Cant. {{ item.quantity }} · Incluido en el paquete · Costo ref. {{ item.unit_cost|pesos_colombianos }}</div>
+          {% endif %}
+          {% endif %}
+        </div>
+        {% endwith %}
+        {% empty %}
+        <p class="text-muted mb-0">Este combo no tiene elementos definidos.</p>
+        {% endfor %}
+
+        <div class="row g-3 mt-2">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="package_price">Precio del paquete *</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text">$</span>
+              <input type="number" step="0.01" min="0" class="form-control" name="package_price"
+                     id="package_price" value="{{ default_package_price }}" required>
+            </div>
+            <div class="form-text">
+              Precio cobrado del combo. Los elementos de arriba van incluidos en este monto
+              (el costo de compra es solo referencia). Los extras de la sección 4 se suman aparte.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── 4. Variantes adicionales ─── #}
+    <div class="sch-card">
+      <div class="head">
+        <span>4. Variantes / extras adicionales</span>
+        <span class="small text-muted fw-normal">Si el cliente pide más cosas</span>
+      </div>
+      <div class="body">
+        <p class="small text-muted mb-3">
+          Agrega productos, categorías o extras con precio propio. Se suman al paquete en la cotización.
+        </p>
+        <div id="extras-list"></div>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-product">
+            <i class="bi bi-box-seam"></i> Producto
+          </button>
+          <button type="button" class="btn btn-outline-info btn-sm" id="btn-add-category">
+            <i class="bi bi-tags"></i> Categoría
+          </button>
+          <button type="button" class="btn btn-outline-success btn-sm" id="btn-add-custom">
+            <i class="bi bi-plus-circle"></i> Extra libre
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {# ─── 5. Notas y total ─── #}
+    <div class="sch-card">
+      <div class="head">5. Notas y confirmar</div>
+      <div class="body">
+        <label class="form-label fw-semibold" for="notes">Notas internas</label>
+        <textarea class="form-control mb-3" name="notes" id="notes" rows="2"
+                  placeholder="Observaciones del evento, logística…"></textarea>
+
+        <div class="totals-box d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <div class="small text-muted fw-semibold text-uppercase">Total estimado</div>
+            <div class="big" id="grand-total">$0</div>
+            <div class="small text-muted">Paquete + extras adicionales</div>
+          </div>
+          <button type="submit" class="btn btn-success btn-lg px-4">
+            <i class="bi bi-calendar-check"></i> Agendar y crear cotización
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function() {
+  var PRODUCTS = {{ products_payload_json|safe }};
+  var CATEGORIES = {{ categories_payload_json|safe }};
+
+  // —— Cliente mode ——
+  var pillReg = document.getElementById('pill-registered');
+  var pillGuest = document.getElementById('pill-guest');
+  var regFields = document.getElementById('registered-fields');
+  var guestFields = document.getElementById('guest-fields');
+  var clientSelect = document.getElementById('existing_client');
+
+  function setMode(mode) {
+    var isGuest = mode === 'guest';
+    pillReg.classList.toggle('active', !isGuest);
+    pillGuest.classList.toggle('active', isGuest);
+    regFields.classList.toggle('d-none', isGuest);
+    guestFields.classList.toggle('d-none', !isGuest);
+    pillReg.querySelector('input').checked = !isGuest;
+    pillGuest.querySelector('input').checked = isGuest;
+    if (isGuest) clientSelect.removeAttribute('required');
+    else clientSelect.setAttribute('required', 'required');
+  }
+  pillReg.addEventListener('click', function() { setMode('registered'); });
+  pillGuest.addEventListener('click', function() { setMode('guest'); });
+
+  // —— DPA Colombia ——
+  var selDepto = document.getElementById('client_departamento');
+  var selCity = document.getElementById('client_city');
+  if (selDepto && selCity) {
+    fetch("{% static 'data/colombia_dpa.json' %}")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var deptos = data.departamentos || [];
+        selDepto.innerHTML = '<option value="">— Departamento —</option>';
+        deptos.forEach(function(d) {
+          var opt = document.createElement('option');
+          opt.value = d.nombre;
+          opt.textContent = d.nombre;
+          selDepto.appendChild(opt);
+        });
+        selDepto.addEventListener('change', function() {
+          var found = deptos.find(function(d) { return d.nombre === selDepto.value; });
+          var ciudades = (found && found.ciudades) || [];
+          selCity.innerHTML = '<option value="">— Ciudad —</option>';
+          ciudades.forEach(function(c) {
+            var name = typeof c === 'string' ? c : (c.nombre || c);
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            selCity.appendChild(opt);
+          });
+        });
+      }).catch(function() {});
+  }
+
+  // —— Mapa Leaflet ——
+  var latInput = document.getElementById('latitude');
+  var lngInput = document.getElementById('longitude');
+  var mapsUrl = document.getElementById('maps_url');
+  var locText = document.getElementById('location_text');
+  var defaultCenter = [10.3997, -75.5144];
+  var map = L.map('schedule-map').setView(defaultCenter, 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  var marker = null;
+
+  function setPin(lat, lng, zoom) {
+    lat = Number(lat); lng = Number(lng);
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    latInput.value = lat.toFixed(7);
+    lngInput.value = lng.toFixed(7);
+    mapsUrl.value = 'https://www.google.com/maps?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
+    if (marker) {
+      marker.setLatLng([lat, lng]);
+    } else {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', function(e) {
+        var p = e.target.getLatLng();
+        setPin(p.lat, p.lng);
+        reverseGeocode(p.lat, p.lng);
+      });
+    }
+    if (zoom) map.setView([lat, lng], zoom);
+    else map.panTo([lat, lng]);
+  }
+
+  function reverseGeocode(lat, lng) {
+    fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng, {
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.display_name && !locText.value) {
+          locText.value = data.display_name;
+        }
+      }).catch(function() {});
+  }
+
+  map.on('click', function(e) {
+    setPin(e.latlng.lat, e.latlng.lng, Math.max(map.getZoom(), 15));
+    reverseGeocode(e.latlng.lat, e.latlng.lng);
+  });
+
+  document.getElementById('btn-my-location').addEventListener('click', function() {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      setPin(pos.coords.latitude, pos.coords.longitude, 16);
+      reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+    }, function() {
+      alert('No se pudo obtener la ubicación.');
+    }, { enableHighAccuracy: true, timeout: 10000 });
+  });
+
+  setTimeout(function() { map.invalidateSize(); }, 200);
+
+  // —— Ítems del combo + total ——
+  var extrasList = document.getElementById('extras-list');
+  var packageInput = document.getElementById('package_price');
+
+  function money(n) {
+    try {
+      return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
+    } catch (e) {
+      return '$' + Math.round(n || 0);
+    }
+  }
+
+  function recalcTotal() {
+    var pkg = parseFloat(packageInput.value || '0') || 0;
+    var extras = 0;
+    extrasList.querySelectorAll('.extra-row').forEach(function(row) {
+      var qEl = row.querySelector('[name="extra_quantity"]');
+      var pEl = row.querySelector('[name="extra_unit_price"]');
+      if (!qEl || !pEl) return;
+      var q = parseFloat(qEl.value || '1') || 1;
+      var p = parseFloat(pEl.value || '0') || 0;
+      extras += q * p;
+    });
+    document.getElementById('grand-total').textContent = money(pkg + extras);
+  }
+
+  packageInput.addEventListener('input', recalcTotal);
+
+  function fillSlotOptions(slotSelect, categoryId) {
+    if (!slotSelect) return;
+    var cat = CATEGORIES.find(function(c) { return String(c.id) === String(categoryId); });
+    var products = (cat && cat.products) || [];
+    var prev = slotSelect.value;
+    slotSelect.innerHTML = '<option value="">— Auto (disponible) —</option>';
+    products.forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + ' · stock ' + (p.stock || 0);
+      opt.dataset.price = p.price || 0;
+      if (String(prev) === String(p.id)) opt.selected = true;
+      slotSelect.appendChild(opt);
+    });
+  }
+
+  function rebuildSlotPicks(row) {
+    var container = row.querySelector('.js-slot-picks');
+    if (!container) return;
+    var name = container.getAttribute('data-name');
+    if (!name) return;
+    var qtyInput = row.querySelector('.js-item-qty');
+    var fixedQty = parseInt(container.getAttribute('data-fixed-qty') || '0', 10) || 0;
+    var qty = fixedQty > 0
+      ? fixedQty
+      : Math.max(1, parseInt((qtyInput && qtyInput.value) || '1', 10) || 1);
+    if (qty > 50) qty = 50; // tope UI
+
+    var catSel = row.querySelector('.js-item-category');
+    var categoryId = catSel
+      ? catSel.value
+      : ((row.querySelector('input[name$="_category"]') || {}).value || '');
+
+    var prevValues = [];
+    container.querySelectorAll('select').forEach(function(sel) {
+      prevValues.push(sel.value || '');
+    });
+
+    container.innerHTML = '';
+    for (var i = 0; i < qty; i++) {
+      var wrap = document.createElement('div');
+      wrap.className = 'col-md-4 col-lg-3';
+      var label = document.createElement('label');
+      label.className = 'form-label small mb-0 text-muted';
+      label.textContent = 'Unidad ' + (i + 1);
+      var sel = document.createElement('select');
+      sel.className = 'form-select form-select-sm js-item-slot';
+      sel.name = name;
+      fillSlotOptions(sel, categoryId);
+      if (prevValues[i]) {
+        sel.value = prevValues[i];
+      }
+      sel.addEventListener('change', function() {
+        recalcTotal();
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(sel);
+      container.appendChild(wrap);
+    }
+  }
+
+  document.querySelectorAll('.schedule-item').forEach(function(row) {
+    var typeSel = row.querySelector('.js-item-type');
+    var qty = row.querySelector('.js-item-qty');
+    var prodSel = row.querySelector('.js-item-product');
+    var catSel = row.querySelector('.js-item-category');
+
+    function showTypePanels(t) {
+      row.querySelectorAll('.js-type-inventory, .js-type-category, .js-type-custom').forEach(function(el) {
+        el.classList.add('d-none');
+      });
+      row.querySelectorAll('.js-type-' + (t === 'inventory' ? 'inventory' : t === 'category' ? 'category' : 'custom')).forEach(function(panel) {
+        panel.classList.remove('d-none');
+      });
+      if (t === 'category') rebuildSlotPicks(row);
+    }
+
+    // Inicializar selects de categoría según cantidad
+    var baseType = row.getAttribute('data-base-type');
+    var currentType = typeSel ? typeSel.value : baseType;
+    if (currentType === 'category' || row.querySelector('.js-slot-picks')) {
+      rebuildSlotPicks(row);
+    }
+
+    if (typeSel) {
+      typeSel.addEventListener('change', function() {
+        showTypePanels(typeSel.value);
+        recalcTotal();
+      });
+    }
+    if (qty) qty.addEventListener('input', function() {
+      var t = typeSel ? typeSel.value : baseType;
+      if (t === 'category' || (!typeSel && row.querySelector('.js-slot-picks'))) {
+        rebuildSlotPicks(row);
+      }
+      recalcTotal();
+    });
+    if (prodSel) {
+      prodSel.addEventListener('change', function() {
+        recalcTotal();
+      });
+    }
+    if (catSel) {
+      catSel.addEventListener('change', function() {
+        rebuildSlotPicks(row);
+        recalcTotal();
+      });
+    }
+  });
+
+  // —— Extras dinámicos ——
+  function productOptionsHtml(selected) {
+    var html = '<option value="">— Producto —</option>';
+    PRODUCTS.forEach(function(p) {
+      html += '<option value="' + p.id + '"' + (String(selected) === String(p.id) ? ' selected' : '') + '>'
+        + p.name + ' (' + p.type + ') · $' + Math.round(p.price || 0) + '</option>';
+    });
+    return html;
+  }
+  function categoryOptionsHtml(selected) {
+    var html = '<option value="">— Categoría —</option>';
+    CATEGORIES.forEach(function(c) {
+      html += '<option value="' + c.id + '"' + (String(selected) === String(c.id) ? ' selected' : '') + '>'
+        + c.name + '</option>';
+    });
+    return html;
+  }
+
+  function addExtraRow(type) {
+    var row = document.createElement('div');
+    row.className = 'extra-row is-' + (type === 'inventory' ? 'inventory' : type === 'category' ? 'category' : 'custom');
+    var badge = type === 'inventory' ? 'Producto' : type === 'category' ? 'Categoría' : 'Extra libre';
+    var badgeCls = type === 'inventory' ? 'inv' : type === 'category' ? 'cat' : 'ext';
+
+    var middle = '';
+    if (type === 'inventory') {
+      middle = '<div class="col-md-5"><label class="form-label small mb-1">Producto</label>'
+        + '<select class="form-select form-select-sm extra-product" name="extra_product_id">' + productOptionsHtml() + '</select></div>'
+        + '<input type="hidden" name="extra_category_id" value="">'
+        + '<input type="hidden" name="extra_custom_name" value="">';
+    } else if (type === 'category') {
+      middle = '<div class="col-md-5"><label class="form-label small mb-1">Categoría</label>'
+        + '<select class="form-select form-select-sm" name="extra_category_id">' + categoryOptionsHtml() + '</select></div>'
+        + '<input type="hidden" name="extra_product_id" value="">'
+        + '<input type="hidden" name="extra_custom_name" value="">';
+    } else {
+      middle = '<div class="col-md-5"><label class="form-label small mb-1">Nombre</label>'
+        + '<input type="text" class="form-control form-control-sm" name="extra_custom_name" placeholder="Ej: Meseros, decoración…"></div>'
+        + '<input type="hidden" name="extra_product_id" value="">'
+        + '<input type="hidden" name="extra_category_id" value="">';
+    }
+
+    row.innerHTML =
+      '<input type="hidden" name="extra_type" value="' + type + '">'
+      + '<div class="d-flex justify-content-between align-items-center mb-2">'
+      +   '<span class="type-badge ' + badgeCls + '">' + badge + '</span>'
+      +   '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-extra"><i class="bi bi-trash"></i></button>'
+      + '</div>'
+      + '<div class="row g-2 align-items-end">'
+      +   middle
+      +   '<div class="col-md-2"><label class="form-label small mb-1">Cant.</label>'
+      +     '<input type="number" min="1" value="1" class="form-control form-control-sm" name="extra_quantity"></div>'
+      +   '<div class="col-md-3"><label class="form-label small mb-1">Precio unit.</label>'
+      +     '<input type="number" step="0.01" min="0" value="0" class="form-control form-control-sm" name="extra_unit_price"></div>'
+      +   '<div class="col-md-2"><label class="form-label small mb-1">Nota</label>'
+      +     '<input type="text" class="form-control form-control-sm" name="extra_notes" placeholder="Opcional"></div>'
+      + '</div>';
+
+    extrasList.appendChild(row);
+    row.querySelector('.btn-remove-extra').addEventListener('click', function() {
+      row.remove();
+      recalcTotal();
+    });
+    row.querySelector('[name="extra_quantity"]').addEventListener('input', recalcTotal);
+    row.querySelector('[name="extra_unit_price"]').addEventListener('input', recalcTotal);
+
+    var prodSel = row.querySelector('.extra-product');
+    if (prodSel) {
+      prodSel.addEventListener('change', function() {
+        var found = PRODUCTS.find(function(p) { return String(p.id) === String(prodSel.value); });
+        if (found) {
+          row.querySelector('[name="extra_unit_price"]').value = found.price || 0;
+          recalcTotal();
+        }
+      });
+    }
+    recalcTotal();
+  }
+
+  document.getElementById('btn-add-product').addEventListener('click', function() { addExtraRow('inventory'); });
+  document.getElementById('btn-add-category').addEventListener('click', function() { addExtraRow('category'); });
+  document.getElementById('btn-add-custom').addEventListener('click', function() { addExtraRow('custom'); });
+
+  recalcTotal();
+})();
+</script>
+{% endblock %}

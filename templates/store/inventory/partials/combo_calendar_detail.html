@@ -1,0 +1,39 @@
+<div class="fw-semibold mb-2">Detalle por día · {{ cal_month_label }}</div>
+{% for row in month_event_rows %}
+<div class="day-block" id="dia-{{ row.date|date:'Y-m-d' }}">
+  <div class="day-title">
+    {{ row.date|date:"l d/m/Y" }}
+    <span class="badge text-bg-light text-dark border ms-1">{{ row.bookings|length }}</span>
+  </div>
+  {% for b in row.bookings %}
+  <div class="event-row">
+    <div class="event-meta">
+      {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}—{% endif %}
+    </div>
+    <div class="flex-grow-1">
+      <div class="fw-semibold">{{ b.client_name|default:"Cliente" }}</div>
+      <div class="small text-muted">
+        <i class="bi bi-geo-alt"></i>
+        {% if b.location_text %}
+          {{ b.location_text }}
+        {% else %}
+          Sin lugar registrado
+        {% endif %}
+        {% if b.maps_url %}
+          · <a href="{{ b.maps_url }}" target="_blank" rel="noopener">Maps</a>
+        {% endif %}
+      </div>
+      <div class="small mt-1">
+        <button type="button" class="btn btn-link btn-sm p-0"
+                data-booking-id="{{ b.id }}">Ver detalle</button>
+        {% if b.quotation_id %}
+        · <a href="{% url 'store:quotation_detail' quotation_id=b.quotation_id %}">COT-{{ b.quotation_id }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% empty %}
+<div class="text-muted small">No hay eventos en este mes.</div>
+{% endfor %}

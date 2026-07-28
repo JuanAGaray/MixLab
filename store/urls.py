@@ -114,9 +114,25 @@ urlpatterns = [
     path('inventory/categories/create/', views.inventory_create_category, name='inventory_create_category'),
     path('inventory/combos/create/', views.inventory_combo_create, name='inventory_combo_create'),
     path('inventory/combos/<int:combo_id>/', views.inventory_combo_detail, name='inventory_combo_detail'),
+    path(
+        'inventory/combos/<int:combo_id>/calendar-ajax/',
+        views.inventory_combo_calendar_ajax,
+        name='inventory_combo_calendar_ajax',
+    ),
     path('inventory/combos/<int:combo_id>/edit/', views.inventory_combo_edit, name='inventory_combo_edit'),
     path('inventory/combos/<int:combo_id>/delete/', views.inventory_combo_delete, name='inventory_combo_delete'),
     path('inventory/combos/<int:combo_id>/toggle-available/', views.inventory_combo_toggle_available, name='inventory_combo_toggle_available'),
+    path('inventory/combos/<int:combo_id>/agendar/', views.inventory_combo_schedule, name='inventory_combo_schedule'),
+    path(
+        'inventory/combos/bookings/<int:booking_id>/editar/',
+        views.inventory_combo_booking_edit,
+        name='inventory_combo_booking_edit',
+    ),
+    path(
+        'inventory/combos/bookings/<int:booking_id>/detalle-ajax/',
+        views.inventory_combo_booking_detail_ajax,
+        name='inventory_combo_booking_detail_ajax',
+    ),
     path('inventory/combos/ajax/product-price/', views.inventory_combo_product_price, name='inventory_combo_product_price'),
 
     # Calculadora de dilución (admin)

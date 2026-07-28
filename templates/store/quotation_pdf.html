@@ -589,15 +589,19 @@
             <table style="width:100%; border-collapse:collapse;">
               <tr>
                 <td style="width:48px; padding:0 8px 0 0; border:0; vertical-align:middle;">
-                  {% if it.product.image %}
-                  <img class="thumb" src="{{ it.product.image.url }}" alt="{{ it.product.name }}">
+                  {% if it.product and it.product.image %}
+                  <img class="thumb" src="{{ it.product.image.url }}" alt="{{ it.display_name }}">
                   {% else %}
                   <div class="thumb-empty">N/A</div>
                   {% endif %}
                 </td>
                 <td style="padding:0; border:0; vertical-align:middle;">
-                  <p class="product-name">{{ it.product.name }}</p>
+                  <p class="product-name">{{ it.display_name }}</p>
+                  {% if it.product and it.product.category %}
                   <p class="product-meta">{{ it.product.category.name }}</p>
+                  {% elif not it.product %}
+                  <p class="product-meta">Paquete / extra</p>
+                  {% endif %}
                   {% if it.discount_unit and it.discount_unit > 0 %}
                   <span class="discount-tag">
                     Desc. {{ it.discount_unit|pesos_colombianos }}

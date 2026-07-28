@@ -87,9 +87,128 @@
       </div>
     </div>
     <div class="col-6 col-md-3">
+      <div class="rd-kpi {% if total_combo %}warn{% endif %}">
+        <div class="label">En combos</div>
+        <div class="value">{{ total_combo }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
       <div class="rd-kpi {% if pending_count %}warn{% endif %}">
         <div class="label">Solicitudes abiertas</div>
         <div class="value">{{ pending_count }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rd-kpi {% if overdue_count %}danger{% else %}ok{% endif %}">
+        <div class="label">Cobros / saldos urgentes</div>
+        <div class="value">{{ overdue_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rd-card mb-4">
+    <div class="rd-card-head">
+      <h5><i class="bi bi-people me-1"></i> Estado por cliente</h5>
+      <span class="small text-muted">Próximo pago · máquina · tiempo de alquiler</span>
+    </div>
+    <div class="rd-card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 rd-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Máquina(s)</th>
+              <th>Estado máquina</th>
+              <th>Tiempo / periodo</th>
+              <th>Pagos</th>
+              <th>Próximo pago</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in client_status_rows %}
+            <tr class="st-{{ row.order_status }} {% if row.next_payment.urgent and not row.is_future_booking %}table-warning{% endif %}">
+              <td>
+                <div class="fw-semibold">{{ row.client_name }}</div>
+                <div class="small text-muted">
+                  COT-{{ row.quote.id }}
+                  {% if row.client_phone %} · {{ row.client_phone }}{% endif %}
+                </div>
+                {% if row.is_combo_event %}
+                <span class="badge text-bg-light text-dark border mt-1">Combo agendado</span>
+                {% endif %}
+              </td>
+              <td>
+                {% for m in row.machines %}
+                <div class="fw-semibold" style="font-size:.88rem;">
+                  {{ m.name|truncatechars:36 }}{% if m.quantity > 1 %} ×{{ m.quantity }}{% endif %}
+                </div>
+                <div class="small text-muted">{{ m.period_label }}{% if m.serial %} · S/N {{ m.serial }}{% endif %}</div>
+                {% empty %}
+                <span class="text-muted">—</span>
+                {% endfor %}
+              </td>
+              <td>
+                <span class="badge text-bg-{{ row.machine_status_color }}">{{ row.machine_status }}</span>
+                <div class="small text-muted mt-1">{{ row.order_status_display }}</div>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ row.period_display }}</div>
+                <div class="small text-muted">{{ row.date_caption }} {{ row.start_date|date:"d/m/Y" }}</div>
+              </td>
+              <td>
+                <div class="small">Total <strong>{{ row.total|pesos_colombianos }}</strong></div>
+                <div class="small text-success">Abonado {{ row.amount_paid|pesos_colombianos }}</div>
+                {% if row.remaining > 0 %}
+                <div class="small text-warning fw-semibold">Saldo {{ row.remaining|pesos_colombianos }}</div>
+                {% else %}
+                <div class="small text-muted">Saldo $0</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.next_payment %}
+                  {% if row.next_payment.is_balance %}
+                  <div class="fw-semibold text-warning">{{ row.next_payment.label }}</div>
+                  <div class="small">{{ row.next_payment.amount|pesos_colombianos }}</div>
+                  {% else %}
+                  <div class="fw-semibold {% if row.next_payment.urgent %}text-danger{% endif %}">
+                    {{ row.next_payment.date|date:"d/m/Y" }}
+                  </div>
+                  <div class="small text-muted">{{ row.next_payment.label }}</div>
+                  {% endif %}
+                  {% if row.next_payment.urgent %}
+                  <span class="badge text-bg-danger mt-1">Urgente</span>
+                  {% endif %}
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end text-nowrap">
+                <a href="{% url 'store:quotation_detail' quotation_id=row.quote.id %}" class="btn btn-sm btn-outline-dark">Ver COT</a>
+                {% if row.booking_id %}
+                <a href="{% url 'store:inventory_combo_booking_edit' booking_id=row.booking_id %}?next=/rentals/"
+                   class="btn btn-sm btn-outline-primary" title="Corregir fecha del evento">
+                  <i class="bi bi-calendar-event"></i> Fecha
+                </a>
+                {% endif %}
+                {% if row.remaining > 0 %}
+                <a href="{% url 'store:quotation_detail' quotation_id=row.quote.id %}#payment-proof-section"
+                   class="btn btn-sm btn-warning">Abono</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">
+                No hay alquileres activos por cliente en este momento.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -97,7 +216,9 @@
   <div class="rd-card mb-4">
     <div class="rd-card-head">
       <h5><i class="bi bi-hdd-stack me-1"></i> Máquinas · stock</h5>
-      <span class="small text-muted">Disponible = stock − unidades en cotizaciones ya alquiladas</span>
+      <span class="small text-muted">
+        Disponible = stock − en alquiler (cotiz.) − en combos activos
+      </span>
     </div>
     <div class="rd-card-body p-0">
       <div class="table-responsive">
@@ -107,6 +228,7 @@
               <th>Máquina</th>
               <th class="text-center">Stock</th>
               <th class="text-center">En alquiler</th>
+              <th class="text-center">En combos</th>
               <th class="text-center">Quedan disponibles</th>
               <th></th>
             </tr>
@@ -129,6 +251,15 @@
               <td class="text-center"><span class="badge badge-stock rounded-pill px-3">{{ row.stock }}</span></td>
               <td class="text-center"><span class="badge badge-out rounded-pill px-3">{{ row.out }}</span></td>
               <td class="text-center">
+                {% if row.combo_reserved %}
+                <span class="badge text-bg-warning rounded-pill px-3" title="Fijo: {{ row.combo_fixed }} · Categoría: {{ row.combo_category }}">
+                  {{ row.combo_reserved }}
+                </span>
+                {% else %}
+                <span class="text-muted">0</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
                 <span class="badge {% if row.available %}badge-avail{% else %}badge-out{% endif %} rounded-pill px-3">
                   {{ row.available }}
                 </span>
@@ -138,7 +269,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-4">No hay máquinas de alquiler registradas.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4">No hay máquinas de alquiler registradas.</td></tr>
             {% endfor %}
           </tbody>
         </table>

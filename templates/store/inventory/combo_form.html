@@ -29,6 +29,7 @@
     background: #fafbfc;
   }
   .item-row.is-inventory { border-left: 4px solid #7c3aed; }
+  .item-row.is-category { border-left: 4px solid #0369a1; }
   .item-row.is-custom { border-left: 4px solid #047857; }
   .totals-box {
     background: #ecfdf5;
@@ -48,6 +49,7 @@
     border-radius: 999px;
   }
   .type-badge.inv { background: #f3e8ff; color: #7c3aed; }
+  .type-badge.cat { background: #e0f2fe; color: #0369a1; }
   .type-badge.ext { background: #ecfdf5; color: #047857; }
 </style>
 {% endblock %}
@@ -131,30 +133,36 @@
     <div class="combo-card">
       <div class="head d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span>2. Elementos del combo</span>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
           <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-inventory">
-            <i class="bi bi-box-seam"></i> Del inventario
+            <i class="bi bi-box-seam"></i> Producto
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-info" id="btn-add-category">
+            <i class="bi bi-tags"></i> Categoría
           </button>
           <button type="button" class="btn btn-sm btn-outline-success" id="btn-add-custom">
-            <i class="bi bi-plus-circle"></i> Extra (sin inventario)
+            <i class="bi bi-plus-circle"></i> Extra
           </button>
         </div>
       </div>
       <div class="body">
         <p class="small text-muted mb-3">
-          <strong>Inventario:</strong> el costo se precarga con la tarifa del producto (puedes ajustarlo).
-          <strong>Extra:</strong> defines nombre y costo (mesas, personal, decoración, etc.).
+          <strong>Producto:</strong> ítem fijo; el costo usa el <em>costo de compra</em>.
+          <strong>Categoría:</strong> al confirmar el pedido se toma un producto disponible de esa categoría.
+          <strong>Extra:</strong> nombre y costo propios (sin inventario).
+          Usa el interruptor <strong>Modificable</strong> si al agendar se podrá cambiar cantidad, producto/tipo o valor;
+          si está apagado el elemento es <strong>obligatorio</strong> (fijo).
         </p>
         <div id="items-container"></div>
         <div id="items-empty" class="text-center text-muted py-4 border border-dashed rounded-3">
-          Aún no hay elementos. Agrega máquinas del inventario o extras.
+          Aún no hay elementos. Agrega producto, categoría o extra.
         </div>
       </div>
     </div>
 
     <div class="totals-box mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
-        <div class="small text-muted">Suma de elementos</div>
+        <div class="small text-muted">Suma de costos</div>
         <div class="big" id="items-subtotal">$0</div>
       </div>
       <div class="text-end">
@@ -176,6 +184,7 @@
 <script>
 (function () {
   var PRODUCTS = {{ inventory_products_json|safe }};
+  var CATEGORIES = {{ categories_json|safe }};
   var EXISTING = {{ existing_items_json|safe }};
   var container = document.getElementById('items-container');
   var emptyEl = document.getElementById('items-empty');
@@ -193,6 +202,14 @@
     id = String(id);
     for (var i = 0; i < PRODUCTS.length; i++) {
       if (String(PRODUCTS[i].id) === id) return PRODUCTS[i];
+    }
+    return null;
+  }
+
+  function categoryById(id) {
+    id = String(id);
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      if (String(CATEGORIES[i].id) === id) return CATEGORIES[i];
     }
     return null;
   }
@@ -222,21 +239,18 @@
       html += '<optgroup label="' + groups[type] + '">';
       opts.forEach(function (p) {
         html += '<option value="' + p.id + '"' + (String(p.id) === String(selectedId) ? ' selected' : '') + '>' +
-          p.name + ' · ' + money(p.default_cost) + '</option>';
+          p.name + ' · costo ' + money(p.default_cost) + '</option>';
       });
       html += '</optgroup>';
     });
     return html;
   }
 
-  function buildTariffOptions(product, selectedId) {
-    if (!product || !product.tariffs || !product.tariffs.length) {
-      return '<option value="">Sin tarifas (usa precio catálogo)</option>';
-    }
-    var html = '<option value="">Tarifa sugerida</option>';
-    product.tariffs.forEach(function (t) {
-      html += '<option value="' + t.id + '"' + (String(t.id) === String(selectedId) ? ' selected' : '') + '>' +
-        t.label + ' · ' + money(t.price) + '</option>';
+  function buildCategoryOptions(selectedId) {
+    var html = '<option value="">— Elegir categoría —</option>';
+    CATEGORIES.forEach(function (c) {
+      html += '<option value="' + c.id + '"' + (String(c.id) === String(selectedId) ? ' selected' : '') + '>' +
+        c.name + ' (' + c.product_count + ' disp.) · costo ~' + money(c.default_cost) + '</option>';
     });
     return html;
   }
@@ -244,42 +258,75 @@
   function addRow(data) {
     data = data || { type: 'inventory' };
     var idx = rowIndex++;
-    var isInv = data.type !== 'custom';
+    var type = data.type || 'inventory';
+    if (type !== 'inventory' && type !== 'category' && type !== 'custom') {
+      type = data.category_id ? 'category' : (data.product_id ? 'inventory' : 'custom');
+    }
     var row = document.createElement('div');
-    row.className = 'item-row ' + (isInv ? 'is-inventory' : 'is-custom');
+    row.className = 'item-row is-' + (type === 'inventory' ? 'inventory' : (type === 'category' ? 'category' : 'custom'));
     row.dataset.idx = idx;
 
-    var typeInput = '<input type="hidden" name="item_type_' + idx + '" value="' + (isInv ? 'inventory' : 'custom') + '">';
-    var header = '<div class="d-flex justify-content-between align-items-center mb-2">' +
-      '<span class="type-badge ' + (isInv ? 'inv' : 'ext') + '">' + (isInv ? 'Inventario' : 'Extra') + '</span>' +
+    var badgeClass = type === 'inventory' ? 'inv' : (type === 'category' ? 'cat' : 'ext');
+    var badgeLabel = type === 'inventory' ? 'Producto' : (type === 'category' ? 'Categoría' : 'Extra');
+    var typeInput = '<input type="hidden" name="item_type_' + idx + '" value="' + type + '">';
+    var modChecked = data.is_modifiable ? ' checked' : '';
+    var header = '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">' +
+      '<div class="d-flex flex-wrap align-items-center gap-2">' +
+        '<span class="type-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+        '<div class="form-check form-switch mb-0">' +
+          '<input class="form-check-input" type="checkbox" role="switch" id="item_modifiable_' + idx + '" name="item_modifiable_' + idx + '"' + modChecked + '>' +
+          '<label class="form-check-label small fw-semibold" for="item_modifiable_' + idx + '" title="Si está activo, al agendar se puede cambiar cantidad, producto y valor">' +
+            'Modificable' +
+          '</label>' +
+        '</div>' +
+        '<span class="small text-muted js-mod-hint">' + (data.is_modifiable ? 'Se podrá ajustar al agendar' : 'Obligatorio (fijo al agendar)') + '</span>' +
+      '</div>' +
       '<button type="button" class="btn btn-sm btn-outline-danger js-remove"><i class="bi bi-trash"></i></button>' +
       '</div>';
 
     var body = '';
-    if (isInv) {
+    if (type === 'inventory') {
       var p = productById(data.product_id);
       body =
         '<div class="row g-2">' +
-          '<div class="col-md-5">' +
+          '<div class="col-md-6">' +
             '<label class="form-label small mb-1">Producto</label>' +
             '<select class="form-select js-product" name="item_product_' + idx + '">' + buildProductOptions(data.product_id) + '</select>' +
-          '</div>' +
-          '<div class="col-md-3">' +
-            '<label class="form-label small mb-1">Tarifa</label>' +
-            '<select class="form-select js-tariff" name="item_tariff_' + idx + '">' + buildTariffOptions(p, data.tariff_id) + '</select>' +
           '</div>' +
           '<div class="col-md-2">' +
             '<label class="form-label small mb-1">Cant.</label>' +
             '<input type="number" class="form-control js-qty" name="item_qty_' + idx + '" min="1" value="' + (data.quantity || 1) + '">' +
           '</div>' +
           '<div class="col-md-2">' +
-            '<label class="form-label small mb-1">Costo unit.</label>' +
+            '<label class="form-label small mb-1">Costo compra</label>' +
             '<input type="number" class="form-control js-cost" name="item_cost_' + idx + '" min="0" step="0.01" value="' + (data.unit_cost != null ? data.unit_cost : (p ? p.default_cost : 0)) + '">' +
           '</div>' +
-          '<div class="col-md-9">' +
+          '<div class="col-md-2 text-end small pt-4">Línea: <strong class="js-line">$0</strong></div>' +
+          '<div class="col-12">' +
             '<input type="text" class="form-control form-control-sm" name="item_notes_' + idx + '" placeholder="Notas (opcional)" value="' + (data.notes || '').replace(/"/g, '&quot;') + '">' +
           '</div>' +
-          '<div class="col-md-3 text-end small pt-2">Línea: <strong class="js-line">$0</strong></div>' +
+        '</div>';
+    } else if (type === 'category') {
+      var c = categoryById(data.category_id);
+      body =
+        '<div class="row g-2">' +
+          '<div class="col-md-6">' +
+            '<label class="form-label small mb-1">Categoría</label>' +
+            '<select class="form-select js-category" name="item_category_' + idx + '">' + buildCategoryOptions(data.category_id) + '</select>' +
+            '<div class="form-text">Al confirmar el pedido se asigna un producto disponible de esta categoría.</div>' +
+          '</div>' +
+          '<div class="col-md-2">' +
+            '<label class="form-label small mb-1">Cant.</label>' +
+            '<input type="number" class="form-control js-qty" name="item_qty_' + idx + '" min="1" value="' + (data.quantity || 1) + '">' +
+          '</div>' +
+          '<div class="col-md-2">' +
+            '<label class="form-label small mb-1">Costo compra</label>' +
+            '<input type="number" class="form-control js-cost" name="item_cost_' + idx + '" min="0" step="0.01" value="' + (data.unit_cost != null ? data.unit_cost : (c ? c.default_cost : 0)) + '">' +
+          '</div>' +
+          '<div class="col-md-2 text-end small pt-4">Línea: <strong class="js-line">$0</strong></div>' +
+          '<div class="col-12">' +
+            '<input type="text" class="form-control form-control-sm" name="item_notes_' + idx + '" placeholder="Notas (opcional)" value="' + (data.notes || '').replace(/"/g, '&quot;') + '">' +
+          '</div>' +
         '</div>';
     } else {
       body =
@@ -293,7 +340,7 @@
             '<input type="number" class="form-control js-qty" name="item_qty_' + idx + '" min="1" value="' + (data.quantity || 1) + '">' +
           '</div>' +
           '<div class="col-md-2">' +
-            '<label class="form-label small mb-1">Costo unit.</label>' +
+            '<label class="form-label small mb-1">Costo</label>' +
             '<input type="number" class="form-control js-cost" name="item_cost_' + idx + '" min="0" step="0.01" value="' + (data.unit_cost != null ? data.unit_cost : 0) + '">' +
           '</div>' +
           '<div class="col-md-2 text-end small pt-4">Línea: <strong class="js-line">$0</strong></div>' +
@@ -313,32 +360,31 @@
     row.querySelectorAll('.js-qty, .js-cost').forEach(function (el) {
       el.addEventListener('input', recalc);
     });
+    var modToggle = row.querySelector('#item_modifiable_' + idx);
+    var modHint = row.querySelector('.js-mod-hint');
+    if (modToggle && modHint) {
+      modToggle.addEventListener('change', function () {
+        modHint.textContent = modToggle.checked
+          ? 'Se podrá ajustar al agendar'
+          : 'Obligatorio (fijo al agendar)';
+      });
+    }
 
-    if (isInv) {
+    if (type === 'inventory') {
       var productSel = row.querySelector('.js-product');
-      var tariffSel = row.querySelector('.js-tariff');
       var costInput = row.querySelector('.js-cost');
-
-      function applyProduct(fillCost) {
-        var p = productById(productSel.value);
-        tariffSel.innerHTML = buildTariffOptions(p, '');
-        if (fillCost && p) {
-          costInput.value = p.default_cost;
-        }
+      productSel.addEventListener('change', function () {
+        var p2 = productById(productSel.value);
+        if (p2) costInput.value = p2.default_cost;
         recalc();
-      }
-
-      productSel.addEventListener('change', function () { applyProduct(true); });
-      tariffSel.addEventListener('change', function () {
-        var p = productById(productSel.value);
-        if (!p) return;
-        var tid = tariffSel.value;
-        if (!tid) {
-          costInput.value = p.default_cost;
-        } else {
-          var t = (p.tariffs || []).find(function (x) { return String(x.id) === String(tid); });
-          if (t) costInput.value = t.price;
-        }
+      });
+    }
+    if (type === 'category') {
+      var catSel = row.querySelector('.js-category');
+      var costInputC = row.querySelector('.js-cost');
+      catSel.addEventListener('change', function () {
+        var c2 = categoryById(catSel.value);
+        if (c2) costInputC.value = c2.default_cost;
         recalc();
       });
     }
@@ -348,6 +394,9 @@
 
   document.getElementById('btn-add-inventory').addEventListener('click', function () {
     addRow({ type: 'inventory', quantity: 1, unit_cost: 0 });
+  });
+  document.getElementById('btn-add-category').addEventListener('click', function () {
+    addRow({ type: 'category', quantity: 1, unit_cost: 0 });
   });
   document.getElementById('btn-add-custom').addEventListener('click', function () {
     addRow({ type: 'custom', quantity: 1, unit_cost: 0, custom_name: '' });

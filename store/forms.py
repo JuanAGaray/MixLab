@@ -727,7 +727,7 @@ class PaymentMethodForm(forms.ModelForm):
 
 
 class FinanceRecordForm(forms.ModelForm):
-    """Formulario para registrar gastos y pagos."""
+    """Formulario para registrar gastos (y otros ingresos manuales)."""
 
     class Meta:
         model = FinanceRecord
@@ -744,7 +744,10 @@ class FinanceRecordForm(forms.ModelForm):
         widgets = {
             'record_type': forms.Select(attrs={'class': 'form-select'}),
             'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
-            'description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Compra de insumos / Abono cliente'}),
+            'description': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Compra de insumos / Arriendo',
+            }),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'recorded_at': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'related_quotation': forms.Select(attrs={'class': 'form-select'}),
@@ -761,6 +764,12 @@ class FinanceRecordForm(forms.ModelForm):
             'receipt': 'Comprobante / foto',
             'notes': 'Notas',
         }
+        help_texts = {
+            'record_type': (
+                'Los abonos de clientes se toman automáticamente de las cotizaciones. '
+                'Usa «Gasto» para egresos. «Pago» solo para otros ingresos manuales.'
+            ),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -768,6 +777,10 @@ class FinanceRecordForm(forms.ModelForm):
         self.fields['related_quotation'].queryset = qs
         self.fields['related_quotation'].required = False
         self.fields['related_quotation'].empty_label = '— Sin cotización —'
+        self.fields['record_type'].choices = [
+            ('gasto', 'Gasto'),
+            ('pago', 'Otro ingreso (manual)'),
+        ]
 
 
 STAFF_ROLE_CHOICES = [

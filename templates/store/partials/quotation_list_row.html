@@ -1,0 +1,163 @@
+{% load store_tags %}
+<tr data-quotation-id="{{ q.id }}" data-section="{{ section }}">
+  <td>
+    <a class="quote-id-link" href="{% url 'store:quotation_detail' quotation_id=q.id %}" title="Abrir cotización">
+      COT-{{ q.id }}
+    </a>
+  </td>
+  <td class="text-muted">{{ q.created_at|date:"Y-m-d" }}</td>
+  <td class="client-cell">
+    <div class="client-name" title="{{ q.display_client_name|default:'' }}">{{ q.display_client_name|default:"—" }}</div>
+    {% if q.client_phone or q.display_client_phone %}
+    <div class="client-phone">
+      <span class="phone-text">{{ q.display_client_phone|default:q.client_phone }}</span>
+      <a class="btn-wa"
+         href="{{ q.display_client_phone|default:q.client_phone|whatsapp_url }}"
+         target="_blank"
+         rel="noopener noreferrer"
+         title="Abrir WhatsApp">
+        <i class="bi bi-whatsapp"></i>
+      </a>
+    </div>
+    {% else %}
+    <div class="phone-text">Sin teléfono</div>
+    {% endif %}
+  </td>
+  <td>
+    {% if q.created_by %}
+      <span class="creator-name">{{ q.created_by.username }}</span>
+    {% else %}
+      <span class="text-muted">—</span>
+    {% endif %}
+  </td>
+  <td>
+    <select class="form-select form-select-sm order-status-select"
+            style="min-width: 128px;"
+            data-has-payment-proof="{% if q.payment_proof %}1{% else %}0{% endif %}">
+      {% for value, label in order_status_choices %}
+        <option value="{{ value }}"
+                {% if value == q.order_status %}selected{% endif %}
+                {% if not q.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+          {{ label }}
+        </option>
+      {% endfor %}
+    </select>
+  </td>
+  <td class="text-end fw-semibold col-total">
+    {{ q.total|pesos_colombianos }}
+    {% if section == 'partial' %}
+    <div class="partial-meta">
+      <div>Abonado: <span class="paid">{{ q.amount_paid|pesos_colombianos }}</span></div>
+      <div>Saldo: <span class="due">{{ q.remaining_balance|pesos_colombianos }}</span></div>
+    </div>
+    {% endif %}
+  </td>
+  <td class="text-end col-actions">
+    <div class="dropdown list-actions">
+      <button type="button"
+              class="btn btn-actions dropdown-toggle"
+              data-bs-toggle="dropdown"
+              data-bs-auto-close="outside"
+              data-bs-popper-config='{"strategy":"fixed"}'
+              aria-expanded="false">
+        Acciones
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_detail' quotation_id=q.id %}">
+            <i class="bi bi-eye"></i> Ver detalle
+          </a>
+        </li>
+
+        {% if section != 'paid' %}
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_edit' quotation_id=q.id %}">
+            <i class="bi bi-pencil-square"></i> Modificar
+          </a>
+        </li>
+        {% endif %}
+
+        {% if q.display_client_phone or q.client_phone %}
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <form method="post" action="{% url 'store:quotation_wa_share' quotation_id=q.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="dropdown-item">
+              <i class="bi bi-whatsapp text-success"></i> Enviar cotización por WA
+            </button>
+          </form>
+        </li>
+        {% if section == 'pending' or section == 'partial' %}
+        <li>
+          <form method="post" action="{% url 'store:quotation_wa_payment_reminder' quotation_id=q.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="dropdown-item">
+              <i class="bi bi-cash-coin text-success"></i> Recordatorio de pago
+            </button>
+          </form>
+        </li>
+        {% endif %}
+        {% endif %}
+
+        {% if q.order_status == 'esperando_pago' or q.order_status == 'pago_parcial' %}
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_detail' quotation_id=q.id %}#payment-proof-section">
+            <i class="bi bi-upload"></i> Subir comprobante
+          </a>
+        </li>
+        {% endif %}
+
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=1" target="_blank" rel="noopener noreferrer">
+            <i class="bi bi-file-earmark-pdf"></i> PDF con IVA
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=0" target="_blank" rel="noopener noreferrer">
+            <i class="bi bi-file-earmark-text"></i> PDF sin IVA
+          </a>
+        </li>
+
+        {% if section == 'paid' %}
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_invoice_download' quotation_id=q.id %}?iva=1">
+            <i class="bi bi-receipt-cutoff"></i> Descargar factura
+          </a>
+        </li>
+        {% endif %}
+
+        {% if q.includes_rental %}
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_rental_contract' quotation_id=q.id %}" target="_blank" rel="noopener noreferrer">
+            <i class="bi bi-pen"></i> Contrato de alquiler
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item" href="{% url 'store:quotation_client_onboarding_manage' quotation_id=q.id %}">
+            <i class="bi bi-phone"></i> Remitir requisitos
+          </a>
+        </li>
+        {% endif %}
+
+        <li><hr class="dropdown-divider"></li>
+        {% if q.order_status == 'esperando_pago' %}
+        <li>
+          <span class="dropdown-item disabled" title="No se puede eliminar mientras está esperando pago">
+            <i class="bi bi-trash"></i> Eliminar (bloqueado)
+          </span>
+        </li>
+        {% else %}
+        <li>
+          <a class="dropdown-item text-danger" href="{% url 'store:quotation_delete' quotation_id=q.id %}">
+            <i class="bi bi-trash"></i> Eliminar
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </td>
+</tr>

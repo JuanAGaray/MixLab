@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar fecha del evento · MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 560px;">
+  <a href="{% if next_url %}{{ next_url }}{% elif quote %}{% url 'store:quotation_detail' quotation_id=quote.id %}{% else %}{% url 'store:inventory_combo_detail' combo.id %}{% endif %}"
+     class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver
+  </a>
+
+  <h1 class="h4 fw-bold mt-2 mb-1">Editar fecha del evento</h1>
+  <p class="text-muted small mb-3">
+    Corrige la fecha si te equivocaste al agendar.
+    {% if quote %} · COT-{{ quote.id }}{% endif %}
+  </p>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="small text-muted">Combo</div>
+      <div class="fw-semibold mb-2">{{ combo.name }}</div>
+      <div class="small text-muted">Cliente</div>
+      <div class="fw-semibold">{{ booking.client_name|default:"—" }}</div>
+      {% if booking.client_phone %}
+      <div class="small text-muted mt-1">{{ booking.client_phone }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="event_date">Fecha del evento</label>
+          <input type="date" class="form-control" id="event_date" name="event_date"
+                 value="{{ booking.event_date|date:'Y-m-d' }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="event_time">Hora (opcional)</label>
+          <input type="time" class="form-control" id="event_time" name="event_time"
+                 value="{% if booking.event_time %}{{ booking.event_time|time:'H:i' }}{% endif %}">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="status">Estado de la agenda</label>
+          <select class="form-select" id="status" name="status">
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if booking.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="notes">Notas del evento</label>
+          <textarea class="form-control" id="notes" name="notes" rows="3">{{ booking.notes }}</textarea>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Guardar fecha
+          </button>
+          <a class="btn btn-outline-secondary"
+             href="{% if next_url %}{{ next_url }}{% elif quote %}{% url 'store:quotation_detail' quotation_id=quote.id %}{% else %}{% url 'store:inventory_combo_detail' combo.id %}{% endif %}">
+            Cancelar
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

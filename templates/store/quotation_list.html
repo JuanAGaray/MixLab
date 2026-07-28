@@ -3,7 +3,74 @@
 
 {% block content %}
 <style>
-  .quotes-table { font-size: 0.875rem; }
+  .quotes-page .section-card {
+    border: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    margin-bottom: 1.25rem;
+    /* visible: si no, el menú Acciones se corta */
+    overflow: visible;
+  }
+  .quotes-page .section-card .table-responsive {
+    /* overflow-x:auto recorta los dropdowns; usamos visible */
+    overflow: visible;
+  }
+  @media (max-width: 991.98px) {
+    .quotes-page .section-card .table-responsive {
+      overflow-x: auto;
+    }
+  }
+  .quotes-page .section-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.95rem 1.15rem;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .quotes-page .section-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    margin: 0 0 0.15rem;
+  }
+  .quotes-page .section-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .quotes-page .section-total .label {
+    display: block;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    text-align: right;
+  }
+  .quotes-page .section-total .value {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+    text-align: right;
+    line-height: 1.2;
+  }
+  .quotes-page .section-total.is-paid .value { color: #15803d; }
+  .quotes-page .section-total.is-pending .value { color: #b45309; }
+  .quotes-page .section-total.is-partial .value { color: #0369a1; }
+  .quotes-page .section-totals-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .quotes-table { font-size: 0.875rem; margin: 0; }
   .quotes-table thead th {
     font-size: 0.72rem;
     font-weight: 700;
@@ -11,38 +78,33 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     border-bottom-width: 1px;
-    padding: 0.5rem 0.5rem !important;
+    padding: 0.5rem 0.65rem !important;
     white-space: nowrap;
     vertical-align: middle !important;
+    background: #f8fafc;
   }
   .quotes-table td {
     vertical-align: middle !important;
-    padding: 0.4rem 0.5rem !important;
+    padding: 0.45rem 0.65rem !important;
   }
   .quotes-table .col-actions {
     width: 1%;
     white-space: nowrap;
-    padding-left: 0.25rem !important;
   }
   .quotes-table .col-total {
     white-space: nowrap;
     min-width: 92px;
-    padding-right: 0.65rem !important;
   }
   .quotes-table .quote-id-link {
     color: #0f172a;
     text-decoration: none;
     font-weight: 700;
-    font-size: 0.875rem;
   }
   .quotes-table .quote-id-link:hover {
     color: #0369a1;
     text-decoration: underline;
   }
-  .quotes-table .client-cell {
-    min-width: 170px;
-    max-width: 230px;
-  }
+  .quotes-table .client-cell { min-width: 170px; max-width: 240px; }
   .quotes-table .client-name {
     font-weight: 650;
     font-size: 0.875rem;
@@ -57,9 +119,8 @@
     align-items: center;
     gap: 0.3rem;
     margin-top: 0.1rem;
-    line-height: 1;
   }
-  .quotes-table .client-phone .phone-text {
+  .quotes-table .phone-text {
     font-size: 0.74rem;
     color: #64748b;
   }
@@ -74,119 +135,10 @@
     color: #fff !important;
     border: 0;
     font-size: 0.7rem;
-    line-height: 1;
     text-decoration: none;
-    flex: 0 0 auto;
   }
-  .quotes-table .btn-wa:hover {
-    background: #1ebe57;
-    color: #fff !important;
-  }
-  .quotes-table .btn-wa-action {
-    background: #25d366 !important;
-    color: #fff !important;
-    border: 0;
-  }
-  .quotes-table .btn-wa-action:hover {
-    background: #1ebe57 !important;
-    color: #fff !important;
-  }
-  .quotes-table .btn-wa-reminder {
-    background: #064e3b !important;
-    color: #a7f3d0 !important;
-    border: 1px solid #10b981;
-  }
-  .quotes-table .btn-wa-reminder:hover {
-    background: #065f46 !important;
-    color: #fff !important;
-  }
-  .quotes-table .creator-name {
-    font-size: 0.8rem;
-    color: #475569;
-  }
-  .quotes-table .row-actions {
-    display: inline-flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.18rem;
-    background-color: #0f172a;
-    padding: 0.15rem 0.28rem;
-    border-radius: 999px;
-  }
-  .quotes-table .row-actions .dropdown {
-    display: inline-flex;
-    position: relative;
-  }
-  .quotes-table .row-actions .btn-pdf-menu::after {
-    display: none;
-  }
-  .quotes-table .row-actions .dropdown-menu {
-    min-width: 11rem;
-    font-size: 0.82rem;
-    border-radius: 0.65rem;
-    padding: 0.3rem;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
-  }
-  .quotes-table .row-actions .dropdown-item {
-    border-radius: 0.45rem;
-    padding: 0.4rem 0.65rem;
-  }
-  .quotes-table .row-actions .btn {
-    padding: 0;
-    font-size: 0.72rem;
-    border-radius: 999px;
-    line-height: 1;
-    border: 1px solid transparent;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.45rem;
-    height: 1.45rem;
-    min-width: 1.45rem;
-    min-height: 1.45rem;
-  }
-  .quotes-table .row-actions .btn-light,
-  .quotes-table .row-actions a.btn-light {
-    background: #ffffff !important;
-    color: #0f172a !important;
-    border-color: #e2e8f0 !important;
-  }
-  .quotes-table .row-actions .btn-light:hover,
-  .quotes-table .row-actions a.btn-light:hover {
-    background: #f8fafc !important;
-    color: #020617 !important;
-  }
-  .quotes-table .row-actions .btn-outline-warning,
-  .quotes-table .row-actions a.btn-outline-warning {
-    background: #f59e0b !important;
-    color: #0f172a !important;
-    border-color: #d97706 !important;
-  }
-  .quotes-table .row-actions .btn-outline-warning:hover,
-  .quotes-table .row-actions a.btn-outline-warning:hover {
-    background: #fbbf24 !important;
-  }
-  .quotes-table .row-actions .text-danger,
-  .quotes-table .row-actions a.text-danger,
-  .quotes-table .row-actions .btn-quote-delete {
-    background: #fee2e2 !important;
-    color: #b91c1c !important;
-    border-color: #fecaca !important;
-  }
-  .quotes-table .row-actions .text-danger:hover,
-  .quotes-table .row-actions a.text-danger:hover {
-    background: #fecaca !important;
-    color: #991b1b !important;
-  }
-  .quotes-table .row-actions .btn-quote-delete:disabled,
-  .quotes-table .row-actions .btn-quote-delete[aria-disabled="true"] {
-    background: #94a3b8 !important;
-    color: #ffffff !important;
-    border-color: #64748b !important;
-    opacity: 1 !important;
-    pointer-events: none;
-  }
+  .quotes-table .btn-wa:hover { background: #1ebe57; color: #fff !important; }
+  .quotes-table .creator-name { font-size: 0.8rem; color: #475569; }
   .quotes-table .form-select.form-select-sm {
     padding: 0.15rem 1.6rem 0.15rem 0.45rem;
     font-size: 0.76rem;
@@ -194,44 +146,129 @@
     height: 1.7rem;
     line-height: 1.2;
   }
-  .quotes-table tbody tr.quote-status-generada { background-color: #f3f4f6; }
-  .quotes-table tbody tr.quote-status-enviada { background-color: #e0f2fe; }
-  .quotes-table tbody tr.quote-status-vencida { background-color: #fef3c7; }
-  .quotes-table tbody tr.quote-status-cancelada { background-color: #fee2e2; }
-  .quotation-status-select.status-generada { background-color: #e5e7eb; border-color: #d1d5db; }
-  .quotation-status-select.status-enviada { background-color: #dbeafe; border-color: #93c5fd; }
-  .quotation-status-select.status-vencida { background-color: #fef9c3; border-color: #facc15; }
-  .quotation-status-select.status-cancelada { background-color: #fee2e2; border-color: #f87171; }
+  .quotes-table tfoot td {
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    font-weight: 700;
+  }
+  .quotes-table tfoot .total-label {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .quotes-table tfoot .total-value {
+    font-size: 0.95rem;
+    white-space: nowrap;
+    min-width: 7.5rem;
+  }
+  .quotes-table tfoot .total-value.is-paid { color: #15803d; }
+  .quotes-table tfoot .total-value.is-pending { color: #b45309; }
+  .quotes-table tfoot .total-value.is-partial { color: #0369a1; }
+  .quotes-table .partial-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.25;
+  }
+  .quotes-table .partial-meta .paid { color: #0369a1; font-weight: 700; }
+  .quotes-table .partial-meta .due { color: #b45309; font-weight: 700; }
+
+  /* List actions dropdown */
+  .quotes-table .list-actions .btn-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #fff !important;
+    border: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.35rem 0.75rem;
+  }
+  .quotes-table .list-actions .btn-actions:hover,
+  .quotes-table .list-actions .btn-actions:focus {
+    background: #020617;
+    color: #fff !important;
+  }
+  .quotes-table .list-actions .btn-actions::after {
+    margin-left: 0.15rem;
+  }
+  .quotes-table .list-actions .dropdown-menu {
+    min-width: 14rem;
+    font-size: 0.84rem;
+    border-radius: 0.75rem;
+    padding: 0.35rem;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+    border: 1px solid #e2e8f0;
+    z-index: 1080;
+  }
+  .quotes-table .list-actions .dropdown-item {
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .quotes-table .list-actions .dropdown-item form {
+    margin: 0;
+    width: 100%;
+  }
+  .quotes-table .list-actions .dropdown-item button {
+    background: none;
+    border: 0;
+    padding: 0;
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: inherit;
+    font: inherit;
+  }
+  .quotes-table .list-actions .dropdown-item.text-danger,
+  .quotes-table .list-actions .dropdown-item .text-danger {
+    color: #b91c1c !important;
+  }
+  .quotes-table .list-actions .dropdown-item:disabled,
+  .quotes-table .list-actions .dropdown-item.disabled {
+    opacity: 0.55;
+    pointer-events: none;
+  }
 </style>
-<div class="container py-4">
+
+<div class="container py-4 quotes-page">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h3 class="mb-0">Registro de cotizaciones</h3>
     <a class="btn btn-outline-primary" href="{% url 'store:quotation' %}?nueva=1">Nueva cotización</a>
   </div>
 
-  <!-- Filtros -->
   <div class="card mb-3">
     <div class="card-body py-3">
       <form method="get" action="{% url 'store:quotation_list' %}" class="row g-3 align-items-end flex-wrap">
         <div class="col-12 col-md-4 col-lg-3">
           <label for="id_cliente" class="form-label small text-muted mb-1">Cliente</label>
-          <input type="text" name="cliente" id="id_cliente" class="form-control form-control-sm" placeholder="Nombre o correo..." value="{{ filter_cliente|default:'' }}">
+          <input type="text" name="cliente" id="id_cliente" class="form-control form-control-sm"
+                 placeholder="Nombre o correo..." value="{{ filter_cliente|default:'' }}">
         </div>
         <div class="col-12 col-md-4 col-lg-3">
-          <label for="id_manager" class="form-label small text-muted mb-1">Creado por (manager)</label>
+          <label for="id_manager" class="form-label small text-muted mb-1">Creado por</label>
           <select name="manager" id="id_manager" class="form-select form-select-sm">
             <option value="">Todos</option>
             {% for u in managers %}
-              <option value="{{ u.id }}" {% if filter_manager == u.id|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+              <option value="{{ u.id }}" {% if filter_manager == u.id|stringformat:'s' %}selected{% endif %}>
+                {{ u.get_full_name|default:u.username }}
+              </option>
             {% endfor %}
           </select>
         </div>
         <div class="col-12 col-md-4 col-lg-3">
-          <label for="id_estado" class="form-label small text-muted mb-1">Estado cotización</label>
-          <select name="estado" id="id_estado" class="form-select form-select-sm">
+          <label for="id_pedido" class="form-label small text-muted mb-1">Estado del pedido</label>
+          <select name="pedido" id="id_pedido" class="form-select form-select-sm">
             <option value="">Todos</option>
-            {% for value, label in quotation_status_choices %}
-              <option value="{{ value }}" {% if filter_estado == value %}selected{% endif %}>{{ label }}</option>
+            {% for value, label in order_status_choices %}
+              <option value="{{ value }}" {% if filter_pedido == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -245,177 +282,208 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-body">
-      <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle quotes-table mb-0">
-          <thead>
-            <tr>
-              <th style="min-width:84px;">#</th>
-              <th style="min-width:96px;">Fecha</th>
-              <th>Cliente</th>
-              <th style="min-width:100px;">Hecha por</th>
-              <th style="min-width:128px;">Estado cotización</th>
-              <th style="min-width:136px;">Estado del pedido</th>
-              <th class="text-end col-total">Total</th>
-              <th class="col-actions"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for q in quotes %}
-            <tr data-quotation-id="{{ q.id }}">
-              <td>
-                <a class="quote-id-link" href="{% url 'store:quotation_detail' quotation_id=q.id %}" title="Abrir cotización">
-                  COT-{{ q.id }}
-                </a>
-              </td>
-              <td class="text-muted">{{ q.created_at|date:"Y-m-d" }}</td>
-              <td class="client-cell">
-                <div class="client-name" title="{{ q.display_client_name|default:'' }}">{{ q.display_client_name|default:"—" }}</div>
-                {% if q.client_phone %}
-                <div class="client-phone">
-                  <span class="phone-text">{{ q.client_phone }}</span>
-                  <a class="btn-wa"
-                     href="{{ q.client_phone|whatsapp_url }}"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     title="Abrir WhatsApp">
-                    <i class="bi bi-whatsapp"></i>
-                  </a>
-                </div>
-                {% else %}
-                <div class="phone-text">Sin teléfono</div>
-                {% endif %}
-              </td>
-              <td>
-                {% if q.created_by %}
-                  <span class="creator-name">{{ q.created_by.username }}</span>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td>
-                <select class="form-select form-select-sm quotation-status-select" style="min-width: 118px;">
-                  {% for value,label in q.QUOTATION_STATUS_CHOICES %}
-                    <option value="{{ value }}" {% if value == q.quotation_status %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-              </td>
-              <td>
-                <select class="form-select form-select-sm order-status-select" style="min-width: 128px;" data-has-payment-proof="{% if q.payment_proof %}1{% else %}0{% endif %}">
-                  {% for value, label in order_status_choices %}
-                    <option value="{{ value }}"
-                            {% if value == q.order_status %}selected{% endif %}
-                            {% if not q.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
-                        {{ label }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </td>
-              <td class="text-end fw-semibold col-total">{{ q.total|pesos_colombianos }}</td>
-              <td class="text-end col-actions">
-                <div class="row-actions">
-                  {% if q.display_client_phone or q.client_phone %}
-                  <form method="post" action="{% url 'store:quotation_wa_share' quotation_id=q.id %}" class="d-inline">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn btn-sm btn-wa-action"
-                            title="Enviar cotización por WhatsApp (API)">
-                      <i class="bi bi-whatsapp"></i>
-                    </button>
-                  </form>
-                  {% if q.order_status != 'pago_recibido' and q.order_status != 'enviado' and q.order_status != 'recibido' and q.order_status != 'modificado_y_enviado' and q.quotation_status != 'cancelada' %}
-                  <form method="post" action="{% url 'store:quotation_wa_payment_reminder' quotation_id=q.id %}" class="d-inline">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn btn-sm btn-wa-reminder"
-                            title="Recordatorio de pago por WhatsApp (API)">
-                      <i class="bi bi-cash-coin"></i>
-                    </button>
-                  </form>
-                  {% endif %}
-                  {% endif %}
-                  {% if q.order_status != 'pago_recibido' and q.order_status != 'enviado' and q.order_status != 'recibido' and q.order_status != 'modificado_y_enviado' and q.quotation_status != 'cancelada' and q.quotation_status != 'cerrada' %}
-                  <a href="{% url 'store:quotation_edit' quotation_id=q.id %}"
-                     class="btn btn-outline-primary btn-sm"
-                     title="Modificar cotización">
-                    <i class="bi bi-pencil-square"></i>
-                  </a>
-                  {% endif %}
-                  {% if q.order_status == 'esperando_pago' or q.order_status == 'pago_parcial' %}
-                  <a href="{% url 'store:quotation_detail' quotation_id=q.id %}#payment-proof-section"
-                     class="btn btn-outline-warning btn-sm"
-                     title="Subir comprobante de pago">
-                    <i class="bi bi-upload"></i>
-                  </a>
-                  {% endif %}
-                  <div class="dropdown">
-                    <button type="button"
-                            class="btn btn-light btn-sm dropdown-toggle btn-pdf-menu"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false"
-                            title="PDF · elegir formato">
-                      <i class="bi bi-file-earmark-pdf"></i>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                      <li>
-                        <a class="dropdown-item" href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=1" target="_blank" rel="noopener noreferrer">
-                          <i class="bi bi-receipt me-2 text-muted"></i>Detallado con IVA
-                        </a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" href="{% url 'store:quotation_pdf' quotation_id=q.id %}?iva=0" target="_blank" rel="noopener noreferrer">
-                          <i class="bi bi-file-text me-2 text-muted"></i>Detallado sin IVA
-                        </a>
-                      </li>
-                      {% if q.order_status == 'pago_recibido' or q.order_status == 'enviado' or q.order_status == 'recibido' or q.order_status == 'modificado_y_enviado' %}
-                      <li><hr class="dropdown-divider"></li>
-                      <li>
-                        <a class="dropdown-item" href="{% url 'store:quotation_invoice_download' quotation_id=q.id %}?iva=1">
-                          <i class="bi bi-receipt-cutoff me-2 text-success"></i>Descargar factura
-                        </a>
-                      </li>
-                      {% endif %}
-                      {% if q.includes_rental %}
-                      <li><hr class="dropdown-divider"></li>
-                      <li>
-                        <a class="dropdown-item" href="{% url 'store:quotation_rental_contract' quotation_id=q.id %}" target="_blank" rel="noopener noreferrer">
-                          <i class="bi bi-pen me-2 text-muted"></i>Contrato de alquiler
-                        </a>
-                      </li>
-                      {% endif %}
-                    </ul>
-                  </div>
-                  {% if q.order_status == 'esperando_pago' %}
-                  <button type="button"
-                          class="btn btn-light btn-sm text-danger btn-quote-delete"
-                          data-delete-url="{% url 'store:quotation_delete' quotation_id=q.id %}"
-                          disabled
-                          title="No se puede eliminar mientras está esperando pago"
-                          aria-disabled="true">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                  {% else %}
-                  <a href="{% url 'store:quotation_delete' quotation_id=q.id %}"
-                     class="btn btn-light btn-sm text-danger btn-quote-delete"
-                     data-delete-url="{% url 'store:quotation_delete' quotation_id=q.id %}"
-                     title="Eliminar">
-                    <i class="bi bi-trash"></i>
-                  </a>
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% empty %}
-            <tr>
-              <td colspan="8" class="text-center text-muted py-4">Aún no hay cotizaciones registradas.</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  {# ─── Confirmadas pendientes de pago ─── #}
+  <div class="card section-card" id="pendientes">
+    <div class="section-head">
+      <div>
+        <p class="section-kicker">Pendientes</p>
+        <h2 class="section-title">
+          Confirmadas · faltan por pago
+          <span class="badge text-bg-warning align-middle ms-1">{{ pending.count }}</span>
+        </h2>
+      </div>
+      <div class="section-total is-pending">
+        <span class="label">Total pendiente</span>
+        <div class="value">{{ pending.total|pesos_colombianos }}</div>
       </div>
     </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle quotes-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Hecha por</th>
+            <th>Estado del pedido</th>
+            <th class="text-end col-total">Total</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in pending.items %}
+          {% include "store/partials/quotation_list_row.html" with q=q section="pending" %}
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">No hay cotizaciones confirmadas pendientes de pago.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if pending.items %}
+        <tfoot>
+          <tr>
+            <td colspan="6" class="text-end">
+              <span class="total-label me-2">Total pendiente</span>
+              <span class="total-value is-pending">{{ pending.total|pesos_colombianos }}</span>
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
   </div>
+
+  {# ─── Pagos parciales ─── #}
+  <div class="card section-card" id="parciales">
+    <div class="section-head">
+      <div>
+        <p class="section-kicker">Abonos</p>
+        <h2 class="section-title">
+          Pagos parciales
+          <span class="badge text-bg-info align-middle ms-1">{{ partial.count }}</span>
+        </h2>
+      </div>
+      <div class="section-totals-grid">
+        <div class="section-total is-partial">
+          <span class="label">Abonado</span>
+          <div class="value">{{ partial.paid_total|default:0|pesos_colombianos }}</div>
+        </div>
+        <div class="section-total is-pending">
+          <span class="label">Saldo pendiente</span>
+          <div class="value">{{ partial.remaining_total|default:0|pesos_colombianos }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle quotes-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Hecha por</th>
+            <th>Estado del pedido</th>
+            <th class="text-end col-total">Total</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in partial.items %}
+          {% include "store/partials/quotation_list_row.html" with q=q section="partial" %}
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">No hay cotizaciones con pago parcial.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if partial.items %}
+        <tfoot>
+          <tr>
+            <td colspan="6" class="text-end">
+              <span class="total-label me-2">Abonado</span>
+              <span class="total-value is-partial me-3">{{ partial.paid_total|pesos_colombianos }}</span>
+              <span class="total-label me-2">Saldo pendiente</span>
+              <span class="total-value is-pending">{{ partial.remaining_total|pesos_colombianos }}</span>
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  {# ─── Cerradas / pago recibido ─── #}
+  <div class="card section-card" id="pagadas">
+    <div class="section-head">
+      <div>
+        <p class="section-kicker">Cerradas</p>
+        <h2 class="section-title">
+          Pago recibido
+          <span class="badge text-bg-success align-middle ms-1">{{ paid.count }}</span>
+        </h2>
+      </div>
+      <div class="section-total is-paid">
+        <span class="label">Total cancelado</span>
+        <div class="value">{{ paid.total|pesos_colombianos }}</div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle quotes-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Hecha por</th>
+            <th>Estado del pedido</th>
+            <th class="text-end col-total">Total</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in paid.items %}
+          {% include "store/partials/quotation_list_row.html" with q=q section="paid" %}
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">Aún no hay cotizaciones con pago recibido.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if paid.items %}
+        <tfoot>
+          <tr>
+            <td colspan="6" class="text-end">
+              <span class="total-label me-2">Total cancelado</span>
+              <span class="total-value is-paid">{{ paid.total|pesos_colombianos }}</span>
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  {# ─── Otras (sin respuesta / rechazadas) ─── #}
+  {% if other.count %}
+  <div class="card section-card" id="otras">
+    <div class="section-head">
+      <div>
+        <p class="section-kicker">Otras</p>
+        <h2 class="section-title">
+          Sin respuesta / rechazadas
+          <span class="badge text-bg-secondary align-middle ms-1">{{ other.count }}</span>
+        </h2>
+      </div>
+      <div class="section-total">
+        <span class="label">Total</span>
+        <div class="value">{{ other.total|pesos_colombianos }}</div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle quotes-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Hecha por</th>
+            <th>Estado del pedido</th>
+            <th class="text-end col-total">Total</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in other.items %}
+          {% include "store/partials/quotation_list_row.html" with q=q section="other" %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <script>
@@ -436,85 +504,6 @@
     }
     const csrftoken = getCookie('csrftoken');
 
-    function applyRowStatusColor(tr, status, sel) {
-      if (!tr) return;
-      tr.classList.remove('quote-status-generada', 'quote-status-enviada', 'quote-status-vencida', 'quote-status-cancelada');
-      if (status) {
-        tr.classList.add('quote-status-' + status);
-      }
-      if (sel) {
-        sel.classList.remove('status-generada', 'status-enviada', 'status-vencida', 'status-cancelada');
-        if (status) {
-          sel.classList.add('status-' + status);
-        }
-      }
-    }
-
-    document.querySelectorAll('.quotation-status-select').forEach(function (sel) {
-      const tr = sel.closest('tr[data-quotation-id]');
-      applyRowStatusColor(tr, sel.value, sel);
-
-      sel.addEventListener('change', function () {
-        const row = this.closest('tr[data-quotation-id]');
-        const qid = row ? row.getAttribute('data-quotation-id') : '';
-        const val = this.value;
-        applyRowStatusColor(row, val, this);
-
-        fetch("{% url 'store:quotation_ajax_set_status' %}", {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': csrftoken,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({ quotation_id: qid, quotation_status: val }),
-        })
-          .then(r => r.json()).then(payload => {
-            if (!payload || payload.error) {
-              applyRowStatusColor(row, sel.value, sel);
-              throw new Error(payload && payload.error ? payload.error : 'Error');
-            }
-          }).catch(() => window.location.reload());
-      });
-    });
-
-    function syncDeleteButton(row, orderStatus) {
-      if (!row) return;
-      const actions = row.querySelector('.row-actions');
-      if (!actions) return;
-      let btn = actions.querySelector('.btn-quote-delete');
-      if (!btn) return;
-      const deleteUrl = btn.getAttribute('data-delete-url') || btn.getAttribute('href') || '';
-      const waiting = orderStatus === 'esperando_pago';
-
-      if (waiting) {
-        if (btn.tagName === 'A') {
-          const disabledBtn = document.createElement('button');
-          disabledBtn.type = 'button';
-          disabledBtn.className = 'btn btn-light btn-sm text-danger btn-quote-delete';
-          disabledBtn.setAttribute('data-delete-url', deleteUrl);
-          disabledBtn.disabled = true;
-          disabledBtn.setAttribute('aria-disabled', 'true');
-          disabledBtn.title = 'No se puede eliminar mientras está esperando pago';
-          disabledBtn.innerHTML = '<i class="bi bi-trash"></i>';
-          btn.replaceWith(disabledBtn);
-        } else {
-          btn.disabled = true;
-          btn.setAttribute('aria-disabled', 'true');
-          btn.title = 'No se puede eliminar mientras está esperando pago';
-          btn.removeAttribute('href');
-        }
-      } else if (btn.tagName === 'BUTTON' || btn.disabled) {
-        const link = document.createElement('a');
-        link.href = deleteUrl;
-        link.className = 'btn btn-light btn-sm text-danger btn-quote-delete';
-        link.setAttribute('data-delete-url', deleteUrl);
-        link.title = 'Eliminar';
-        link.innerHTML = '<i class="bi bi-trash"></i>';
-        btn.replaceWith(link);
-      }
-    }
-
     document.querySelectorAll('.order-status-select').forEach(function (sel) {
       sel.setAttribute('data-prev', sel.value);
       sel.addEventListener('change', function () {
@@ -523,12 +512,11 @@
         const val = this.value;
         const prevVal = sel.getAttribute('data-prev');
         const hasProof = sel.getAttribute('data-has-payment-proof') === '1';
-
         const requiresProof = ['pago_parcial', 'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'];
 
         if (!hasProof && requiresProof.includes(val)) {
           sel.value = prevVal;
-          alert('Debe subir una referencia de pago en el detalle de la cotización antes de marcar este estado de pedido.');
+          alert('Debes subir una referencia de pago en el detalle de la cotización antes de marcar este estado.');
           return;
         }
 
@@ -547,20 +535,11 @@
               alert(payload && payload.error ? payload.error : 'Error al actualizar.');
               return;
             }
-            sel.setAttribute('data-prev', payload.order_status);
-            syncDeleteButton(row, payload.order_status);
-            // Si el backend acepta un estado que requiere comprobante, asumimos que ya hay comprobante
-            if (requiresProof.includes(payload.order_status)) {
-              sel.setAttribute('data-has-payment-proof', '1');
-              requiresProof.forEach(function (statusVal) {
-                var opt = sel.querySelector('option[value=\"' + statusVal + '\"]');
-                if (opt) opt.disabled = false;
-              });
-            }
+            // Al cambiar entre secciones (pendiente ↔ pagada) recargar para mover la fila
+            window.location.reload();
           }).catch(function () { window.location.reload(); });
       });
     });
   });
 </script>
 {% endblock %}
-

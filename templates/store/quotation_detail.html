@@ -507,10 +507,52 @@
     </div>
   </div>
 
+  {% if combo_booking %}
+  <div class="qd-card mb-3" id="combo-event-section">
+    <div class="qd-card-head d-flex align-items-center justify-content-between gap-2 flex-wrap">
+      <h5 class="mb-0"><i class="bi bi-calendar-event me-1"></i> Evento / combo agendado</h5>
+      {% if request.user.is_staff %}
+      <a class="qd-btn qd-btn-soft"
+         href="{% url 'store:inventory_combo_booking_edit' booking_id=combo_booking.id %}?next={{ request.path }}">
+        <i class="bi bi-pencil"></i> Editar fecha
+      </a>
+      {% endif %}
+    </div>
+    <div class="qd-card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="qd-label">Combo</div>
+          <div class="qd-value">
+            <a href="{% url 'store:inventory_combo_detail' combo_booking.combo_id %}">{{ combo_booking.combo.name }}</a>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="qd-label">Fecha del evento</div>
+          <div class="qd-value">{{ combo_booking.event_date|date:"d/m/Y" }}</div>
+        </div>
+        <div class="col-md-3">
+          <div class="qd-label">Hora</div>
+          <div class="qd-value">{% if combo_booking.event_time %}{{ combo_booking.event_time|time:"H:i" }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="qd-label">Estado agenda</div>
+          <div class="qd-value">{{ combo_booking.get_status_display }}</div>
+        </div>
+        {% if combo_booking.location_text %}
+        <div class="col-md-8">
+          <div class="qd-label">Ubicación</div>
+          <div class="qd-value fw-normal">{{ combo_booking.location_text }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if request.user.is_staff %}
   <div class="qd-card mb-3" id="payment-proof-section">
     <div class="qd-card-head d-flex align-items-center justify-content-between gap-2 flex-wrap">
-      <h5 class="mb-0">Referencia de pago</h5>
+      <h5 class="mb-0">Pagos / referencias</h5>
       {% if quote.order_status == 'pago_parcial' %}
         <span class="badge text-bg-warning">Pago parcial</span>
       {% elif quote.order_status == 'pago_recibido' %}
@@ -518,45 +560,83 @@
       {% endif %}
     </div>
     <div class="qd-card-body">
-      {% if quote.payment_proof %}
+      {% if payment_records %}
+        <div class="table-responsive mb-3">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="small text-muted">
+              <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th class="text-end">Monto</th>
+                <th>Comprobante</th>
+                <th>Por</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pay in payment_records %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="small">{{ pay.created_at|date:"d/m/Y H:i" }}</td>
+                <td>
+                  {% if pay.payment_type == 'parcial' %}
+                  <span class="badge text-bg-warning">Parcial</span>
+                  {% else %}
+                  <span class="badge text-bg-success">Total / cierre</span>
+                  {% endif %}
+                </td>
+                <td class="text-end fw-semibold">{{ pay.amount|pesos_colombianos }}</td>
+                <td>
+                  {% if pay.proof %}
+                  <a href="{{ pay.proof.url }}" target="_blank" rel="noopener noreferrer">
+                    <img src="{{ pay.proof.url }}" alt="Comprobante" class="img-thumbnail" style="max-height:56px; border-radius:.5rem;">
+                  </a>
+                  {% else %}—{% endif %}
+                </td>
+                <td class="small text-muted">
+                  {% if pay.created_by %}{{ pay.created_by.get_full_name|default:pay.created_by.username }}{% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% elif quote.payment_proof %}
         <div class="mb-3">
           <a href="{{ quote.payment_proof.url }}" target="_blank" rel="noopener noreferrer" class="d-inline-block">
             <img src="{{ quote.payment_proof.url }}" alt="Referencia de pago" class="img-thumbnail" style="max-height: 200px; border-radius: 0.8rem;">
           </a>
-          <div class="qd-help mt-2">
-            Comprobante subido
-            {% if quote.order_status == 'pago_parcial' %}
-              (pago parcial). Puedes subir otro para reemplazar y cambiar el tipo.
-            {% elif quote.order_status == 'pago_recibido' %}
-              (pago total). Puedes subir otro para reemplazar.
-            {% else %}
-              . Puedes subir otro para reemplazar.
-            {% endif %}
-          </div>
-          {% if quote.order_status == 'pago_parcial' and quote.partial_payment_amount %}
-          <div class="qd-pay-summary mt-3">
-            <div class="qd-pay-summary-row">
-              <span>Total cotización</span>
-              <strong>{{ quote.total|pesos_colombianos }}</strong>
-            </div>
-            <div class="qd-pay-summary-row">
-              <span>Abono registrado</span>
-              <strong class="text-success">{{ quote.partial_payment_amount|pesos_colombianos }}</strong>
-            </div>
-            <div class="qd-pay-summary-row qd-pay-summary-balance">
-              <span>Saldo pendiente</span>
-              <strong class="text-warning">{{ quote.remaining_balance|pesos_colombianos }}</strong>
-            </div>
-          </div>
-          {% endif %}
+          <div class="qd-help mt-2">Comprobante (registro anterior).</div>
         </div>
       {% else %}
-        <p class="qd-help mb-3">Sube la referencia de pago e indica si es <strong>parcial</strong> o <strong>total</strong>. El estado del pedido se actualizará automáticamente.</p>
+        <p class="qd-help mb-3">Sube la referencia de pago e indica si es <strong>parcial</strong> o <strong>total</strong>. Puedes registrar varios abonos hasta completar el total.</p>
       {% endif %}
+
+      <div class="qd-pay-summary mb-3">
+        <div class="qd-pay-summary-row">
+          <span>Total cotización</span>
+          <strong>{{ quote.total|pesos_colombianos }}</strong>
+        </div>
+        <div class="qd-pay-summary-row">
+          <span>Total abonado</span>
+          <strong class="text-success">{{ amount_paid|pesos_colombianos }}</strong>
+        </div>
+        <div class="qd-pay-summary-row qd-pay-summary-balance">
+          <span>Saldo pendiente</span>
+          <strong class="{% if remaining_balance > 0 %}text-warning{% else %}text-success{% endif %}">
+            {{ remaining_balance|pesos_colombianos }}
+          </strong>
+        </div>
+      </div>
+
+      {% if quote.order_status != 'pago_recibido' and quote.order_status != 'enviado' and quote.order_status != 'recibido' %}
       <button type="button" class="qd-btn qd-btn-dark" data-bs-toggle="modal" data-bs-target="#paymentProofModal">
         <i class="bi bi-cloud-upload"></i>
-        {% if quote.payment_proof %}Reemplazar referencia{% else %}Subir referencia{% endif %}
+        {% if payment_records or quote.payment_proof %}Agregar otro pago{% else %}Subir referencia{% endif %}
       </button>
+      {% else %}
+      <p class="qd-help mb-0 text-success"><i class="bi bi-check2-circle"></i> Cotización pagada por completo.</p>
+      {% endif %}
     </div>
   </div>
 
@@ -566,37 +646,41 @@
         <form method="post" enctype="multipart/form-data" id="paymentProofForm">
           {% csrf_token %}
           <div class="modal-header">
-            <h5 class="modal-title" id="paymentProofModalLabel">Referencia de pago</h5>
+            <h5 class="modal-title" id="paymentProofModalLabel">
+              {% if payment_records %}Agregar pago{% else %}Referencia de pago{% endif %}
+            </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
           <div class="modal-body">
             <p class="qd-help mb-3">
-              Adjunta el comprobante e indica el tipo de pago. El estado de la cotización se actualizará solo:
-              <strong>parcial → Pago parcial</strong>, <strong>total → Pago recibido</strong>.
+              Adjunta el comprobante e indica el tipo. Los abonos <strong>se acumulan</strong>.
+              {% if remaining_balance > 0 %}
+              Saldo pendiente actual: <strong>{{ remaining_balance|pesos_colombianos }}</strong>.
+              {% endif %}
             </p>
 
             <label class="form-label fw-bold">Tipo de pago</label>
             <div class="qd-pay-type mb-3" role="radiogroup" aria-label="Tipo de pago">
               <label class="qd-pay-type-option">
                 <input type="radio" name="payment_type" value="parcial" id="payment_type_parcial"
-                       {% if quote.order_status == 'pago_parcial' %}checked{% endif %} required>
+                       {% if quote.order_status == 'pago_parcial' or remaining_balance > 0 %}checked{% endif %} required>
                 <span class="qd-pay-type-card">
                   <strong><i class="bi bi-pie-chart me-1"></i> Parcial</strong>
-                  <span>Abono o cuota. Estado: Pago parcial.</span>
+                  <span>Nuevo abono. Se suma a los anteriores.</span>
                 </span>
               </label>
               <label class="qd-pay-type-option">
                 <input type="radio" name="payment_type" value="total" id="payment_type_total"
-                       {% if quote.order_status != 'pago_parcial' %}checked{% endif %} required>
+                       {% if quote.order_status != 'pago_parcial' and not remaining_balance %}checked{% endif %} required>
                 <span class="qd-pay-type-card">
-                  <strong><i class="bi bi-check2-circle me-1"></i> Total</strong>
-                  <span>Pago completo. Estado: Pago recibido.</span>
+                  <strong><i class="bi bi-check2-circle me-1"></i> Total / saldo</strong>
+                  <span>Cierra el saldo pendiente. Estado: Pago recibido.</span>
                 </span>
               </label>
             </div>
 
             <div id="partialAmountWrap" class="mb-3" hidden>
-              <label class="form-label fw-bold" for="partial_payment_amount">Valor del pago parcial</label>
+              <label class="form-label fw-bold" for="partial_payment_amount">Valor de este abono</label>
               <div class="input-group">
                 <span class="input-group-text">$</span>
                 <input type="number"
@@ -605,14 +689,15 @@
                        id="partial_payment_amount"
                        step="0.01"
                        min="0.01"
-                       max="{{ quote.total }}"
+                       max="{{ remaining_balance|default:quote.total }}"
                        inputmode="decimal"
                        placeholder="Ej: 150000"
-                       value="{% if quote.partial_payment_amount %}{{ quote.partial_payment_amount }}{% endif %}">
+                       value="">
               </div>
               <div class="qd-help mt-2">
-                Total de la cotización: <strong>{{ quote.total|pesos_colombianos }}</strong>.
-                El abono debe ser mayor a 0 y menor al total.
+                Total: <strong>{{ quote.total|pesos_colombianos }}</strong>
+                · Ya abonado: <strong>{{ amount_paid|pesos_colombianos }}</strong>
+                · Máximo este abono: <strong>{{ remaining_balance|pesos_colombianos }}</strong>
               </div>
             </div>
 
@@ -696,16 +781,20 @@
             <tr>
               <td>
                 <div class="d-flex align-items-center">
-                  {% if it.product.image %}
-                  <img src="{{ it.product.image.url }}" alt="{{ it.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                  {% if it.product and it.product.image %}
+                  <img src="{{ it.product.image.url }}" alt="{{ it.display_name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
                   {% else %}
                   <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                    <i class="bi bi-image text-muted"></i>
+                    <i class="bi bi-{% if it.product %}image{% else %}boxes{% endif %} text-muted"></i>
                   </div>
                   {% endif %}
                   <div>
-                    <div class="fw-bold" style="color:#0f172a;">{{ it.product.name }}</div>
+                    <div class="fw-bold" style="color:#0f172a;">{{ it.display_name }}</div>
+                    {% if it.product and it.product.category %}
                     <div class="qd-help">{{ it.product.category.name }}</div>
+                    {% elif not it.product %}
+                    <div class="qd-help text-success">Paquete / extra</div>
+                    {% endif %}
                     {% if it.discount_unit and it.discount_unit > 0 %}
                       <div class="small" style="color:#b45309;">
                         Precio original: <span class="text-decoration-line-through">{{ it.original_unit_price|pesos_colombianos }}</span>
@@ -753,7 +842,9 @@
     var form = document.getElementById('paymentProofForm');
     var amountWrap = document.getElementById('partialAmountWrap');
     var amountInput = document.getElementById('partial_payment_amount');
+    var remaining = parseFloat('{{ remaining_balance|default:"0" }}') || 0;
     var quoteTotal = parseFloat('{{ quote.total|default:"0" }}') || 0;
+    if (remaining <= 0) remaining = quoteTotal;
 
     function syncPartialAmount() {
       if (!form || !amountWrap || !amountInput) return;
@@ -761,6 +852,7 @@
       var isPartial = parcial && parcial.checked;
       amountWrap.hidden = !isPartial;
       amountInput.required = !!isPartial;
+      amountInput.max = remaining > 0 ? remaining : quoteTotal;
       if (!isPartial) {
         amountInput.value = '';
       }
@@ -779,13 +871,13 @@
         var amount = parseFloat(raw);
         if (!raw || isNaN(amount) || amount <= 0) {
           e.preventDefault();
-          alert('Indica el valor del pago parcial (mayor a 0).');
+          alert('Indica el valor de este abono (mayor a 0).');
           amountInput.focus();
           return;
         }
-        if (quoteTotal > 0 && amount >= quoteTotal) {
+        if (remaining > 0 && amount > remaining + 0.0001) {
           e.preventDefault();
-          alert('El abono debe ser menor al total. Si ya pagó todo, elige pago Total.');
+          alert('El abono no puede superar el saldo pendiente (' + remaining + ').');
           amountInput.focus();
         }
       });

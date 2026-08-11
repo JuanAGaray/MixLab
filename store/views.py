@@ -32,6 +32,7 @@ from .models import (
     RentalContractRequirements, RentalDeliveryActa,
     FinanceRecord,
     DrinzzContractConfig,
+    EventLandingLead,
 )
 from .forms import (
     ProductForm,
@@ -47,6 +48,7 @@ from .forms import (
     SiteSettingsForm,
     PaymentMethodForm,
     DrinzzContractConfigForm,
+    EventLandingLeadForm,
 )
 from .models import Quotation, QuotationItem
 
@@ -100,7 +102,17 @@ def _close_quotation_on_full_payment(quote: Quotation) -> bool:
 
 
 def _quotation_is_fully_paid(quote: Quotation) -> bool:
-    return quote.order_status in _fully_paid_statuses() and bool(quote.payment_proof)
+    return quote.order_status in _fully_paid_statuses() and _quotation_has_payment_record(quote)
+
+
+def _quotation_has_payment_record(quote: Quotation) -> bool:
+    """True si hay al menos un abono registrado (con o sin foto) o comprobante legado."""
+    try:
+        if quote.payments.exists():
+            return True
+    except Exception:
+        pass
+    return bool(getattr(quote, 'payment_proof', None))
 
 
 def _quotation_can_edit(quote: Quotation) -> bool:
@@ -339,6 +351,336 @@ def alianza_drinzz(request):
     contract = DrinzzContractConfig.load()
     return render(request, 'store/alianza_drinzz.html', {
         'drinzz_contract': contract,
+    })
+
+
+def _event_landing_included_items(combo: RentalCombo) -> list[dict]:
+    """Ítems del combo con iconos amigables para la landing."""
+    icon_map = {
+        'maquina': 'bi-snow2',
+        'granizadora': 'bi-snow2',
+        'operario': 'bi-person-badge',
+        'vaso': 'bi-cup-straw',
+        'topping': 'bi-stars',
+        'base': 'bi-droplet-half',
+        'sabor': 'bi-palette',
+        'stand': 'bi-shop-window',
+        'azucar': 'bi-basket2',
+        'sal': 'bi-basket2',
+    }
+    rows = []
+    for item in combo.items.all():
+        name = item.display_name
+        # Quitar prefijo "Categoría: " en copy comercial
+        if name.lower().startswith('categoría:'):
+            name = name.split(':', 1)[1].strip()
+        low = name.lower()
+        icon = 'bi-check-circle-fill'
+        for key, bi in icon_map.items():
+            if key in low:
+                icon = bi
+                break
+        rows.append({
+            'name': name,
+            'quantity': item.quantity,
+            'icon': icon,
+            'notes': (item.notes or '').strip(),
+        })
+    return rows
+
+
+def _event_landing_context(request, combo: RentalCombo, *, form=None, lead_ok=False):
+    settings_obj = SiteSettings.load()
+    form = form or EventLandingLeadForm()
+    included = _event_landing_included_items(combo)
+    comparison = [
+        {
+            'feature': 'Precio del paquete',
+            'mixlab': '$390.000',
+            'others': '$500.000',
+            'is_price': True,
+        },
+        {
+            'feature': 'Granizadora profesional instalada',
+            'mixlab': True,
+            'others': 'A veces',
+        },
+        {
+            'feature': 'Insumos y sabores incluidos',
+            'mixlab': True,
+            'others': False,
+        },
+        {
+            'feature': 'Operario durante el evento',
+            'mixlab': True,
+            'others': 'Extra',
+        },
+        {
+            'feature': 'Stand / presentación lista',
+            'mixlab': True,
+            'others': False,
+        },
+        {
+            'feature': 'Vasos + toppings + escarchado',
+            'mixlab': True,
+            'others': 'Extra',
+        },
+        {
+            'feature': 'Productos con registro sanitario / INVIMA',
+            'mixlab': True,
+            'others': 'No siempre',
+        },
+        {
+            'feature': 'Probar sabores antes de pagar (Drinzz)',
+            'mixlab': True,
+            'others': False,
+        },
+    ]
+    steps = [
+        {
+            'n': '1',
+            'title': 'Cuéntanos tu evento',
+            'text': 'Tipo, fecha e invitados. 30 segundos.',
+        },
+        {
+            'n': '2',
+            'title': 'Te confirmamos cupo',
+            'text': 'Un asesor te escribe por WhatsApp.',
+        },
+        {
+            'n': '3',
+            'title': 'Prueba sabores',
+            'text': 'Visita Drinzz antes de pagar (opcional).',
+        },
+        {
+            'n': '4',
+            'title': 'Disfruta',
+            'text': 'Llegamos, instalamos y atendemos.',
+        },
+    ]
+    faqs = [
+        {
+            'q': '¿El precio de $390.000 incluye qué?',
+            'a': 'Granizadora, insumos/sabores, operario, stand, vasos y toppings. El transporte no está incluido y se cotiza según la ubicación del evento.',
+        },
+        {
+            'q': '¿Puedo probar los sabores antes de pagar?',
+            'a': 'Sí. Te esperamos en Drinzz (Blaz de Lezo) para degustar y ver la máquina en acción, sin compromiso.',
+        },
+        {
+            'q': '¿Los insumos son seguros / tienen INVIMA?',
+            'a': 'Trabajamos con bases y concentrados con respaldo sanitario. MixLab SAS es empresa formal (NIT registrado) y operamos con buenas prácticas en evento.',
+        },
+        {
+            'q': '¿Con cuánta anticipación debo reservar?',
+            'a': 'Lo ideal es con al menos 7–15 días. Fechas de temporada (fines de semana, bodas, graduaciones) se agotan rápido.',
+        },
+        {
+            'q': '¿Esto es un pago ahora?',
+            'a': 'No. El formulario solo solicita tu cotización. Un asesor te confirma disponibilidad y te envía la propuesta por WhatsApp.',
+        },
+    ]
+    value_bullets = [
+        'Granizadora profesional lista',
+        'Insumos + sabores incluidos',
+        'Operario durante el evento',
+        'Stand + vasos + toppings',
+    ]
+    return {
+        'combo': combo,
+        'form': form,
+        'lead_ok': lead_ok,
+        'included_items': included,
+        'comparison_rows': comparison,
+        'steps': steps,
+        'faqs': faqs,
+        'value_bullets': value_bullets,
+        'site_settings': settings_obj,
+        'drinzz_maps_url': 'https://share.google/i8HGnsSFpw8nS8q2A',
+        'whatsapp_url': settings_obj.whatsapp_url,
+        'whatsapp_prefill': 'Hola MixLab, quiero el combo de granizadora para eventos ($390.000). ¿Tienen cupo para mi fecha?',
+        'min_event_date': timezone.localdate().isoformat(),
+    }
+
+
+def _process_event_landing_lead(request, combo: RentalCombo):
+    """Valida el form, crea solo el lead de eventos y notifica por WhatsApp."""
+    form = EventLandingLeadForm(request.POST)
+    if not form.is_valid():
+        return form, False, False
+
+    lead = form.save(commit=False)
+    lead.combo = combo
+    lead.quotation = None
+    lead.city = 'Cartagena'
+    lead.status = 'nuevo'
+    lead.source = 'landing_eventos'
+    lead.save()
+
+    wa_ok = False
+    try:
+        wa_ok = bool(_notify_wa_event_landing_lead(lead, request=request))
+        if not wa_ok:
+            logger.warning(
+                '[WA-N8N] Lead eventos #%s: webhook no confirmó envío',
+                lead.pk,
+            )
+    except Exception:
+        logger.exception('[WA-N8N] Error notificando lead de eventos #%s', getattr(lead, 'pk', None))
+
+    return form, True, wa_ok
+
+
+def _notify_wa_event_landing_lead(lead: EventLandingLead, *, request=None) -> bool:
+    """WhatsApp: nuevo lead desde la landing de eventos (sin cotización)."""
+    combo_name = lead.combo.name if lead.combo_id else 'Combo eventos'
+    price = ''
+    try:
+        if lead.combo_id:
+            price = f'${lead.combo.selling_price:,.0f}'.replace(',', '.')
+    except Exception:
+        price = ''
+
+    lines = [
+        f'Lead #{lead.pk}',
+        f'Organizador: {lead.organizer_name}',
+        f'WhatsApp cliente: +{_wa_normalize_phone(lead.phone) or (lead.phone or "—")}',
+        f'Tipo: {lead.get_event_type_display()}',
+        f'Fecha: {lead.event_date.strftime("%d/%m/%Y")}',
+        f'Invitados: {lead.guests_count}',
+        f'Lugar: {lead.event_place} · Cartagena',
+        f'Combo: {combo_name}',
+    ]
+    if price:
+        lines.append(f'Precio ref.: {price}')
+    if lead.email:
+        lines.append(f'Correo: {lead.email}')
+    if lead.notes:
+        lines.append(f'Notas: {lead.notes}')
+    lines.append('Sin cotización aún — el asesor la crea si se cuadra.')
+
+    link = ''
+    if request is not None:
+        try:
+            link = request.build_absolute_uri(reverse('store:event_leads_list'))
+        except Exception:
+            link = '/manager/leads-eventos/'
+    else:
+        link = '/manager/leads-eventos/'
+
+    message = _wa_build_message(
+        '🎉 *Nuevo lead · Eventos*',
+        lines,
+        link=_absolute_url(link, request=request) if link else '',
+    )
+    return _notify_whatsapp_n8n(message=message, link='', request=request)
+
+
+def event_landing(request):
+    """Landing pública del combo principal para eventos."""
+    combo = (
+        RentalCombo.objects.filter(available=True, for_events=True)
+        .prefetch_related('items__product', 'items__category', 'items__rental_price')
+        .order_by('-updated_at', '-id')
+        .first()
+    )
+    if not combo:
+        messages.info(request, 'Pronto publicaremos nuestros combos para eventos.')
+        return redirect('store:home')
+    return redirect('store:event_landing_combo', slug=combo.slug)
+
+
+def event_landing_combo(request, slug):
+    """Landing de conversión para un combo de eventos (por slug)."""
+    combo = get_object_or_404(
+        RentalCombo.objects.prefetch_related(
+            'items__product', 'items__category', 'items__rental_price'
+        ),
+        slug=slug,
+        available=True,
+        for_events=True,
+    )
+
+    if request.method == 'POST':
+        form, ok, wa_ok = _process_event_landing_lead(request, combo)
+        if ok:
+            if wa_ok:
+                messages.success(
+                    request,
+                    '¡Listo! Recibimos tu evento y avisamos al equipo por WhatsApp. Pronto te contactamos.',
+                )
+            else:
+                messages.success(
+                    request,
+                    '¡Listo! Recibimos los datos de tu evento. Un asesor de MixLab te contactará pronto por WhatsApp.',
+                )
+            return redirect(f"{reverse('store:event_landing_combo', kwargs={'slug': combo.slug})}?ok=1#cotizar")
+        ctx = _event_landing_context(request, combo, form=form, lead_ok=False)
+        return render(request, 'store/event_landing.html', ctx)
+
+    lead_ok = (request.GET.get('ok') or '') == '1'
+    ctx = _event_landing_context(request, combo, lead_ok=lead_ok)
+    return render(request, 'store/event_landing.html', ctx)
+
+
+@staff_member_required
+def event_leads_list(request):
+    """Listado de leads capturados desde la landing de eventos."""
+    status = (request.GET.get('status') or '').strip()
+    q = (request.GET.get('q') or '').strip()
+
+    leads = (
+        EventLandingLead.objects.select_related('combo', 'quotation')
+        .order_by('-created_at')
+    )
+    if status in dict(EventLandingLead.STATUS_CHOICES):
+        leads = leads.filter(status=status)
+    if q:
+        leads = leads.filter(
+            Q(organizer_name__icontains=q)
+            | Q(phone__icontains=q)
+            | Q(event_place__icontains=q)
+            | Q(email__icontains=q)
+            | Q(notes__icontains=q)
+        )
+
+    if request.method == 'POST':
+        lead_id = request.POST.get('lead_id')
+        new_status = (request.POST.get('status') or '').strip()
+        staff_notes = (request.POST.get('staff_notes') or '').strip()
+        lead = get_object_or_404(EventLandingLead, pk=lead_id)
+        update_fields = ['updated_at']
+        if new_status in dict(EventLandingLead.STATUS_CHOICES):
+            lead.status = new_status
+            update_fields.append('status')
+        if 'staff_notes' in request.POST:
+            lead.staff_notes = staff_notes
+            update_fields.append('staff_notes')
+        lead.save(update_fields=update_fields)
+        messages.success(request, f'Lead #{lead.id} actualizado.')
+        redirect_url = reverse('store:event_leads_list')
+        params = []
+        if status:
+            params.append(f'status={status}')
+        if q:
+            from urllib.parse import quote
+            params.append(f'q={quote(q)}')
+        if params:
+            redirect_url += '?' + '&'.join(params)
+        return redirect(redirect_url)
+
+    counts = {
+        key: EventLandingLead.objects.filter(status=key).count()
+        for key, _ in EventLandingLead.STATUS_CHOICES
+    }
+    counts['todos'] = EventLandingLead.objects.count()
+
+    return render(request, 'store/manager/event_leads_list.html', {
+        'leads': leads[:200],
+        'status_filter': status,
+        'q': q,
+        'status_choices': EventLandingLead.STATUS_CHOICES,
+        'counts': counts,
     })
 
 
@@ -4269,8 +4611,11 @@ def quotation_list(request):
         quotation_id=OuterRef('pk'),
         product__product_type='rental',
     )
-    quotes = quotes.annotate(includes_rental=Exists(rental_lines))
-
+    payment_rows = QuotationPayment.objects.filter(quotation_id=OuterRef('pk'))
+    quotes = quotes.annotate(
+        includes_rental=Exists(rental_lines),
+        has_payment_record=Exists(payment_rows),
+    )
     client_search = (request.GET.get('cliente') or '').strip()
     if client_search:
         quotes = quotes.filter(
@@ -4660,9 +5005,9 @@ def quotation_ajax_set_status(request):
     if os_ and os_ in allowed_os and os_ != qobj.order_status:
         # Estados que requieren comprobante de pago antes de avanzar
         post_payment_statuses = _post_payment_statuses()
-        if os_ in post_payment_statuses and not qobj.payment_proof:
+        if os_ in post_payment_statuses and not _quotation_has_payment_record(qobj):
             return JsonResponse({
-                'error': 'Debe subir una referencia de pago en el detalle de la cotización antes de marcar este estado.',
+                'error': 'Debes registrar un pago (transferencia o efectivo) en el detalle de la cotización antes de marcar este estado.',
             }, status=400)
         # No permitir bajar de un estado post‑pago a uno previo
         if qobj.order_status in post_payment_statuses and os_ not in post_payment_statuses:
@@ -4712,11 +5057,20 @@ def quotation_detail(request, quotation_id):
     except ComboBooking.DoesNotExist:
         combo_booking = None
 
-    # Subir referencia de pago (solo staff) — permite varios abonos parciales
-    if request.method == 'POST' and request.user.is_authenticated and request.user.is_staff and request.FILES.get('payment_proof'):
+    # Registrar pago / referencia (solo staff) — transferencia (con foto) o efectivo (sin foto)
+    if (
+        request.method == 'POST'
+        and request.user.is_authenticated
+        and request.user.is_staff
+        and (request.POST.get('register_payment') == '1' or request.FILES.get('payment_proof') or request.POST.get('payment_method'))
+    ):
         payment_type = (request.POST.get('payment_type') or 'total').strip().lower()
         if payment_type not in ('parcial', 'total'):
             payment_type = 'total'
+
+        payment_method = (request.POST.get('payment_method') or 'transferencia').strip().lower()
+        if payment_method not in ('transferencia', 'efectivo'):
+            payment_method = 'transferencia'
 
         previous_status = q.order_status
         quote_total = Decimal(str(q.total or 0))
@@ -4729,7 +5083,11 @@ def quotation_detail(request, quotation_id):
         if remaining < 0:
             remaining = Decimal('0.00')
 
-        proof_file = request.FILES['payment_proof']
+        proof_file = request.FILES.get('payment_proof')
+        if payment_method == 'transferencia' and not proof_file:
+            messages.error(request, 'Para transferencia debes adjuntar el comprobante (foto o PDF).')
+            return redirect('store:quotation_detail', quotation_id=q.id)
+
         payment_amount = None
 
         if payment_type == 'parcial':
@@ -4765,17 +5123,28 @@ def quotation_detail(request, quotation_id):
             if payment_amount <= 0:
                 payment_amount = quote_total if quote_total > 0 else Decimal('0.01')
 
-        QuotationPayment.objects.create(
+        method_note = 'Pago en efectivo' if payment_method == 'efectivo' else ''
+        extra_notes = (request.POST.get('payment_notes') or '').strip()
+        notes = ' · '.join(p for p in [method_note, extra_notes] if p)
+
+        pay = QuotationPayment(
             quotation=q,
             payment_type='total' if payment_type == 'total' else 'parcial',
+            method=payment_method,
             amount=payment_amount,
-            proof=proof_file,
+            notes=notes[:255],
             created_by=request.user,
         )
-        # Campo legado: apunta al último comprobante en storage
-        last_pay = q.payments.order_by('-created_at', '-id').first()
-        if last_pay and last_pay.proof:
-            q.payment_proof = last_pay.proof.name
+        if proof_file:
+            pay.proof = proof_file
+        pay.save()
+
+        # Campo legado: apunta al último comprobante con foto (si existe)
+        last_pay_with_proof = (
+            q.payments.exclude(proof='').exclude(proof=None).order_by('-created_at', '-id').first()
+        )
+        if last_pay_with_proof and last_pay_with_proof.proof:
+            q.payment_proof = last_pay_with_proof.proof.name
             q.save(update_fields=['payment_proof', 'updated_at'])
         paid_now = q.sync_payment_totals(save=True)
 
@@ -4795,18 +5164,19 @@ def quotation_detail(request, quotation_id):
                 request=request,
             )
 
+        method_label = 'efectivo' if payment_method == 'efectivo' else 'transferencia'
         if new_status == 'pago_parcial':
             messages.success(
                 request,
-                f'Abono de {_wa_money(payment_amount)} registrado. '
+                f'Abono de {_wa_money(payment_amount)} en {method_label} registrado. '
                 f'Total abonado: {_wa_money(paid_now)}. '
                 f'Saldo pendiente: {_wa_money(q.remaining_balance)}. '
-                'Puedes seguir agregando pagos parciales.',
+                'Puedes seguir agregando pagos.',
             )
         else:
             messages.success(
                 request,
-                'Pago completo registrado. Cotización cerrada como «Pagada». Ya puedes descargar la factura.',
+                f'Pago completo en {method_label} registrado. Cotización cerrada como «Pagada».',
             )
         return redirect('store:quotation_detail', quotation_id=q.id)
 
@@ -4822,8 +5192,8 @@ def quotation_detail(request, quotation_id):
             changed = True
         if os_ and os_ in allowed_os and os_ != q.order_status:
             post_payment_statuses = _post_payment_statuses()
-            if os_ in post_payment_statuses and not q.payment_proof:
-                messages.warning(request, 'Debe subir una referencia de pago antes de marcar este estado de pedido.')
+            if os_ in post_payment_statuses and not _quotation_has_payment_record(q):
+                messages.warning(request, 'Debes registrar un pago (transferencia o efectivo) antes de marcar este estado de pedido.')
             else:
                 if q.order_status in post_payment_statuses and os_ not in post_payment_statuses:
                     messages.warning(request, 'No es posible regresar el estado del pedido una vez que ha sido marcado como pagado/enviado/recibido.')
@@ -4905,6 +5275,7 @@ def quotation_detail(request, quotation_id):
             'payment_records': list(q.payments.select_related('created_by').all()),
             'amount_paid': q.amount_paid,
             'remaining_balance': q.remaining_balance,
+            'has_payment_record': _quotation_has_payment_record(q),
             'combo_booking': combo_booking,
         },
     )
@@ -6568,6 +6939,15 @@ def _notify_wa_quotation_payment(quote: Quotation, *, event: str = 'referencia',
         lines.append(f"Saldo: {_wa_money(quote.remaining_balance)}")
     elif event == 'pago_recibido':
         lines.append('Pago: Total')
+
+    try:
+        last_pay = quote.payments.order_by('-created_at', '-id').first()
+        if last_pay:
+            lines.append(f"Medio: {last_pay.get_method_display()}")
+            if last_pay.notes:
+                lines.append(f"Nota: {last_pay.notes}")
+    except Exception:
+        pass
 
     link = ''
     if request is not None:

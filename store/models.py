@@ -1175,6 +1175,10 @@ class QuotationPayment(models.Model):
         ('parcial', 'Parcial'),
         ('total', 'Total'),
     ]
+    METHOD_CHOICES = [
+        ('transferencia', 'Transferencia / comprobante'),
+        ('efectivo', 'Efectivo'),
+    ]
 
     quotation = models.ForeignKey(
         Quotation,
@@ -1188,6 +1192,12 @@ class QuotationPayment(models.Model):
         default='parcial',
         verbose_name='Tipo de pago',
     )
+    method = models.CharField(
+        max_length=20,
+        choices=METHOD_CHOICES,
+        default='transferencia',
+        verbose_name='Medio de pago',
+    )
     amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -1196,7 +1206,10 @@ class QuotationPayment(models.Model):
     )
     proof = models.ImageField(
         upload_to='quotations/payment_proofs/',
+        blank=True,
+        null=True,
         verbose_name='Comprobante',
+        help_text='Obligatorio para transferencia. No aplica en efectivo.',
     )
     notes = models.CharField(max_length=255, blank=True, default='', verbose_name='Notas')
     created_by = models.ForeignKey(
@@ -1216,6 +1229,10 @@ class QuotationPayment(models.Model):
 
     def __str__(self):
         return f'Pago COT-{self.quotation_id}: {self.amount}'
+
+    @property
+    def is_cash(self) -> bool:
+        return self.method == 'efectivo'
 
 
 class ComboBooking(models.Model):
@@ -1336,6 +1353,92 @@ class ComboBooking(models.Model):
             except Exception:
                 pass
         return (self.client_name or '').strip() or '—'
+
+
+class EventLandingLead(models.Model):
+    """Lead capturado desde la landing pública de combos para eventos."""
+
+    EVENT_TYPE_CHOICES = [
+        ('boda', 'Boda'),
+        ('cumpleanos', 'Cumpleaños'),
+        ('corporativo', 'Evento corporativo'),
+        ('graduacion', 'Graduación'),
+        ('quince', 'Quinceaños'),
+        ('baby_shower', 'Baby shower'),
+        ('feria', 'Feria / activación'),
+        ('otro', 'Otro'),
+    ]
+
+    STATUS_CHOICES = [
+        ('nuevo', 'Nuevo'),
+        ('contactado', 'Contactado'),
+        ('cotizado', 'Cotizado'),
+        ('ganado', 'Ganado'),
+        ('perdido', 'Perdido'),
+    ]
+
+    combo = models.ForeignKey(
+        RentalCombo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='landing_leads',
+        verbose_name='Combo',
+    )
+    quotation = models.ForeignKey(
+        'Quotation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='event_landing_leads',
+        verbose_name='Cotización (si el asesor la creó)',
+        help_text='Opcional. Se vincula después, cuando el asesor arma la cotización.',
+    )
+    organizer_name = models.CharField(max_length=200, verbose_name='Nombre del organizador')
+    event_type = models.CharField(
+        max_length=40,
+        choices=EVENT_TYPE_CHOICES,
+        verbose_name='Tipo de evento',
+    )
+    event_date = models.DateField(verbose_name='Fecha del evento')
+    guests_count = models.PositiveIntegerField(verbose_name='Número de invitados')
+    phone = models.CharField(max_length=40, verbose_name='WhatsApp / teléfono')
+    email = models.EmailField(blank=True, default='', verbose_name='Correo')
+    city = models.CharField(max_length=100, default='Cartagena', verbose_name='Ciudad')
+    event_place = models.CharField(
+        max_length=255,
+        default='',
+        verbose_name='Lugar del evento',
+        help_text='Salón, dirección o sitio donde se realizará el evento.',
+    )
+    notes = models.TextField(blank=True, default='', verbose_name='Notas del cliente')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='nuevo',
+        verbose_name='Estado del lead',
+    )
+    staff_notes = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Notas internas del asesor',
+    )
+    source = models.CharField(
+        max_length=80,
+        blank=True,
+        default='landing_eventos',
+        verbose_name='Origen',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Lead de evento'
+        verbose_name_plural = 'Leads de eventos'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.organizer_name} · {self.get_event_type_display()} · {self.event_date}'
 
 
 class ComboBookingExtra(models.Model):

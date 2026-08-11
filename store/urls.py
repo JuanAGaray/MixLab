@@ -13,6 +13,8 @@ urlpatterns = [
     path('alianza/drinzz/', views.alianza_drinzz, name='alianza_drinzz'),
     path('alianza/drinzz/contrato.pdf', views.drinzz_contract_pdf, name='drinzz_contract_pdf'),
     path('alianza-biztra/', views.alianza_biztra, name='alianza_biztra_legacy'),
+    path('eventos/', views.event_landing, name='event_landing'),
+    path('eventos/<slug:slug>/', views.event_landing_combo, name='event_landing_combo'),
     path('products/', views.product_list, name='product_list'),
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
     path('calculadora/', views.water_calculator, name='water_calculator'),
@@ -76,6 +78,7 @@ urlpatterns = [
     # Manager - Gastos y pagos
     path('manager/finanzas/', views.finance_list, name='finance_list'),
     path('manager/finanzas/<int:record_id>/eliminar/', views.finance_delete, name='finance_delete'),
+    path('manager/leads-eventos/', views.event_leads_list, name='event_leads_list'),
     
     # Inventory routes
     path('inventory/', views.inventory_dashboard, name='inventory_dashboard'),

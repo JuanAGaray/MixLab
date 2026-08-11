@@ -33,11 +33,11 @@
   <td>
     <select class="form-select form-select-sm order-status-select"
             style="min-width: 128px;"
-            data-has-payment-proof="{% if q.payment_proof %}1{% else %}0{% endif %}">
+            data-has-payment-proof="{% if q.has_payment_record or q.payment_proof %}1{% else %}0{% endif %}">
       {% for value, label in order_status_choices %}
         <option value="{{ value }}"
                 {% if value == q.order_status %}selected{% endif %}
-                {% if not q.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+                {% if not q.has_payment_record and not q.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
           {{ label }}
         </option>
       {% endfor %}

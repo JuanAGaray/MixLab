@@ -80,6 +80,7 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}{% if sidebar_banners %} has-sidebar-ads{% endif %}">
+    {% block site_chrome %}
     <!-- Promotional Banner -->
     {% include 'store/partials/promo_banners.html' %}
 
@@ -102,6 +103,7 @@
             <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarNavDesktop">
                 <ul class="navbar-nav navbar-nav-center navbar-nav-left">
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:product_list' %}">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'store:event_landing' %}">Eventos</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:water_calculator' %}">Calculadora</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:alianzas' %}">Alianza</a></li>
                     <li class="nav-item dropdown">
@@ -119,6 +121,7 @@
                         <a class="nav-link dropdown-toggle" href="#" id="managerDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Manager</a>
                         <ul class="dropdown-menu dropdown-menu-premium" aria-labelledby="managerDropdown">
                             <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:event_leads_list' %}"><i class="bi bi-calendar-heart"></i> Leads de eventos</a></li>
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
@@ -192,6 +195,9 @@
                         <a class="nav-link" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-1"></i> Productos</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:event_landing' %}"><i class="bi bi-calendar-event me-1"></i> Eventos</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{% url 'store:water_calculator' %}"><i class="bi bi-droplet-half me-1"></i> Calculadora</a>
                     </li>
                     <li class="nav-item">
@@ -216,6 +222,7 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="managerDropdownMobile">
                             <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:event_leads_list' %}"><i class="bi bi-calendar-heart"></i> Leads de eventos</a></li>
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
@@ -267,6 +274,7 @@
             </div>
         </div>
     </div>
+    {% endblock site_chrome %}
 
     <!-- Messages (minimal bottom-center toast) -->
     {% if messages %}
@@ -333,6 +341,7 @@
     </div>
 
     <!-- Footer -->
+    {% block site_footer %}
     <footer class="footer bg-dark text-white mt-5 py-5">
         <div class="container">
             <div class="row g-4">
@@ -341,6 +350,7 @@
                     <h6 class="footer-title">Información</h6>
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2"><a href="{% url 'store:about' %}" class="text-white-50 text-decoration-none">Quiénes Somos</a></li>
+                        <li class="mb-2"><a href="{% url 'store:event_landing' %}" class="text-white-50 text-decoration-none">Combos para eventos</a></li>
                         <li class="mb-2"><a href="{% url 'store:alianzas' %}" class="text-white-50 text-decoration-none">Alianza</a></li>
                         <li class="mb-2"><a href="{% url 'store:privacy_policy' %}" class="text-white-50 text-decoration-none">Políticas y Privacidad</a></li>
                         <li class="mb-2"><a href="{% url 'store:normatividad' %}" class="text-white-50 text-decoration-none">Normatividad</a></li>
@@ -389,8 +399,10 @@
             </div>
         </div>
     </footer>
+    {% endblock site_footer %}
 
     <!-- Floating WhatsApp Button (above cart) -->
+    {% block floating_actions %}
     {% if site_settings.whatsapp_url %}
     <a href="{{ site_settings.whatsapp_url }}" class="floating-wa-btn" target="_blank" rel="noopener noreferrer" title="Contactar por WhatsApp" aria-label="WhatsApp">
         <i class="bi bi-whatsapp"></i>
@@ -404,6 +416,7 @@
         <span class="floating-cart-badge">{{ cart_item_count }}</span>
         {% endif %}
     </button>
+    {% endblock floating_actions %}
 
     <!-- Cart Offcanvas Sidebar -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="cartOffcanvas" aria-labelledby="cartOffcanvasLabel">

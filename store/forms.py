@@ -10,6 +10,7 @@ from .models import (
     FinanceRecord,
     Quotation,
     DrinzzContractConfig,
+    EventLandingLead,
 )
 from accounts.forms import CustomUserCreationForm
 
@@ -1015,3 +1016,125 @@ class DrinzzContractConfigForm(forms.ModelForm):
         if a1 is not None and o1 is not None and (a1 + o1) != 100:
             self.add_error('operator_pct_month1', 'La suma del reparto del primer mes debe ser 100%.')
         return cleaned
+
+
+class EventLandingLeadForm(forms.ModelForm):
+    """Formulario público de la landing de combos para eventos."""
+
+    class Meta:
+        model = EventLandingLead
+        fields = (
+            'organizer_name',
+            'event_type',
+            'event_date',
+            'guests_count',
+            'phone',
+            'event_place',
+            'email',
+            'notes',
+        )
+        widgets = {
+            'organizer_name': forms.TextInput(attrs={
+                'class': 'form-control form-control-lg',
+                'placeholder': 'Tu nombre completo',
+                'autocomplete': 'name',
+            }),
+            'event_type': forms.Select(attrs={'class': 'form-select form-select-lg'}),
+            'event_date': forms.DateInput(attrs={
+                'class': 'form-control form-control-lg',
+                'type': 'date',
+            }),
+            'guests_count': forms.NumberInput(attrs={
+                'class': 'form-control form-control-lg',
+                'min': '1',
+                'step': '1',
+                'placeholder': 'Ej: 80',
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control form-control-lg',
+                'placeholder': '300 123 4567',
+                'inputmode': 'tel',
+                'autocomplete': 'tel',
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control form-control-lg',
+                'placeholder': 'opcional@correo.com',
+                'autocomplete': 'email',
+            }),
+            'event_place': forms.TextInput(attrs={
+                'class': 'form-control form-control-lg',
+                'placeholder': 'Ej: Salón Miramar, Blaz de Lezo',
+                'required': True,
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Hora aproximada u otras ideas…',
+            }),
+        }
+        labels = {
+            'organizer_name': 'Nombre de quien organiza',
+            'event_type': 'Tipo de evento',
+            'event_date': 'Fecha del evento',
+            'guests_count': 'Número de invitados',
+            'phone': 'WhatsApp / teléfono',
+            'email': 'Correo (opcional)',
+            'event_place': 'Lugar del evento',
+            'notes': 'Detalles adicionales (opcional)',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['event_place'].required = True
+        self.fields['email'].required = False
+        self.fields['notes'].required = False
+
+    def clean_organizer_name(self):
+        value = (self.cleaned_data.get('organizer_name') or '').strip()
+        if len(value) < 3:
+            raise forms.ValidationError('Escribe el nombre completo de quien organiza.')
+        return value
+
+    def clean_phone(self):
+        value = (self.cleaned_data.get('phone') or '').strip()
+        digits = ''.join(ch for ch in value if ch.isdigit())
+        if len(digits) < 7:
+            raise forms.ValidationError('Ingresa un teléfono o WhatsApp válido.')
+
+        # Normalizar a Colombia (+57…)
+        if digits.startswith('57') and len(digits) >= 12:
+            national = digits[2:]
+        elif digits.startswith('0') and len(digits) >= 11:
+            national = digits.lstrip('0')
+        elif len(digits) == 10:
+            national = digits
+        else:
+            # Si ya trae otro formato raro, conservar dígitos y anteponer 57 si no lo tiene
+            national = digits[2:] if digits.startswith('57') else digits
+
+        if len(national) < 7:
+            raise forms.ValidationError('Ingresa un teléfono o WhatsApp válido.')
+
+        # Guardar como +57 3XXXXXXXXX
+        return f'+57 {national}'
+
+    def clean_guests_count(self):
+        value = self.cleaned_data.get('guests_count')
+        if value is None or value < 1:
+            raise forms.ValidationError('Indica cuántos invitados esperas.')
+        if value > 5000:
+            raise forms.ValidationError('Revisa el número de invitados.')
+        return value
+
+    def clean_event_date(self):
+        from django.utils import timezone as dj_tz
+        value = self.cleaned_data.get('event_date')
+        if value and value < dj_tz.localdate():
+            raise forms.ValidationError('La fecha del evento no puede ser en el pasado.')
+        return value
+
+    def clean_event_place(self):
+        value = (self.cleaned_data.get('event_place') or '').strip()
+        if len(value) < 3:
+            raise forms.ValidationError('Indica el lugar o dirección del evento.')
+        return value

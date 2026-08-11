@@ -1,0 +1,1014 @@
+{% extends "base.html" %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Granizadora para eventos todo incluido $390.000 · MixLab Cartagena{% endblock %}
+{% block meta_description %}Combo granizadora para eventos en Cartagena: máquina + insumos + operario + stand + toppings por $390.000. Prueba sabores en Drinzz antes de pagar. Insumos con respaldo INVIMA.{% endblock %}
+{% block meta_keywords %}granizadora eventos Cartagena, alquiler granizadora boda, combo granizados, MixLab eventos{% endblock %}
+{% block body_class %}ev-landing-body{% endblock %}
+
+{% block site_chrome %}
+<header class="ev-topbar">
+  <a href="{% url 'store:home' %}" class="ev-topbar-logo" aria-label="MixLab">
+    <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="28">
+  </a>
+  <span class="ev-topbar-pill">Combo eventos</span>
+</header>
+{% endblock %}
+
+{% block site_footer %}
+<footer class="ev-mini-footer">
+  <div>
+    <img src="{% static 'img/IsoLogo.png' %}" alt="" height="22" class="me-2 opacity-75">
+    <span>© 2026 MixLab · NIT {{ site_settings.company_nit|default:"902031074-1" }}</span>
+  </div>
+  <a href="{% url 'store:home' %}">Ir a la tienda</a>
+</footer>
+{% endblock %}
+
+{% block floating_actions %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ——— Mobile-first landing (sin nav del sitio) ——— */
+  .ev-landing-body {
+    background: #f1f5f9;
+  }
+  .ev-landing-body .main-content-wrapper { padding-bottom: 5.5rem; }
+  @media (min-width: 768px) {
+    .ev-landing-body .main-content-wrapper { padding-bottom: 1rem; }
+  }
+
+  .ev-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .65rem .9rem;
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(15,23,42,.06);
+  }
+  .ev-topbar-logo img { display: block; height: 28px; width: auto; }
+  .ev-topbar-pill {
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #0F6FFF;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: .3rem .7rem;
+  }
+
+  .ev-mini-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem .9rem calc(1rem + env(safe-area-inset-bottom));
+    background: #071526;
+    color: rgba(255,255,255,.7);
+    font-size: .78rem;
+  }
+  @media (max-width: 767.98px) {
+    .ev-mini-footer { padding-bottom: calc(5.2rem + env(safe-area-inset-bottom)); }
+  }
+  .ev-mini-footer a {
+    color: #7dd3fc;
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .ev-mini-footer a:hover { color: #fff; }
+
+  .ev-page {
+    --ev-navy: #071526;
+    --ev-blue: #0F6FFF;
+    --ev-ice: #38bdf8;
+    --ev-mint: #0d9488;
+    --ev-ok: #059669;
+    --ev-warn: #d97706;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0.75rem 0.85rem 1rem;
+  }
+  @media (min-width: 992px) {
+    .ev-page { max-width: 980px; padding: 1.25rem 1rem 2rem; }
+  }
+
+  #incluye, #comparativa, #invima, #probar, #cotizar, #faq {
+    scroll-margin-top: 4.25rem;
+  }
+
+  /* ——— Animations ——— */
+  @media (prefers-reduced-motion: no-preference) {
+    .ev-anim {
+      opacity: 0;
+      transform: translateY(22px);
+      transition:
+        opacity .55s cubic-bezier(.22,1,.36,1),
+        transform .55s cubic-bezier(.22,1,.36,1);
+      will-change: opacity, transform;
+    }
+    .ev-anim.is-in {
+      opacity: 1;
+      transform: none;
+    }
+    .ev-anim-d1 { transition-delay: .06s; }
+    .ev-anim-d2 { transition-delay: .12s; }
+    .ev-anim-d3 { transition-delay: .18s; }
+    .ev-anim-d4 { transition-delay: .24s; }
+
+    .ev-hero-in > * {
+      opacity: 0;
+      transform: translateY(18px);
+      animation: evFadeUp .65s cubic-bezier(.22,1,.36,1) forwards;
+    }
+    .ev-hero-in > *:nth-child(1) { animation-delay: .05s; }
+    .ev-hero-in > *:nth-child(2) { animation-delay: .12s; }
+    .ev-hero-in > *:nth-child(3) { animation-delay: .18s; }
+    .ev-hero-in > *:nth-child(4) { animation-delay: .24s; }
+    .ev-hero-in > *:nth-child(5) { animation-delay: .3s; }
+    .ev-hero-in > *:nth-child(6) { animation-delay: .36s; }
+    .ev-hero-in > *:nth-child(7) { animation-delay: .42s; }
+
+    @keyframes evFadeUp {
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes evPulseSoft {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(15,111,255,.35); }
+      50% { transform: scale(1.015); box-shadow: 0 0 0 8px rgba(15,111,255,0); }
+    }
+    @keyframes evDockIn {
+      from { transform: translateY(110%); opacity: 0; }
+      to { transform: none; opacity: 1; }
+    }
+    @keyframes evFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .ev-btn-pulse {
+      animation: evPulseSoft 2.4s ease-in-out infinite;
+    }
+    .ev-dock {
+      animation: evDockIn .55s cubic-bezier(.22,1,.36,1) .4s both;
+    }
+    .ev-price-box .tag {
+      animation: evFloat 2.8s ease-in-out infinite;
+    }
+    .ev-hero {
+      background-size: 140% 140%;
+      animation: evBgShift 12s ease-in-out infinite alternate;
+    }
+    @keyframes evBgShift {
+      from { background-position: 0% 40%; }
+      to { background-position: 100% 60%; }
+    }
+  }
+
+  /* HERO */
+  .ev-hero {
+    background:
+      radial-gradient(ellipse at 90% 0%, rgba(56,189,248,.35) 0%, transparent 45%),
+      linear-gradient(160deg, #071526 0%, #0b2a52 55%, #0a1f3d 100%);
+    color: #fff;
+    border-radius: 1.15rem;
+    padding: 1.15rem 1rem 1.25rem;
+    margin-bottom: .85rem;
+    overflow: hidden;
+  }
+  @media (min-width: 768px) {
+    .ev-hero { padding: 2rem 2rem 1.75rem; border-radius: 1.35rem; margin-bottom: 1.15rem; }
+  }
+  .ev-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    background: rgba(56,189,248,.22);
+    border: 1px solid rgba(186,230,253,.5);
+    color: #e0f2fe;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    margin-bottom: .65rem;
+  }
+  .ev-hero h1 {
+    font-size: clamp(1.45rem, 6.2vw, 2.35rem);
+    font-weight: 850;
+    line-height: 1.12;
+    margin: 0 0 .55rem;
+    color: #fff !important;
+    letter-spacing: -0.02em;
+  }
+  .ev-hero h1 span { color: #7dd3fc !important; }
+  .ev-lead {
+    font-size: .95rem;
+    line-height: 1.45;
+    color: rgba(255,255,255,.9);
+    margin: 0 0 .9rem;
+  }
+  @media (min-width: 768px) { .ev-lead { font-size: 1.05rem; max-width: 36rem; } }
+
+  .ev-hero-media {
+    border-radius: .95rem;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.22);
+    background: rgba(255,255,255,.1);
+    margin-bottom: .95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+  }
+  .ev-hero-media img {
+    width: 100%;
+    height: auto;
+    max-height: min(52vh, 420px);
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+  .ev-hero-media .ph {
+    height: 180px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3rem; color: rgba(255,255,255,.35);
+  }
+  @media (min-width: 992px) {
+    .ev-hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 1.5rem; align-items: center; }
+    .ev-hero-media {
+      margin-bottom: 0;
+      min-height: 260px;
+      padding: .5rem;
+    }
+    .ev-hero-media img {
+      max-height: min(58vh, 480px);
+    }
+  }
+
+  .ev-price-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.32);
+    border-radius: 1rem;
+    padding: .85rem 1rem;
+    margin-bottom: .85rem;
+  }
+  .ev-price-box .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; opacity: .85; display: block; }
+  .ev-price-box .val { font-size: 1.65rem; font-weight: 850; line-height: 1.1; color: #fff; }
+  .ev-price-box .hint { font-size: .75rem; opacity: .82; margin-top: .15rem; }
+  .ev-price-box .tag {
+    flex-shrink: 0;
+    background: #22c55e;
+    color: #052e16;
+    font-size: .72rem;
+    font-weight: 800;
+    padding: .4rem .65rem;
+    border-radius: .65rem;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .ev-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 .95rem;
+    display: grid;
+    gap: .35rem;
+  }
+  .ev-bullets li {
+    display: flex;
+    align-items: flex-start;
+    gap: .45rem;
+    font-size: .88rem;
+    color: rgba(255,255,255,.92);
+  }
+  .ev-bullets i { color: #4ade80; margin-top: .15rem; flex-shrink: 0; }
+
+  .ev-cta-row {
+    display: grid;
+    gap: .55rem;
+  }
+  @media (min-width: 480px) {
+    .ev-cta-row { grid-template-columns: 1fr 1fr; }
+  }
+  .ev-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    min-height: 48px;
+    border-radius: .9rem;
+    font-weight: 800;
+    font-size: .95rem;
+    text-decoration: none;
+    padding: .7rem 1rem;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+  }
+  .ev-btn-primary { background: #fff; color: #0b2a52 !important; }
+  .ev-btn-primary:hover { background: #e0f2fe; color: #071526 !important; }
+  .ev-btn-wa { background: #25D366; color: #052e16 !important; }
+  .ev-btn-wa:hover { background: #1ebe5d; color: #052e16 !important; }
+  .ev-btn-ghost {
+    background: transparent;
+    color: #fff !important;
+    border: 1px solid rgba(255,255,255,.4);
+  }
+  .ev-micro {
+    font-size: .75rem;
+    color: rgba(255,255,255,.75);
+    text-align: center;
+    margin: .55rem 0 0;
+  }
+
+  /* Trust chips scroll */
+  .ev-chips {
+    display: flex;
+    gap: .55rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 0 .85rem;
+    margin: 0 0 .35rem;
+  }
+  .ev-chips::-webkit-scrollbar { display: none; }
+  .ev-chip {
+    flex: 0 0 auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    padding: .55rem .85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .8rem;
+    font-weight: 700;
+    color: #0f172a;
+    box-shadow: 0 4px 14px rgba(15,23,42,.05);
+  }
+  .ev-chip i { color: var(--ev-blue); }
+  @media (min-width: 992px) {
+    .ev-chips { display: grid; grid-template-columns: repeat(4, 1fr); overflow: visible; }
+    .ev-chip { border-radius: 1rem; justify-content: flex-start; padding: .85rem 1rem; }
+  }
+
+  /* Sections */
+  .ev-sec {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.1rem;
+    padding: 1.15rem 1rem;
+    margin-bottom: .85rem;
+    box-shadow: 0 8px 24px rgba(15,23,42,.04);
+  }
+  @media (min-width: 768px) {
+    .ev-sec { padding: 1.5rem 1.35rem; margin-bottom: 1rem; border-radius: 1.25rem; }
+  }
+  .ev-sec h2 {
+    font-size: 1.2rem;
+    font-weight: 850;
+    margin: 0 0 .35rem;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 768px) { .ev-sec h2 { font-size: 1.4rem; } }
+  .ev-sec .sub {
+    color: #64748b;
+    font-size: .9rem;
+    margin: 0 0 1rem;
+    line-height: 1.45;
+  }
+
+  .ev-include-grid { display: grid; gap: .55rem; }
+  @media (min-width: 640px) { .ev-include-grid { grid-template-columns: repeat(2, 1fr); } }
+  .ev-include-item {
+    display: flex; gap: .7rem; align-items: flex-start;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: .85rem; padding: .8rem .85rem;
+  }
+  .ev-include-item .ico {
+    width: 40px; height: 40px; border-radius: .7rem;
+    background: linear-gradient(135deg, #0F6FFF, #38bdf8);
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 1.1rem;
+  }
+  .ev-include-item .ttl { font-weight: 750; font-size: .9rem; line-height: 1.25; }
+  .ev-include-item .meta { font-size: .75rem; color: #64748b; margin-top: .1rem; }
+
+  /* Mobile comparison cards */
+  .ev-cmp-cards { display: grid; gap: .55rem; }
+  .ev-cmp-card {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: .4rem;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .85rem;
+    padding: .7rem .8rem;
+    font-size: .82rem;
+  }
+  .ev-cmp-card .feat { font-weight: 650; color: #0f172a; grid-column: 1 / -1; margin-bottom: .15rem; }
+  .ev-cmp-pill {
+    font-size: .72rem; font-weight: 800; padding: .25rem .5rem;
+    border-radius: 999px; text-align: center; white-space: nowrap;
+  }
+  .ev-cmp-pill.ok { background: #d1fae5; color: #065f46; }
+  .ev-cmp-pill.bad { background: #f1f5f9; color: #64748b; }
+  .ev-cmp-pill.mid { background: #ffedd5; color: #9a3412; }
+  .ev-cmp-pill.price-us {
+    background: #dbeafe; color: #1e40af; font-size: .8rem;
+  }
+  .ev-cmp-pill.price-them {
+    background: #fee2e2; color: #991b1b; font-size: .8rem; text-decoration: line-through;
+  }
+  .ev-price-battle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .55rem;
+    margin-bottom: .9rem;
+  }
+  .ev-price-battle .pb {
+    border-radius: 1rem;
+    padding: .85rem .75rem;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+  }
+  .ev-price-battle .pb.us {
+    background: linear-gradient(160deg, #eff6ff, #ecfdf5);
+    border-color: #93c5fd;
+  }
+  .ev-price-battle .pb.them {
+    background: #f8fafc;
+    opacity: .92;
+  }
+  .ev-price-battle .who {
+    font-size: .72rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .04em; color: #64748b; margin-bottom: .25rem;
+  }
+  .ev-price-battle .pb.us .who { color: #1d4ed8; }
+  .ev-price-battle .amt {
+    font-size: 1.25rem; font-weight: 850; line-height: 1.15; color: #0f172a;
+  }
+  .ev-price-battle .pb.us .amt { color: #065f46; }
+  .ev-price-battle .pb.them .amt {
+    color: #94a3b8; text-decoration: line-through; font-size: 1.05rem;
+  }
+  .ev-price-battle .save {
+    margin-top: .35rem; font-size: .72rem; font-weight: 750; color: #059669;
+  }
+  .ev-cmp-legend {
+    display: flex; gap: .75rem; font-size: .75rem; color: #64748b; margin-bottom: .65rem;
+  }
+  @media (min-width: 768px) {
+    .ev-cmp-cards { display: none; }
+  }
+  .ev-compare-wrap { display: none; }
+  @media (min-width: 768px) {
+    .ev-compare-wrap { display: block; }
+  }
+  .ev-compare {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    overflow: hidden; border-radius: .9rem; border: 1px solid #e2e8f0;
+  }
+  .ev-compare th, .ev-compare td {
+    padding: .7rem .85rem; font-size: .88rem; border-bottom: 1px solid #e2e8f0;
+  }
+  .ev-compare thead th {
+    background: #0b2a52; color: #fff; font-weight: 750;
+    font-size: .75rem; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .ev-compare tbody tr:nth-child(even) { background: #f8fafc; }
+  .ev-compare tbody tr:last-child td { border-bottom: 0; }
+  .ev-yes { color: var(--ev-ok); font-weight: 750; }
+  .ev-no { color: #94a3b8; }
+  .ev-maybe { color: var(--ev-warn); font-weight: 650; }
+
+  .ev-invima {
+    display: grid; gap: .85rem;
+  }
+  @media (min-width: 768px) {
+    .ev-invima { grid-template-columns: 1.3fr .7fr; align-items: center; }
+  }
+  .ev-invima ul { margin: 0; padding-left: 1.1rem; font-size: .9rem; }
+  .ev-invima-seal {
+    background: linear-gradient(145deg, #ecfdf5, #e0f2fe);
+    border: 1px solid #a7f3d0; border-radius: 1rem;
+    padding: 1.1rem; text-align: center;
+  }
+  .ev-invima-seal .big { font-size: 2.1rem; color: var(--ev-ok); line-height: 1; margin-bottom: .35rem; }
+
+  .ev-taste {
+    background: linear-gradient(135deg, #0b2a52, #134e4a);
+    color: #fff; border-radius: 1.15rem;
+    padding: 1.2rem 1rem; margin-bottom: .85rem;
+  }
+  .ev-taste h2 { color: #fff !important; font-weight: 850; font-size: 1.2rem; margin: 0 0 .4rem; }
+  .ev-taste p { color: rgba(255,255,255,.9); font-size: .9rem; margin: 0 0 .9rem; line-height: 1.45; }
+  .ev-taste .acts { display: grid; gap: .5rem; }
+  @media (min-width: 480px) { .ev-taste .acts { grid-template-columns: 1fr; max-width: 280px; } }
+  .ev-taste .maps {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+    min-height: 46px; background: #fff; color: #0b2a52 !important; font-weight: 800;
+    border-radius: .85rem; padding: .65rem 1rem; text-decoration: none;
+  }
+
+  .ev-steps { display: grid; gap: .55rem; }
+  @media (min-width: 768px) { .ev-steps { grid-template-columns: repeat(4, 1fr); } }
+  .ev-step {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .9rem; padding: .9rem;
+    display: flex; gap: .7rem; align-items: flex-start;
+  }
+  @media (min-width: 768px) { .ev-step { flex-direction: column; } }
+  .ev-step .n {
+    width: 28px; height: 28px; border-radius: 999px; background: var(--ev-blue);
+    color: #fff; font-weight: 850; display: inline-flex; align-items: center; justify-content: center;
+    font-size: .85rem; flex-shrink: 0;
+  }
+  .ev-step strong { display: block; font-size: .9rem; margin-bottom: .15rem; }
+
+  .ev-form-wrap {
+    border: 2px solid #0F6FFF;
+    background: linear-gradient(180deg, #eff6ff 0%, #fff 28%);
+  }
+  .ev-form-wrap .form-label { font-weight: 700; font-size: .86rem; margin-bottom: .3rem; }
+  .ev-form-wrap .form-control,
+  .ev-form-wrap .form-select {
+    min-height: 48px;
+    font-size: 16px; /* evita zoom iOS */
+    border-radius: .75rem;
+  }
+  .ev-form-wrap textarea.form-control { min-height: auto; }
+  .ev-phone-wrap {
+    display: flex;
+    align-items: stretch;
+  }
+  .ev-phone-prefix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 .85rem;
+    background: #e2e8f0;
+    border: 1px solid #ced4da;
+    border-right: 0;
+    border-radius: .75rem 0 0 .75rem;
+    font-weight: 800;
+    color: #0f172a;
+    font-size: .95rem;
+    white-space: nowrap;
+  }
+  .ev-phone-wrap .form-control {
+    border-radius: 0 .75rem .75rem 0 !important;
+  }
+  .ev-form-note {
+    font-size: .8rem; color: #64748b; margin: 0 0 1rem;
+  }
+  .ev-success {
+    background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 1rem;
+    padding: 1.15rem; text-align: center;
+  }
+  .ev-req { color: #ef4444; }
+
+  .ev-faq .accordion-button {
+    font-weight: 750; font-size: .92rem; box-shadow: none !important;
+  }
+  .ev-faq .accordion-body { font-size: .88rem; color: #475569; line-height: 1.45; }
+
+  .ev-mid-cta {
+    text-align: center;
+    padding: .25rem 0 .5rem;
+    margin-bottom: .85rem;
+  }
+  .ev-mid-cta .ev-btn { max-width: 420px; margin: 0 auto; }
+
+  /* Fixed bottom bar (mobile) */
+  .ev-dock {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 1040;
+    background: rgba(7, 21, 38, .96);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,.12);
+    padding: .65rem .75rem calc(.65rem + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: .5rem;
+  }
+  @media (min-width: 768px) { .ev-dock { display: none; } }
+  .ev-dock .ev-btn { min-height: 46px; font-size: .88rem; }
+  .ev-dock-price {
+    display: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ev-page">
+
+  {# ——— HERO ——— #}
+  <section class="ev-hero">
+    <div class="ev-hero-grid">
+      <div class="ev-hero-in">
+        <div class="ev-badge"><i class="bi bi-stars"></i> Cartagena · Todo incluido</div>
+        <h1>Granizados en tu evento por <span>$390.000</span></h1>
+        <p class="ev-lead">
+          Máquina + sabores + operario + stand. Tus invitados felices,
+          tú sin estrés. <strong>Prueba el sabor antes de pagar</strong>.
+        </p>
+
+        <div class="ev-hero-media d-lg-none">
+          {% if combo.image %}
+          <img src="{{ combo.image.url }}" alt="{{ combo.name }}" loading="eager">
+          {% else %}
+          <div class="ph"><i class="bi bi-cup-straw"></i></div>
+          {% endif %}
+        </div>
+
+        <div class="ev-price-box">
+          <div>
+            <span class="lbl">Precio del combo</span>
+            <div class="val">{{ combo.selling_price|pesos_colombianos }}</div>
+            <div class="hint">Por evento · sin cargos ocultos</div>
+          </div>
+          <div class="tag">Todo<br>incluido</div>
+        </div>
+
+        <ul class="ev-bullets">
+          {% for b in value_bullets %}
+          <li><i class="bi bi-check-circle-fill"></i> {{ b }}</li>
+          {% endfor %}
+        </ul>
+
+        <div class="ev-cta-row">
+          <a class="ev-btn ev-btn-primary ev-btn-pulse" href="#cotizar"><i class="bi bi-calendar-check"></i> Reservar fecha</a>
+          {% if whatsapp_url %}
+          <a class="ev-btn ev-btn-wa" href="{{ whatsapp_url }}?text={{ whatsapp_prefill|urlencode }}" target="_blank" rel="noopener">
+            <i class="bi bi-whatsapp"></i> WhatsApp
+          </a>
+          {% endif %}
+        </div>
+        <p class="ev-micro">Sin pago ahora · Te respondemos por WhatsApp</p>
+      </div>
+
+      <div class="d-none d-lg-block ev-anim">
+        <div class="ev-hero-media">
+          {% if combo.image %}
+          <img src="{{ combo.image.url }}" alt="{{ combo.name }}">
+          {% else %}
+          <div class="ph"><i class="bi bi-cup-straw"></i></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ——— TRUST CHIPS ——— #}
+  <div class="ev-chips ev-anim" aria-label="Beneficios clave">
+    <div class="ev-chip"><i class="bi bi-shield-check"></i> INVIMA / sanitario</div>
+    <div class="ev-chip"><i class="bi bi-emoji-smile"></i> Prueba en Drinzz</div>
+    <div class="ev-chip"><i class="bi bi-cash-coin"></i> $390.000 paquete</div>
+    <div class="ev-chip"><i class="bi bi-person-badge"></i> Operario incluido</div>
+  </div>
+
+  {# ——— INCLUYE ——— #}
+  <section class="ev-sec ev-anim" id="incluye">
+    <h2>¿Qué llega a tu evento?</h2>
+    <p class="sub">Un solo precio. Todo listo. Cero “extras” de último minuto.</p>
+    <div class="ev-include-grid">
+      {% for item in included_items %}
+      <div class="ev-include-item">
+        <div class="ico"><i class="bi {{ item.icon }}"></i></div>
+        <div>
+          <div class="ttl">{{ item.name }}</div>
+          <div class="meta">Incluido en los {{ combo.selling_price|pesos_colombianos }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="text-muted small">El detalle se confirma con tu asesor.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="ev-mid-cta ev-anim">
+    <a class="ev-btn ev-btn-primary ev-btn-pulse" href="#cotizar" style="background:#0F6FFF;color:#fff!important;">
+      Quiero este combo · {{ combo.selling_price|pesos_colombianos }}
+    </a>
+  </div>
+
+  {# ——— COMPARATIVA ——— #}
+  <section class="ev-sec ev-anim" id="comparativa">
+    <h2>MixLab vs otros proveedores</h2>
+    <p class="sub">Misma experiencia de granizados… pero pagas menos con MixLab.</p>
+
+    <div class="ev-price-battle">
+      <div class="pb us">
+        <div class="who">MixLab</div>
+        <div class="amt">$390.000</div>
+        <div class="save">Ahorras $110.000</div>
+      </div>
+      <div class="pb them">
+        <div class="who">Otros</div>
+        <div class="amt">$500.000</div>
+      </div>
+    </div>
+
+    <div class="ev-cmp-legend">
+      <span><strong style="color:#065f46">MixLab</strong></span>
+      <span>vs proveedor típico</span>
+    </div>
+
+    <div class="ev-cmp-cards">
+      {% for row in comparison_rows %}
+      <div class="ev-cmp-card">
+        <div class="feat">{{ row.feature }}</div>
+        {% if row.is_price %}
+        <span class="ev-cmp-pill price-us">{{ row.mixlab }}</span>
+        <span class="ev-cmp-pill price-them">{{ row.others }}</span>
+        {% else %}
+        <span class="ev-cmp-pill ok">MixLab · Sí</span>
+        {% if row.others == True %}
+        <span class="ev-cmp-pill ok">Otros · Sí</span>
+        {% elif row.others == False %}
+        <span class="ev-cmp-pill bad">Otros · No</span>
+        {% else %}
+        <span class="ev-cmp-pill mid">Otros · {{ row.others }}</span>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="ev-compare-wrap table-responsive">
+      <table class="ev-compare">
+        <thead>
+          <tr>
+            <th>Qué recibes</th>
+            <th>MixLab</th>
+            <th>Otros proveedores</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in comparison_rows %}
+          <tr>
+            <td>{{ row.feature }}</td>
+            {% if row.is_price %}
+            <td><span class="ev-yes">{{ row.mixlab }}</span></td>
+            <td><span class="ev-no" style="text-decoration:line-through;">{{ row.others }}</span></td>
+            {% else %}
+            <td><span class="ev-yes"><i class="bi bi-check-circle-fill"></i> Incluido</span></td>
+            <td>
+              {% if row.others == True %}
+              <span class="ev-yes">Sí</span>
+              {% elif row.others == False %}
+              <span class="ev-no"><i class="bi bi-x-circle"></i> No</span>
+              {% else %}
+              <span class="ev-maybe">{{ row.others }}</span>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {# ——— INVIMA ——— #}
+  <section class="ev-sec ev-anim" id="invima">
+    <div class="ev-invima">
+      <div>
+        <h2>Insumos con respaldo sanitario</h2>
+        <p class="sub">En un evento con comida y bebida, la confianza no es opcional.</p>
+        <ul>
+          <li class="mb-2">Bases y sabores aptos para granizados</li>
+          <li class="mb-2">Buenas prácticas de manipulación en sitio</li>
+          <li class="mb-2">Empresa formal: {{ site_settings.company_legal_name|default:"MIXLAB SAS" }}</li>
+          <li>NIT {{ site_settings.company_nit|default:"902031074-1" }}</li>
+        </ul>
+      </div>
+      <div class="ev-invima-seal">
+        <div class="big"><i class="bi bi-award-fill"></i></div>
+        <strong>INVIMA / sanitario</strong>
+        <div class="small text-muted mt-1">Priorizamos insumos con registro y cumplimiento para tu tranquilidad.</div>
+      </div>
+    </div>
+  </section>
+
+  {# ——— PROBAR ——— #}
+  <section class="ev-taste ev-anim" id="probar">
+    <div class="ev-badge mb-2" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);">
+      <i class="bi bi-cup-hot-fill"></i> Antes de pagar
+    </div>
+    <h2>Prueba el sabor en Drinzz</h2>
+    <p>
+      Ven a <strong>Drinzz · Blaz de Lezo</strong>, prueba sabores y mira la máquina.
+      Decide con tranquilidad — sin presión.
+    </p>
+    <div class="acts">
+      <a class="maps" href="{{ drinzz_maps_url }}" target="_blank" rel="noopener">
+        <i class="bi bi-geo-alt-fill"></i> Cómo llegar
+      </a>
+    </div>
+  </section>
+
+  {# ——— PASOS ——— #}
+  <section class="ev-sec ev-anim">
+    <h2>Así de fácil</h2>
+    <p class="sub">4 pasos. Sin enredos.</p>
+    <div class="ev-steps">
+      {% for step in steps %}
+      <div class="ev-step">
+        <div class="n">{{ step.n }}</div>
+        <div>
+          <strong>{{ step.title }}</strong>
+          <div class="small text-muted">{{ step.text }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ——— FORM ——— #}
+  <section class="ev-sec ev-form-wrap ev-anim" id="cotizar">
+    <h2>Reserva tu fecha</h2>
+    <p class="ev-form-note">
+      Completa los datos de tu evento. <strong>No es un pago</strong> — solo pedimos tu cotización.
+      Un asesor te escribe por WhatsApp.
+    </p>
+
+    {% if lead_ok %}
+    <div class="ev-success">
+      <div class="fs-2 text-success mb-2"><i class="bi bi-check-circle-fill"></i></div>
+      <strong class="d-block mb-1">¡Listo! Recibimos tu evento</strong>
+      <span class="text-muted small">Te contactamos pronto por WhatsApp para confirmar cupo y enviarte la propuesta.</span>
+      {% if whatsapp_url %}
+      <div class="mt-3">
+        <a class="ev-btn ev-btn-wa" href="{{ whatsapp_url }}?text={{ whatsapp_prefill|urlencode }}" target="_blank" rel="noopener">
+          <i class="bi bi-whatsapp"></i> Escribir ahora
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label" for="{{ form.organizer_name.id_for_label }}">
+            Nombre de quien organiza <span class="ev-req">*</span>
+          </label>
+          {{ form.organizer_name }}
+          {% if form.organizer_name.errors %}<div class="text-danger small mt-1">{{ form.organizer_name.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-6">
+          <label class="form-label" for="{{ form.event_type.id_for_label }}">
+            Tipo de evento <span class="ev-req">*</span>
+          </label>
+          {{ form.event_type }}
+          {% if form.event_type.errors %}<div class="text-danger small mt-1">{{ form.event_type.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-6">
+          <label class="form-label" for="{{ form.event_date.id_for_label }}">
+            Fecha del evento <span class="ev-req">*</span>
+          </label>
+          <input type="date" name="event_date" id="{{ form.event_date.id_for_label }}"
+                 class="form-control form-control-lg"
+                 value="{{ form.event_date.value|default_if_none:'' }}"
+                 min="{{ min_event_date }}" required>
+          {% if form.event_date.errors %}<div class="text-danger small mt-1">{{ form.event_date.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-6">
+          <label class="form-label" for="{{ form.guests_count.id_for_label }}">
+            Nº de invitados <span class="ev-req">*</span>
+          </label>
+          {{ form.guests_count }}
+          {% if form.guests_count.errors %}<div class="text-danger small mt-1">{{ form.guests_count.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-6">
+          <label class="form-label" for="{{ form.phone.id_for_label }}">
+            WhatsApp <span class="ev-req">*</span>
+          </label>
+          <div class="ev-phone-wrap">
+            <span class="ev-phone-prefix">+57</span>
+            {{ form.phone }}
+          </div>
+          {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="{{ form.event_place.id_for_label }}">
+            Lugar del evento <span class="ev-req">*</span>
+          </label>
+          {{ form.event_place }}
+          <div class="small text-muted mt-1">En Cartagena</div>
+          {% if form.event_place.errors %}<div class="text-danger small mt-1">{{ form.event_place.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="col-12">
+          <details class="mt-1">
+            <summary class="small text-primary" style="cursor:pointer;font-weight:650;">
+              + Añadir correo o notas (opcional)
+            </summary>
+            <div class="row g-3 mt-1">
+              <div class="col-12">
+                <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+                {{ form.email }}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                {{ form.notes }}
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div class="col-12">
+          <button type="submit" class="ev-btn ev-btn-primary" style="background:#0F6FFF;color:#fff!important;">
+            <i class="bi bi-send-fill"></i> Quiero mi cotización gratis
+          </button>
+          <p class="small text-muted text-center mt-2 mb-0">Te contactamos por WhatsApp. Sin spam.</p>
+        </div>
+      </div>
+    </form>
+    {% endif %}
+  </section>
+
+  {# ——— FAQ ——— #}
+  <section class="ev-sec ev-faq ev-anim" id="faq">
+    <h2>Preguntas frecuentes</h2>
+    <p class="sub">Lo que más preguntan antes de reservar.</p>
+    <div class="accordion accordion-flush" id="evFaq">
+      {% for faq in faqs %}
+      <div class="accordion-item border rounded mb-2 overflow-hidden">
+        <h3 class="accordion-header" id="faq-h-{{ forloop.counter }}">
+          <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#faq-c-{{ forloop.counter }}"
+                  aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                  aria-controls="faq-c-{{ forloop.counter }}">
+            {{ faq.q }}
+          </button>
+        </h3>
+        <div id="faq-c-{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+             data-bs-parent="#evFaq" aria-labelledby="faq-h-{{ forloop.counter }}">
+          <div class="accordion-body">{{ faq.a }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <p class="small text-muted text-center mb-0 px-2">
+    El transporte no está incluido; se cotiza según la ubicación del evento.
+  </p>
+</div>
+
+{# Fixed mobile dock #}
+<div class="ev-dock" role="navigation" aria-label="Acciones rápidas">
+  {% if whatsapp_url %}
+  <a class="ev-btn ev-btn-wa" href="{{ whatsapp_url }}?text={{ whatsapp_prefill|urlencode }}" target="_blank" rel="noopener">
+    <i class="bi bi-whatsapp"></i> WhatsApp
+  </a>
+  {% else %}
+  <a class="ev-btn ev-btn-ghost" href="#incluye" style="border-color:#94a3b8;color:#fff!important;">Ver incluye</a>
+  {% endif %}
+  <a class="ev-btn ev-btn-primary ev-btn-pulse" href="#cotizar">
+    Cotizar · $390.000
+  </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var nodes = document.querySelectorAll('.ev-anim');
+  if (!nodes.length) return;
+  if (reduce || !('IntersectionObserver' in window)) {
+    nodes.forEach(function (el) { el.classList.add('is-in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-in');
+      io.unobserve(entry.target);
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  nodes.forEach(function (el) { io.observe(el); });
+})();
+</script>
+{% endblock %}

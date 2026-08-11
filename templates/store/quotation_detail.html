@@ -568,6 +568,7 @@
                 <th>#</th>
                 <th>Fecha</th>
                 <th>Tipo</th>
+                <th>Medio</th>
                 <th class="text-end">Monto</th>
                 <th>Comprobante</th>
                 <th>Por</th>
@@ -585,12 +586,21 @@
                   <span class="badge text-bg-success">Total / cierre</span>
                   {% endif %}
                 </td>
+                <td>
+                  {% if pay.method == 'efectivo' %}
+                  <span class="badge text-bg-dark"><i class="bi bi-cash-coin"></i> Efectivo</span>
+                  {% else %}
+                  <span class="badge text-bg-light text-dark border">Transferencia</span>
+                  {% endif %}
+                </td>
                 <td class="text-end fw-semibold">{{ pay.amount|pesos_colombianos }}</td>
                 <td>
                   {% if pay.proof %}
                   <a href="{{ pay.proof.url }}" target="_blank" rel="noopener noreferrer">
                     <img src="{{ pay.proof.url }}" alt="Comprobante" class="img-thumbnail" style="max-height:56px; border-radius:.5rem;">
                   </a>
+                  {% elif pay.method == 'efectivo' %}
+                  <span class="small text-muted">Sin foto</span>
                   {% else %}—{% endif %}
                 </td>
                 <td class="small text-muted">
@@ -609,7 +619,7 @@
           <div class="qd-help mt-2">Comprobante (registro anterior).</div>
         </div>
       {% else %}
-        <p class="qd-help mb-3">Sube la referencia de pago e indica si es <strong>parcial</strong> o <strong>total</strong>. Puedes registrar varios abonos hasta completar el total.</p>
+        <p class="qd-help mb-3">Registra un pago por <strong>transferencia</strong> (con foto) o <strong>efectivo</strong> (sin foto). Puedes sumar varios abonos hasta completar el total.</p>
       {% endif %}
 
       <div class="qd-pay-summary mb-3">
@@ -632,7 +642,7 @@
       {% if quote.order_status != 'pago_recibido' and quote.order_status != 'enviado' and quote.order_status != 'recibido' %}
       <button type="button" class="qd-btn qd-btn-dark" data-bs-toggle="modal" data-bs-target="#paymentProofModal">
         <i class="bi bi-cloud-upload"></i>
-        {% if payment_records or quote.payment_proof %}Agregar otro pago{% else %}Subir referencia{% endif %}
+        {% if payment_records or quote.payment_proof %}Agregar otro pago{% else %}Registrar pago{% endif %}
       </button>
       {% else %}
       <p class="qd-help mb-0 text-success"><i class="bi bi-check2-circle"></i> Cotización pagada por completo.</p>
@@ -652,12 +662,32 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
           <div class="modal-body">
+            <input type="hidden" name="register_payment" value="1">
             <p class="qd-help mb-3">
-              Adjunta el comprobante e indica el tipo. Los abonos <strong>se acumulan</strong>.
+              Elige el medio de pago. En <strong>efectivo</strong> no se pide foto.
+              Los abonos <strong>se acumulan</strong>.
               {% if remaining_balance > 0 %}
               Saldo pendiente actual: <strong>{{ remaining_balance|pesos_colombianos }}</strong>.
               {% endif %}
             </p>
+
+            <label class="form-label fw-bold">Medio de pago</label>
+            <div class="qd-pay-type mb-3" role="radiogroup" aria-label="Medio de pago">
+              <label class="qd-pay-type-option">
+                <input type="radio" name="payment_method" value="transferencia" id="payment_method_transfer" checked>
+                <span class="qd-pay-type-card">
+                  <strong><i class="bi bi-bank me-1"></i> Transferencia</strong>
+                  <span>Requiere foto o PDF del comprobante.</span>
+                </span>
+              </label>
+              <label class="qd-pay-type-option">
+                <input type="radio" name="payment_method" value="efectivo" id="payment_method_cash">
+                <span class="qd-pay-type-card">
+                  <strong><i class="bi bi-cash-coin me-1"></i> Efectivo</strong>
+                  <span>Sin foto. Solo registra el monto recibido.</span>
+                </span>
+              </label>
+            </div>
 
             <label class="form-label fw-bold">Tipo de pago</label>
             <div class="qd-pay-type mb-3" role="radiogroup" aria-label="Tipo de pago">
@@ -701,15 +731,20 @@
               </div>
             </div>
 
-            <label class="form-label fw-bold" for="payment_proof_input">Comprobante</label>
-            <input class="form-control" type="file" name="payment_proof" id="payment_proof_input"
-                   accept="image/*,.pdf" required>
-            <div class="qd-help mt-2">Imagen o PDF del comprobante bancario / transferencia.</div>
+            <div id="paymentProofWrap" class="mb-2">
+              <label class="form-label fw-bold" for="payment_proof_input">Comprobante</label>
+              <input class="form-control" type="file" name="payment_proof" id="payment_proof_input"
+                     accept="image/*,.pdf">
+              <div class="qd-help mt-2">Imagen o PDF del comprobante bancario / transferencia.</div>
+            </div>
+            <div id="cashHint" class="alert alert-light border small mb-0" hidden>
+              <i class="bi bi-info-circle"></i> Pago en efectivo: no se adjunta foto. Quedará registrado en el historial de pagos.
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
             <button type="submit" class="qd-btn qd-btn-dark">
-              <i class="bi bi-cloud-upload"></i> Subir y actualizar estado
+              <i class="bi bi-check2-circle"></i> Registrar pago
             </button>
           </div>
         </form>
@@ -738,14 +773,14 @@
             {% for value,label in quote.ORDER_STATUS_CHOICES %}
               <option value="{{ value }}"
                       {% if value == quote.order_status %}selected{% endif %}
-                      {% if not quote.payment_proof and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
+                      {% if not has_payment_record and value in 'pago_parcial,pago_recibido,enviado,recibido,modificado_y_enviado' %}disabled{% endif %}>
                   {{ label }}
               </option>
             {% endfor %}
           </select>
-          {% if not quote.payment_proof %}
+          {% if not has_payment_record %}
             <div class="qd-help mt-2">
-              Sube una referencia de pago arriba para poder marcar &quot;Pago parcial&quot;, &quot;Pago recibido&quot;, &quot;Enviado&quot; o &quot;Recibido&quot;.
+              Registra un pago (transferencia o efectivo) arriba para poder marcar &quot;Pago parcial&quot;, &quot;Pago recibido&quot;, &quot;Enviado&quot; o &quot;Recibido&quot;.
             </div>
           {% endif %}
         </div>
@@ -842,6 +877,9 @@
     var form = document.getElementById('paymentProofForm');
     var amountWrap = document.getElementById('partialAmountWrap');
     var amountInput = document.getElementById('partial_payment_amount');
+    var proofWrap = document.getElementById('paymentProofWrap');
+    var proofInput = document.getElementById('payment_proof_input');
+    var cashHint = document.getElementById('cashHint');
     var remaining = parseFloat('{{ remaining_balance|default:"0" }}') || 0;
     var quoteTotal = parseFloat('{{ quote.total|default:"0" }}') || 0;
     if (remaining <= 0) remaining = quoteTotal;
@@ -858,13 +896,36 @@
       }
     }
 
+    function syncPaymentMethod() {
+      if (!form) return;
+      var cash = form.querySelector('input[name="payment_method"][value="efectivo"]');
+      var isCash = cash && cash.checked;
+      if (proofWrap) proofWrap.hidden = !!isCash;
+      if (cashHint) cashHint.hidden = !isCash;
+      if (proofInput) {
+        proofInput.required = !isCash;
+        if (isCash) proofInput.value = '';
+      }
+    }
+
     if (form) {
       form.querySelectorAll('input[name="payment_type"]').forEach(function (radio) {
         radio.addEventListener('change', syncPartialAmount);
       });
+      form.querySelectorAll('input[name="payment_method"]').forEach(function (radio) {
+        radio.addEventListener('change', syncPaymentMethod);
+      });
       syncPartialAmount();
+      syncPaymentMethod();
 
       form.addEventListener('submit', function (e) {
+        var cash = form.querySelector('input[name="payment_method"][value="efectivo"]');
+        var isCash = cash && cash.checked;
+        if (!isCash && proofInput && !proofInput.files.length) {
+          e.preventDefault();
+          alert('Adjunta el comprobante de la transferencia.');
+          return;
+        }
         var parcial = form.querySelector('input[name="payment_type"][value="parcial"]');
         if (!(parcial && parcial.checked)) return;
         var raw = (amountInput.value || '').trim().replace(',', '.');

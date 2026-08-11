@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Leads de eventos · Manager{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Leads de eventos</h1>
+      <p class="text-muted small mb-0">
+        Solicitudes de la landing. Aquí no se crea cotización automática:
+        el asesor la arma en el sistema cuando se cuadre el evento.
+      </p>
+    </div>
+    <a href="{% url 'store:event_landing' %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+      Ver landing pública
+    </a>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{% url 'store:event_leads_list' %}"
+       class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      Todos ({{ counts.todos }})
+    </a>
+    {% for value, label in status_choices %}
+    <a href="?status={{ value }}{% if q %}&q={{ q }}{% endif %}"
+       class="btn btn-sm {% if status_filter == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      {{ label }}
+      ({% if value == 'nuevo' %}{{ counts.nuevo }}{% elif value == 'contactado' %}{{ counts.contactado }}{% elif value == 'cotizado' %}{{ counts.cotizado }}{% elif value == 'ganado' %}{{ counts.ganado }}{% else %}{{ counts.perdido }}{% endif %})
+    </a>
+    {% endfor %}
+  </div>
+
+  <form method="get" class="row g-2 mb-3">
+    {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    <div class="col-md-6">
+      <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Buscar por nombre, teléfono, lugar…">
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-outline-secondary" type="submit">Buscar</button>
+    </div>
+  </form>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Cliente</th>
+            <th>Evento</th>
+            <th>Lugar</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+          <tr>
+            <td class="text-muted small">{{ lead.id }}</td>
+            <td>
+              <div class="fw-semibold">{{ lead.organizer_name }}</div>
+              <div class="small">
+                <a href="https://wa.me/{{ lead.phone|cut:'+'|cut:' ' }}" target="_blank" rel="noopener">
+                  {{ lead.phone }}
+                </a>
+              </div>
+              {% if lead.email %}<div class="small text-muted">{{ lead.email }}</div>{% endif %}
+              <div class="small text-muted">{{ lead.created_at|date:"d/m/Y H:i" }}</div>
+            </td>
+            <td>
+              <div>{{ lead.get_event_type_display }}</div>
+              <div class="small text-muted">{{ lead.event_date|date:"d/m/Y" }} · {{ lead.guests_count }} invitados</div>
+              {% if lead.combo %}<div class="small">{{ lead.combo.name|truncatechars:42 }}</div>{% endif %}
+            </td>
+            <td>
+              <div>{{ lead.event_place }}</div>
+              <div class="small text-muted">{{ lead.city|default:"Cartagena" }}</div>
+              {% if lead.notes %}<div class="small text-muted mt-1">{{ lead.notes|truncatechars:80 }}</div>{% endif %}
+            </td>
+            <td>
+              {% if lead.status == 'nuevo' %}
+              <span class="badge text-bg-primary">Nuevo</span>
+              {% elif lead.status == 'contactado' %}
+              <span class="badge text-bg-info">Contactado</span>
+              {% elif lead.status == 'cotizado' %}
+              <span class="badge text-bg-warning">Cotizado</span>
+              {% elif lead.status == 'ganado' %}
+              <span class="badge text-bg-success">Ganado</span>
+              {% else %}
+              <span class="badge text-bg-secondary">Perdido</span>
+              {% endif %}
+              {% if lead.quotation_id %}
+              <div class="small mt-1">
+                <a href="{% url 'store:quotation_detail' quotation_id=lead.quotation_id %}">COT-{{ lead.quotation_id }}</a>
+              </div>
+              {% endif %}
+            </td>
+            <td style="min-width: 220px;">
+              <form method="post" class="d-grid gap-1">
+                {% csrf_token %}
+                <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                <select name="status" class="form-select form-select-sm">
+                  {% for value, label in status_choices %}
+                  <option value="{{ value }}" {% if lead.status == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <textarea name="staff_notes" class="form-control form-control-sm" rows="2"
+                          placeholder="Notas del asesor…">{{ lead.staff_notes }}</textarea>
+                <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+              </form>
+              <a class="btn btn-sm btn-success mt-1 w-100"
+                 href="https://wa.me/{{ lead.phone|cut:'+'|cut:' ' }}"
+                 target="_blank" rel="noopener">
+                <i class="bi bi-whatsapp"></i> Escribir
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">No hay leads todavía.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

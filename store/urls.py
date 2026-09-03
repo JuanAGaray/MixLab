@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .dian import views as dian_views
 
 app_name = 'store'
 
@@ -39,9 +40,15 @@ urlpatterns = [
     path('cotizaciones/<int:quotation_id>/pdf/', views.quotation_pdf, name='quotation_pdf'),
     path('cotizaciones/<int:quotation_id>/pdf/file/', views.quotation_pdf_file, name='quotation_pdf_file'),
     path('cotizaciones/<int:quotation_id>/factura/', views.quotation_invoice_download, name='quotation_invoice_download'),
+    path('cotizaciones/<int:quotation_id>/cuenta-cobro/', views.quotation_cuenta_cobro, name='quotation_cuenta_cobro'),
+    path('cotizaciones/<int:quotation_id>/fe/', dian_views.quotation_dian_invoice, name='quotation_dian_invoice'),
+    path('cotizaciones/<int:quotation_id>/fe/emitir/', dian_views.quotation_dian_invoice_emit, name='quotation_dian_invoice_emit'),
+    path('cotizaciones/<int:quotation_id>/fe/xml/', dian_views.quotation_dian_invoice_xml, name='quotation_dian_invoice_xml'),
+    path('cotizaciones/<int:quotation_id>/fe/pdf/', dian_views.quotation_dian_invoice_pdf, name='quotation_dian_invoice_pdf'),
     path('cotizaciones/<int:quotation_id>/contrato-alquiler/', views.quotation_rental_contract, name='quotation_rental_contract'),
     path('cotizaciones/<int:quotation_id>/requisitos-contrato/', views.quotation_rental_requirements, name='quotation_rental_requirements'),
     path('cotizaciones/<int:quotation_id>/remitir-requisitos/', views.quotation_client_onboarding_manage, name='quotation_client_onboarding_manage'),
+    path('cotizaciones/<int:quotation_id>/partes-maquina/', views.quotation_machine_parts, name='quotation_machine_parts'),
     path('requisitos/<uuid:token>/', views.client_rental_requirements_unlock, name='client_rental_requirements_unlock'),
     path('requisitos/<uuid:token>/formulario/', views.client_rental_requirements_form, name='client_rental_requirements_form'),
     path('requisitos/<uuid:token>/listo/', views.client_rental_requirements_done, name='client_rental_requirements_done'),
@@ -54,6 +61,7 @@ urlpatterns = [
     path('cotizaciones/ajax/reverse-geocode/', views.ajax_reverse_geocode, name='ajax_reverse_geocode'),
     path('cotizaciones/<int:quotation_id>/eliminar/', views.quotation_delete, name='quotation_delete'),
     path('cotizacion/ajax/add/', views.quotation_ajax_add, name='quotation_ajax_add'),
+    path('cotizacion/ajax/add-custom/', views.quotation_ajax_add_custom, name='quotation_ajax_add_custom'),
     path('cotizacion/ajax/remove/', views.quotation_ajax_remove, name='quotation_ajax_remove'),
     path('cotizacion/ajax/update-qty/', views.quotation_ajax_update_qty, name='quotation_ajax_update_qty'),
     path('cotizacion/ajax/update-discount/', views.quotation_ajax_update_discount, name='quotation_ajax_update_discount'),

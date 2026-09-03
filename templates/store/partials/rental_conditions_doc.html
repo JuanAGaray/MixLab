@@ -1,0 +1,144 @@
+{% load store_tags %}
+<div class="rc-doc">
+  <div class="rc-doc-head">
+    <div>
+      <div class="rc-doc-kicker">Requisitos y condiciones de alquiler</div>
+      <h3 class="rc-doc-title mb-1">
+        {% if is_empresa %}Formato empresa{% else %}Formato persona natural{% endif %}
+      </h3>
+      <div class="text-muted small">COT-{{ quote.id }} · {{ quote.display_client_name }}</div>
+    </div>
+    <span class="badge {% if is_empresa %}text-bg-primary{% else %}text-bg-secondary{% endif %}">
+      {{ quote.display_client_kind }}
+    </span>
+  </div>
+
+  <div class="rc-doc-section">
+    <h4>1. Identificación del arrendatario</h4>
+    {% if is_empresa %}
+    <ul class="mb-0">
+      <li><strong>Razón social:</strong> {{ quote.display_client_name|default:"—" }}</li>
+      <li><strong>NIT:</strong> {{ req.company_nit|default:quote.display_client_document|default:"—" }}</li>
+      <li><strong>Representante legal:</strong> {{ req.company_legal_rep_name|default:"—" }}</li>
+      <li><strong>C.C. representante:</strong> {{ req.company_legal_rep_document|default:"—" }}</li>
+      <li><strong>Teléfono:</strong> {{ quote.display_client_phone|default:"—" }}</li>
+      <li><strong>Correo:</strong> {{ quote.display_client_email|default:"—" }}</li>
+    </ul>
+    {% else %}
+    <ul class="mb-0">
+      <li><strong>Nombre completo:</strong> {{ req.tenant_name|default:quote.display_client_name|default:"—" }}</li>
+      <li><strong>Cédula:</strong> {{ quote.display_client_document|default:"—" }}</li>
+      <li><strong>Teléfono:</strong> {{ quote.display_client_phone|default:"—" }}</li>
+      <li><strong>Correo:</strong> {{ quote.display_client_email|default:"—" }}</li>
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="rc-doc-section">
+    <h4>2. Requisitos del arrendatario</h4>
+    <ul>
+      {% if is_empresa %}
+      <li>Copia del RUT y cámara de comercio vigente (cuando aplique).</li>
+      <li>Documento de identidad del representante legal.</li>
+      <li>Autorización para operar el equipo en el sitio indicado.</li>
+      {% else %}
+      <li>Cédula de ciudadanía vigente (frente y reverso).</li>
+      <li>Selfie con la cédula al lado del rostro.</li>
+      <li>Ubicación exacta donde operará la máquina.</li>
+      {% endif %}
+      {% if req.codeudor_required %}
+      <li>Codeudor solidario con documento y fotos de cédula.</li>
+      {% endif %}
+    </ul>
+  </div>
+
+  <div class="rc-doc-section">
+    <h4>3. Responsabilidad por daños, pérdidas o hurto</h4>
+    <p class="mb-2">
+      El arrendatario declara conocer y aceptar que, en caso de <strong>pérdida, hurto, daño parcial o total</strong>
+      del equipo o cualquiera de sus partes durante la vigencia del alquiler, deberá asumir el costo de reposición
+      según la tabla de partes adjunta. El valor comercial total del equipo también se considera referencia
+      para daño total o pérdida completa.
+    </p>
+    <p class="mb-0 small text-muted">
+      La empresa (arrendatario persona jurídica) o la persona natural, según corresponda, se obliga al pago
+      inmediato de los valores causados, sin perjuicio de las acciones legales que correspondan.
+    </p>
+  </div>
+
+  {% if machines %}
+  <div class="rc-doc-section">
+    <h4>4. Tabla de partes y costos de reposición</h4>
+    {% for machine in machines %}
+    <div class="mb-3">
+      <div class="fw-bold mb-2">{{ machine.product.name }}</div>
+      {% if machine.commercial_value %}
+      <div class="small text-muted mb-2">Valor comercial referencia (pérdida total): {{ machine.commercial_value|pesos_colombianos }}</div>
+      {% endif %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-2">
+          <thead class="table-light">
+            <tr>
+              <th>Parte / componente</th>
+              <th class="text-end" style="width:140px;">Costo daño</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for part in machine.parts %}
+            <tr>
+              <td>{{ part.name }}</td>
+              <td class="text-end">{{ part.replacement_cost|pesos_colombianos }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2" class="text-muted">Sin partes registradas.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-light">
+              <td class="fw-bold">Subtotal partes</td>
+              <td class="text-end fw-bold">{{ machine.parts_total|pesos_colombianos }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="rc-total-box">
+      <span>Total referencia partes (todas las máquinas)</span>
+      <strong>{{ grand_parts_total|pesos_colombianos }}</strong>
+    </div>
+    {% if grand_commercial_total %}
+    <div class="small text-muted mt--2">Valor comercial total equipos: {{ grand_commercial_total|pesos_colombianos }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="rc-doc-section">
+    <h4>5. Aceptación y firma</h4>
+    <p class="mb-2">
+      Declaro que he leído y acepto los requisitos, condiciones y la tabla de costos por daños o pérdidas.
+      Autorizo el tratamiento de mis datos para fines contractuales.
+    </p>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="small text-muted">Nombre quien acepta</div>
+        <div class="fw-semibold">{{ req.conditions_signer_name|default:"________________________" }}</div>
+      </div>
+      <div class="col-md-6">
+        <div class="small text-muted">Documento (C.C. / NIT)</div>
+        <div class="fw-semibold">{{ req.conditions_signer_document|default:"________________________" }}</div>
+      </div>
+      <div class="col-12">
+        <div class="small text-muted mb-1">Firma</div>
+        {% if req.conditions_signature %}
+        <img src="{{ req.conditions_signature.url }}" alt="Firma" class="rc-signature-preview">
+        {% else %}
+        <div class="rc-signature-empty">Pendiente de firma del cliente</div>
+        {% endif %}
+        {% if req.conditions_accepted_at %}
+        <div class="small text-success mt-1">Aceptado: {{ req.conditions_accepted_at|date:"d/m/Y H:i" }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

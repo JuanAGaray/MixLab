@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import uuid
 from datetime import timedelta
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -29,7 +30,7 @@ from .models import (
     ProductRentalPrice, RentalCombo, RentalComboItem,
     ComboBooking, ComboBookingExtra, QuotationPayment,
     DilutionBaseProduct, SiteSettings, PaymentMethod,
-    RentalContractRequirements, RentalDeliveryActa,
+    RentalContractRequirements, RentalDeliveryActa, RentalMachinePart,
     FinanceRecord,
     DrinzzContractConfig,
     EventLandingLead,
@@ -184,14 +185,26 @@ def _load_quotation_into_session(request, quote: Quotation) -> dict:
     """Carga ítems de una cotización guardada en la sesión del builder."""
     session_quote: dict = {}
     for item in quote.items.select_related('product', 'rental_price').all():
+        dtype, dval = _quote_discount_from_saved_item(item)
         if not item.product_id:
+            # Línea personalizada (extra)
+            key = f'custom:qi{item.id}'
+            list_price = item.list_unit_price if item.list_unit_price is not None else item.unit_price
+            session_quote[key] = {
+                'kind': 'custom',
+                'name': (item.custom_name or item.display_name or 'Extra').strip(),
+                'qty': int(item.quantity or 1),
+                'unit_price': float(list_price or 0),
+                'discount_type': dtype,
+                'discount_value': dval,
+                'discount_percent': dval if dtype == 'percent' else 0.0,
+            }
             continue
         rental_price_id = item.rental_price_id
         if rental_price_id:
             line_key = f'{item.product_id}:{rental_price_id}'
         else:
             line_key = str(item.product_id)
-        dtype, dval = _quote_discount_from_saved_item(item)
         session_quote[line_key] = {
             'qty': int(item.quantity or 1),
             'discount_type': dtype,
@@ -4151,6 +4164,11 @@ def inventory_combo_schedule(request, combo_id):
                             'maps_url': maps_url,
                             'latitude': latitude,
                             'longitude': longitude,
+                            'company_nit': '',
+                            'company_legal_rep_name': '',
+                            'company_legal_rep_document': '',
+                            'conditions_signer_name': '',
+                            'conditions_signer_document': '',
                         },
                     )
 
@@ -4223,6 +4241,34 @@ def quotation(request):
     if session_quote:
         for line_key, entry in session_quote.items():
             try:
+                if _is_custom_quote_key(line_key):
+                    custom = _normalize_custom_quote_entry(entry)
+                    qty = custom['qty']
+                    list_unit = Decimal(str(custom['unit_price']))
+                    price = _custom_unit_after_discount(
+                        list_unit,
+                        discount_type=custom['discount_type'],
+                        discount_value=custom['discount_value'],
+                    )
+                    subtotal = price * qty
+                    total += subtotal
+                    quotation_items.append({
+                        'product': None,
+                        'is_custom': True,
+                        'line_key': line_key,
+                        'display_name': custom['name'],
+                        'period_label': '',
+                        'quantity': qty,
+                        'discount_type': custom['discount_type'],
+                        'discount_value': custom['discount_value'],
+                        'discount_percent': custom['discount_percent'],
+                        'rental_price_id': None,
+                        'list_unit_price': list_unit,
+                        'unit_price': price,
+                        'subtotal': subtotal,
+                    })
+                    continue
+
                 product_id, rental_from_key = _parse_quote_line_key(line_key)
                 # En edición permitir productos aunque ya no estén "available"
                 product_qs = Product.objects.select_related('category')
@@ -4253,6 +4299,7 @@ def quotation(request):
                         display_name = f'{product.name} · {period_label}'
                 quotation_items.append({
                     'product': product,
+                    'is_custom': False,
                     'line_key': line_key,
                     'display_name': display_name,
                     'period_label': period_label,
@@ -4361,6 +4408,26 @@ def quotation(request):
 
             running_total = Decimal('0.00')
             for line_key, entry in session_quote.items():
+                if _is_custom_quote_key(line_key):
+                    custom = _normalize_custom_quote_entry(entry)
+                    qty = custom['qty']
+                    list_unit = Decimal(str(custom['unit_price']))
+                    price = _custom_unit_after_discount(
+                        list_unit,
+                        discount_type=custom['discount_type'],
+                        discount_value=custom['discount_value'],
+                    )
+                    item = QuotationItem.objects.create(
+                        quotation=quotation_obj,
+                        product=None,
+                        custom_name=custom['name'],
+                        quantity=qty,
+                        unit_price=price,
+                        list_unit_price=list_unit,
+                        subtotal=price * qty,
+                    )
+                    running_total += item.subtotal
+                    continue
                 try:
                     product_id, rental_from_key = _parse_quote_line_key(line_key)
                     if is_update:
@@ -4506,10 +4573,12 @@ def quotation(request):
     selected_product_ids = []
     selected_line_keys = set(session_quote.keys()) if session_quote else set()
     for item in quotation_items:
-        pid = item['product'].id
+        product = item.get('product')
+        if not product or item.get('is_custom'):
+            continue
         if item.get('rental_price_id'):
             continue
-        selected_product_ids.append(pid)
+        selected_product_ids.append(product.id)
     if selected_product_ids:
         all_products = (
             Product.objects.filter(available=True)
@@ -5157,6 +5226,13 @@ def quotation_detail(request, quotation_id):
 
         if new_status == 'pago_recibido' and previous_status != 'pago_recibido':
             _notify_wa_quotation_payment(q, event='pago_recibido', request=request)
+            from django.db import transaction as db_transaction
+            from store.dian.services.emit import maybe_auto_emit_on_payment
+
+            def _auto_emit_fe():
+                maybe_auto_emit_on_payment(q, emitted_by=request.user)
+
+            db_transaction.on_commit(_auto_emit_fe)
         else:
             _notify_wa_quotation_payment(
                 q,
@@ -5257,6 +5333,9 @@ def quotation_detail(request, quotation_id):
         _close_quotation_on_full_payment(q)
         q.save(update_fields=['quotation_status', 'updated_at'])
 
+    from store.dian.models import DianElectronicInvoice
+    dian_invoice = DianElectronicInvoice.objects.filter(quotation=q).first()
+
     return render(
         request,
         'store/quotation_detail.html',
@@ -5277,6 +5356,7 @@ def quotation_detail(request, quotation_id):
             'remaining_balance': q.remaining_balance,
             'has_payment_record': _quotation_has_payment_record(q),
             'combo_booking': combo_booking,
+            'dian_invoice': dian_invoice,
         },
     )
 
@@ -5570,6 +5650,248 @@ def quotation_invoice_download(request, quotation_id):
     )
 
 
+_MESES_ES = (
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+)
+
+
+def _format_fecha_larga(dt) -> str:
+    if not dt:
+        return ''
+    return f'{dt.day} de {_MESES_ES[dt.month - 1]} de {dt.year}'
+
+
+_FREIGHT_KEYWORDS = ('transporte', 'flete', 'carromoto', 'envío', 'envio', 'domicilio', 'logística', 'logistica')
+
+
+def _cuenta_cobro_operation_type(item) -> str:
+    if not item.product_id:
+        return 'Servicio'
+    ptype = getattr(item.product, 'product_type', '') or ''
+    if ptype == 'rental':
+        return 'Arrendamiento'
+    return 'Venta'
+
+
+def _cuenta_cobro_is_freight(item) -> bool:
+    name = (item.display_name or '').lower()
+    return any(k in name for k in _FREIGHT_KEYWORDS)
+
+
+def _cuenta_cobro_context(quote: Quotation) -> dict:
+    """Contexto para cuenta de cobro (Colombia) vinculada a una cotización."""
+    from .numero_letras import numero_a_letras_pesos
+
+    quote.sync_client_snapshot_from_profile(save=True)
+    settings_obj = SiteSettings.load()
+    items = list(
+        quote.items.select_related('product', 'product__category', 'rental_price').order_by('id')
+    )
+    issue_date = timezone.now()
+
+    def split_iva(amount: Decimal):
+        if amount is None:
+            amount = Decimal('0.00')
+        base = (amount / (Decimal('1.00') + IVA_RATE))
+        iva = amount - base
+        return base.quantize(Decimal('0.01')), iva.quantize(Decimal('0.01'))
+
+    total_base = Decimal('0.00')
+    total_iva = Decimal('0.00')
+    total_discount = Decimal('0.00')
+    freight_subtotal = Decimal('0.00')
+    other_costs_subtotal = Decimal('0.00')
+    service_days = 0
+
+    for it in items:
+        it.operation_type = _cuenta_cobro_operation_type(it)
+        it.iva_rate_label = '19%'
+        it.base_subtotal, it.iva_subtotal = split_iva(it.subtotal)
+        total_base += it.base_subtotal
+        total_iva += it.iva_subtotal
+
+        list_unit = it.list_unit_price if it.list_unit_price is not None else it.unit_price
+        try:
+            line_discount = (Decimal(str(list_unit or 0)) - Decimal(str(it.unit_price or 0))) * Decimal(it.quantity or 1)
+        except Exception:
+            line_discount = Decimal('0.00')
+        if line_discount > 0:
+            it.line_discount = line_discount.quantize(Decimal('0.01'))
+            total_discount += it.line_discount
+        else:
+            it.line_discount = Decimal('0.00')
+
+        if _cuenta_cobro_is_freight(it):
+            freight_subtotal += Decimal(str(it.subtotal or 0))
+        elif not it.product_id and it.operation_type == 'Servicio':
+            other_costs_subtotal += Decimal(str(it.subtotal or 0))
+
+        if it.product_id and getattr(it.product, 'product_type', '') == 'rental':
+            try:
+                if it.rental_price_id and it.rental_price and it.rental_price.period_type == 'day':
+                    service_days += int(it.quantity or 0)
+            except Exception:
+                pass
+
+    amount_paid = quote.amount_paid
+    quote_total = Decimal(str(quote.total or 0))
+    charge_amount = quote.remaining_balance if quote.remaining_balance > 0 else quote_total
+    if charge_amount <= 0:
+        charge_amount = quote_total
+
+    if quote_total > 0 and charge_amount < quote_total:
+        ratio = charge_amount / quote_total
+        charge_base = (total_base * ratio).quantize(Decimal('0.01'))
+        charge_iva = (total_iva * ratio).quantize(Decimal('0.01'))
+        charge_discount = (total_discount * ratio).quantize(Decimal('0.01'))
+        charge_freight = (freight_subtotal * ratio).quantize(Decimal('0.01'))
+        charge_other = (other_costs_subtotal * ratio).quantize(Decimal('0.01'))
+    else:
+        charge_base = total_base
+        charge_iva = total_iva
+        charge_discount = total_discount
+        charge_freight = freight_subtotal
+        charge_other = other_costs_subtotal
+
+    # Retenciones de referencia — MIXLAB no es GC: reteIVA la practica el deudor si él es Gran Contribuyente
+    is_grand_contributor = bool(getattr(settings_obj, 'company_is_grand_contributor', False))
+    taxpayer_category_label = 'Gran Contribuyente' if is_grand_contributor else 'No Gran Contribuyente'
+
+    retefuente_rate = Decimal('0.035')
+    reteiva_rate = Decimal('0.15')
+    ica_per_mille = Decimal(str(getattr(settings_obj, 'cuenta_cobro_ica_per_mille', None) or '9.66'))
+    retefuente = (charge_base * retefuente_rate).quantize(Decimal('0.01'))
+    reteiva = (charge_iva * reteiva_rate).quantize(Decimal('0.01'))
+    reteica = (charge_base * ica_per_mille / Decimal('1000')).quantize(Decimal('0.01'))
+
+    withholdings_without_reteiva = retefuente + reteica
+    total_withholdings = withholdings_without_reteiva + reteiva
+
+    if is_grand_contributor:
+        net_after_withholdings = (charge_amount - total_withholdings).quantize(Decimal('0.01'))
+    else:
+        # Caso habitual: acreedor NO es GC → neto de referencia sin reteIVA (esa la practica el deudor si es GC)
+        net_after_withholdings = (charge_amount - withholdings_without_reteiva).quantize(Decimal('0.01'))
+
+    net_if_debtor_is_gc = (charge_amount - total_withholdings).quantize(Decimal('0.01'))
+    if net_after_withholdings < 0:
+        net_after_withholdings = Decimal('0.00')
+    if net_if_debtor_is_gc < 0:
+        net_if_debtor_is_gc = Decimal('0.00')
+
+    payment_days = int(getattr(settings_obj, 'cuenta_cobro_payment_days', 0) or 0)
+    if payment_days <= 0:
+        payment_term_label = 'Contado'
+    elif payment_days == 1:
+        payment_term_label = '1 día'
+    else:
+        payment_term_label = f'{payment_days} días'
+    due_date = issue_date.date() + timedelta(days=payment_days)
+
+    service_location = ''
+    try:
+        req = getattr(quote, 'rental_requirements', None)
+        if req and (req.location_text or '').strip():
+            service_location = req.location_text.strip()
+    except Exception:
+        pass
+    if not service_location:
+        service_location = quote.display_client_address or ''
+
+    client_vat_regime = 'Responsable de IVA' if quote.is_empresa_client else 'No responsable de IVA'
+
+    document_number = f'CC-{quote.id}-{issue_date.strftime("%Y%m%d")}'
+    dian_resolution = (getattr(settings_obj, 'dian_invoice_resolution', '') or '').strip() or '—'
+
+    return {
+        'quote': quote,
+        'settings': settings_obj,
+        'items': items,
+        'issue_date': issue_date,
+        'issue_date_text': _format_fecha_larga(issue_date.date()),
+        'document_number': document_number,
+        'company_tax_regime': getattr(settings_obj, 'company_tax_regime', '') or 'Régimen común',
+        'is_grand_contributor': is_grand_contributor,
+        'taxpayer_category_label': taxpayer_category_label,
+        'dian_resolution': dian_resolution,
+        'client_vat_regime': client_vat_regime,
+        'total_base': total_base,
+        'total_iva': total_iva,
+        'total_discount': total_discount,
+        'freight_subtotal': charge_freight,
+        'other_costs_subtotal': charge_other,
+        'gross_total': quote_total,
+        'charge_amount': charge_amount,
+        'charge_base': charge_base,
+        'charge_iva': charge_iva,
+        'charge_discount': charge_discount,
+        'amount_paid': amount_paid,
+        'amount_in_words': numero_a_letras_pesos(charge_amount),
+        'net_after_withholdings': net_after_withholdings,
+        'retefuente': retefuente,
+        'reteiva': reteiva,
+        'reteica': reteica,
+        'retefuente_rate_pct': (retefuente_rate * 100).quantize(Decimal('0.01')),
+        'reteiva_rate_pct': (reteiva_rate * 100).quantize(Decimal('0.01')),
+        'ica_per_mille': ica_per_mille,
+        'total_withholdings': total_withholdings,
+        'withholdings_without_reteiva': withholdings_without_reteiva,
+        'net_if_debtor_is_gc': net_if_debtor_is_gc,
+        'payment_term_label': payment_term_label,
+        'payment_due_date': due_date,
+        'payment_due_date_text': _format_fecha_larga(due_date),
+        'service_days': service_days or '—',
+        'service_location': service_location or '—',
+        'payment_methods': PaymentMethod.objects.filter(is_active=True).order_by('sort_order', 'id'),
+        'for_pdf_engine': True,
+    }
+
+
+def _build_cuenta_cobro_pdf_bytes(quote: Quotation):
+    """Genera PDF de cuenta de cobro para una cotización."""
+    try:
+        from django.template.loader import get_template
+        from xhtml2pdf import pisa
+        from io import BytesIO
+    except ImportError:
+        return None, 'xhtml2pdf no está instalado'
+
+    template = get_template('store/cuenta_cobro_pdf.html')
+    html = template.render(_cuenta_cobro_context(quote))
+    result = BytesIO()
+    pdf = pisa.pisaDocument(
+        BytesIO(html.encode('utf-8')),
+        result,
+        encoding='utf-8',
+        link_callback=_pdf_link_callback,
+    )
+    if pdf.err:
+        return None, f'Error generando cuenta de cobro: {pdf.err}'
+    return result.getvalue(), None
+
+
+@xframe_options_sameorigin
+def quotation_cuenta_cobro(request, quotation_id):
+    """Visor / descarga de cuenta de cobro asociada a la cotización."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    as_download = str(request.GET.get('download') or '') in ('1', 'true', 'yes')
+    pdf_bytes, err = _build_cuenta_cobro_pdf_bytes(q)
+    if not pdf_bytes:
+        messages.error(request, err or 'No se pudo generar la cuenta de cobro.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    safe_client = slugify(q.client_name or 'sin-cliente')[:40]
+    filename = f"CUENTA-COBRO-COT{q.id}-{timezone.now().strftime('%Y-%m-%d')}-{safe_client}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    response['Content-Length'] = str(len(pdf_bytes))
+    response['Cache-Control'] = 'private, max-age=60'
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
+
+
 def _quotation_rental_items(quote: Quotation):
     return list(
         quote.items.select_related('product', 'product__category', 'rental_price')
@@ -5690,7 +6012,7 @@ def quotation_rental_requirements(request, quotation_id):
         messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
         return redirect('store:quotation_detail', quotation_id=q.id)
 
-    req, _ = RentalContractRequirements.objects.get_or_create(quotation=q)
+    req, _ = _get_or_create_rental_requirements(q)
     if not req.tenant_name:
         req.tenant_name = q.client_name or ''
     if not req.representative_name:
@@ -5800,8 +6122,160 @@ def _generate_client_access_password(length: int = 8) -> str:
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
+_DEFAULT_MACHINE_PARTS = [
+    ('Motor / compresor', Decimal('2500000')),
+    ('Cilindro / tanque de enfriamiento', Decimal('1800000')),
+    ('Panel de control y botonera', Decimal('450000')),
+    ('Sistema de iluminación LED', Decimal('280000')),
+    ('Radiador / intercambiador', Decimal('620000')),
+    ('Tapa superior y carcasa', Decimal('380000')),
+    ('Bandeja recolectora', Decimal('150000')),
+    ('Válvulas y mangueras', Decimal('220000')),
+    ('Ruedas y base', Decimal('180000')),
+    ('Cableado eléctrico completo', Decimal('320000')),
+]
+
+
+def _ensure_default_machine_parts(product: Product):
+    """Crea partes de referencia si la máquina aún no tiene catálogo."""
+    if RentalMachinePart.objects.filter(product=product, is_active=True).exists():
+        return
+    for idx, (name, cost) in enumerate(_DEFAULT_MACHINE_PARTS):
+        RentalMachinePart.objects.create(
+            product=product,
+            name=name,
+            replacement_cost=cost,
+            sort_order=idx,
+            is_active=True,
+        )
+
+
+def _quotation_machine_parts_context(quote: Quotation) -> dict:
+    """Agrupa partes y costos de reposición por máquina en la cotización."""
+    machines = []
+    grand_parts_total = Decimal('0.00')
+    grand_commercial_total = Decimal('0.00')
+    for it in _quotation_rental_items(quote):
+        product = it.product
+        if not product:
+            continue
+        _ensure_default_machine_parts(product)
+        parts = list(
+            RentalMachinePart.objects.filter(product=product, is_active=True).order_by('sort_order', 'name')
+        )
+        parts_total = sum((p.replacement_cost or Decimal('0.00')) for p in parts)
+        commercial = product.rental_commercial_value or Decimal('0.00')
+        grand_parts_total += parts_total
+        if commercial > 0:
+            grand_commercial_total += commercial
+        machines.append({
+            'item': it,
+            'product': product,
+            'parts': parts,
+            'parts_total': parts_total,
+            'commercial_value': commercial,
+            'quantity': it.quantity,
+        })
+    return {
+        'machines': machines,
+        'grand_parts_total': grand_parts_total,
+        'grand_commercial_total': grand_commercial_total,
+    }
+
+
+@staff_member_required
+def quotation_machine_parts(request, quotation_id):
+    """Catálogo de partes y costos de daño/pérdida por máquina de la cotización."""
+    q = get_object_or_404(Quotation.objects.select_related('existing_client', 'created_by'), id=quotation_id)
+    if not q.has_rental_items:
+        messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    rental_items = _quotation_rental_items(q)
+    products = []
+    seen = set()
+    for it in rental_items:
+        if it.product_id and it.product_id not in seen:
+            seen.add(it.product_id)
+            products.append(it.product)
+            _ensure_default_machine_parts(it.product)
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'add_part':
+            try:
+                product_id = int(request.POST.get('product_id') or 0)
+            except (TypeError, ValueError):
+                product_id = 0
+            name = (request.POST.get('name') or '').strip()
+            try:
+                cost = Decimal(str(request.POST.get('replacement_cost') or '0').replace(',', '.'))
+            except Exception:
+                cost = Decimal('0.00')
+            product = next((p for p in products if p.id == product_id), None)
+            if product and name and cost >= 0:
+                RentalMachinePart.objects.create(
+                    product=product,
+                    name=name[:200],
+                    replacement_cost=cost,
+                    sort_order=RentalMachinePart.objects.filter(product=product).count(),
+                )
+                messages.success(request, f'Parte "{name}" agregada.')
+            else:
+                messages.error(request, 'Completa máquina, nombre y costo válido.')
+            return redirect('store:quotation_machine_parts', quotation_id=q.id)
+
+        if action == 'delete_part':
+            try:
+                part_id = int(request.POST.get('part_id') or 0)
+            except (TypeError, ValueError):
+                part_id = 0
+            part = RentalMachinePart.objects.filter(
+                id=part_id, product_id__in=[p.id for p in products]
+            ).first()
+            if part:
+                part.delete()
+                messages.info(request, 'Parte eliminada.')
+            return redirect('store:quotation_machine_parts', quotation_id=q.id)
+
+        if action == 'load_defaults':
+            for product in products:
+                if not RentalMachinePart.objects.filter(product=product).exists():
+                    _ensure_default_machine_parts(product)
+            messages.success(request, 'Se cargaron las partes de referencia donde faltaban.')
+            return redirect('store:quotation_machine_parts', quotation_id=q.id)
+
+    parts_ctx = _quotation_machine_parts_context(q)
+    return render(request, 'store/quotation_machine_parts.html', {
+        'quote': q,
+        'products': products,
+        **parts_ctx,
+    })
+
+
 def _client_req_session_key(token) -> str:
     return f'rental_req_auth_{token}'
+
+
+def _get_or_create_rental_requirements(quotation):
+    """Crea requisitos de alquiler con textos vacíos (evita NULL en Postgres)."""
+    return RentalContractRequirements.objects.get_or_create(
+        quotation=quotation,
+        defaults={
+            'company_nit': '',
+            'company_legal_rep_name': '',
+            'company_legal_rep_document': '',
+            'conditions_signer_name': '',
+            'conditions_signer_document': '',
+            'representative_name': '',
+            'tenant_name': quotation.client_name or '',
+            'location_text': '',
+            'maps_url': '',
+            'notes': '',
+            'codeudor_name': '',
+            'codeudor_document': '',
+        },
+    )
 
 
 def _get_req_by_token(token):
@@ -5825,7 +6299,7 @@ def quotation_client_onboarding_manage(request, quotation_id):
         messages.warning(request, 'Esta cotización no tiene máquinas de alquiler.')
         return redirect('store:quotation_detail', quotation_id=q.id)
 
-    req, _ = RentalContractRequirements.objects.get_or_create(quotation=q)
+    req, _ = _get_or_create_rental_requirements(q)
     if not req.tenant_name:
         req.tenant_name = q.client_name or ''
         req.save(update_fields=['tenant_name', 'updated_at'])
@@ -5917,6 +6391,9 @@ def quotation_client_onboarding_manage(request, quotation_id):
         'plain_password': plain_password,
         'share_message': share_message,
         'wa_url': wa_url,
+        'is_empresa': q.is_empresa_client,
+        'is_natural': q.is_natural_client,
+        **_quotation_machine_parts_context(q),
     })
 
 
@@ -5997,7 +6474,7 @@ def client_rental_requirements_form(request, token):
         errors = []
         if not tenant_name:
             errors.append('El nombre completo es obligatorio.')
-        if not client_document:
+        if not q.is_empresa_client and not client_document:
             errors.append('El número de cédula es obligatorio.')
         if not request.FILES.get('id_front') and not req.id_front:
             errors.append('Toma o sube la foto del frente de tu cédula.')
@@ -6019,6 +6496,30 @@ def client_rental_requirements_form(request, token):
             if not request.FILES.get('codeudor_id_back') and not req.codeudor_id_back:
                 errors.append('Sube la foto del reverso de la cédula del codeudor.')
 
+        company_nit = (request.POST.get('company_nit') or '').strip()
+        company_legal_rep_name = (request.POST.get('company_legal_rep_name') or '').strip()
+        company_legal_rep_document = (request.POST.get('company_legal_rep_document') or '').strip()
+        conditions_signer_name = (request.POST.get('conditions_signer_name') or '').strip()
+        conditions_signer_document = (request.POST.get('conditions_signer_document') or '').strip()
+        damage_terms_acknowledged = request.POST.get('damage_terms_acknowledged') in ('1', 'on', 'true', 'yes')
+
+        if q.is_empresa_client:
+            if not company_nit:
+                errors.append('El NIT de la empresa es obligatorio.')
+            if not company_legal_rep_name:
+                errors.append('El nombre del representante legal es obligatorio.')
+            if not company_legal_rep_document:
+                errors.append('La cédula del representante legal es obligatoria.')
+        if not conditions_signer_name:
+            errors.append('Escribe tu nombre completo en la aceptación de condiciones.')
+        if not conditions_signer_document:
+            errors.append('Escribe tu número de documento en la aceptación de condiciones.')
+        if not damage_terms_acknowledged:
+            errors.append('Debes aceptar las condiciones de daños, pérdidas y tabla de partes.')
+        sig_data = request.POST.get('conditions_signature_data') or ''
+        if not sig_data and not req.conditions_signature:
+            errors.append('Firma en el recuadro de aceptación de condiciones.')
+
         if errors:
             for err in errors:
                 messages.error(request, err)
@@ -6034,6 +6535,20 @@ def client_rental_requirements_form(request, token):
                 req.codeudor_name = codeudor_name
                 req.codeudor_document = codeudor_document
 
+            req.company_nit = company_nit
+            req.company_legal_rep_name = company_legal_rep_name
+            req.company_legal_rep_document = company_legal_rep_document
+            req.conditions_signer_name = conditions_signer_name
+            req.conditions_signer_document = conditions_signer_document
+            req.damage_terms_acknowledged = damage_terms_acknowledged
+            _save_data_url_image(
+                req.conditions_signature,
+                sig_data,
+                f'cot{q.id}-conditions',
+            )
+            if damage_terms_acknowledged and not req.conditions_accepted_at:
+                req.conditions_accepted_at = timezone.now()
+
             if request.FILES.get('id_front'):
                 req.id_front = request.FILES['id_front']
             if request.FILES.get('id_back'):
@@ -6045,7 +6560,7 @@ def client_rental_requirements_form(request, token):
             if request.FILES.get('codeudor_id_back'):
                 req.codeudor_id_back = request.FILES['codeudor_id_back']
 
-            q.client_document = client_document
+            q.client_document = client_document or company_nit
             if tenant_name:
                 q.client_name = tenant_name
             q.save(update_fields=['client_document', 'client_name', 'updated_at'])
@@ -6075,6 +6590,7 @@ def client_rental_requirements_form(request, token):
             messages.success(request, '¡Datos enviados correctamente! Ya puedes descargar el contrato para firma en notaría.')
             return redirect('store:client_rental_requirements_done', token=token)
 
+    parts_ctx = _quotation_machine_parts_context(q)
     return render(request, 'store/client_rental_requirements_form.html', {
         'quote': q,
         'req': req,
@@ -6082,6 +6598,9 @@ def client_rental_requirements_form(request, token):
         'client_document': q.display_client_document or '',
         'already_submitted': bool(req.client_submitted_at),
         'progress': _client_req_progress(req),
+        'is_empresa': q.is_empresa_client,
+        'is_natural': q.is_natural_client,
+        **parts_ctx,
     })
 
 
@@ -6089,6 +6608,8 @@ def client_rental_requirements_form(request, token):
 _CLIENT_REQ_TEXT_FIELDS = {
     'tenant_name', 'location_text', 'maps_url',
     'codeudor_name', 'codeudor_document',
+    'company_nit', 'company_legal_rep_name', 'company_legal_rep_document',
+    'conditions_signer_name', 'conditions_signer_document',
 }
 # Campos de imagen que el cliente puede subir por AJAX
 _CLIENT_REQ_FILE_FIELDS = {
@@ -6108,16 +6629,30 @@ _CLIENT_REQ_LABELS = {
     'codeudor_document': 'Cédula del codeudor',
     'codeudor_id_front': 'Cédula codeudor (frente)',
     'codeudor_id_back': 'Cédula codeudor (reverso)',
+    'company_nit': 'NIT de la empresa',
+    'company_legal_rep_name': 'Representante legal',
+    'company_legal_rep_document': 'Cédula representante legal',
+    'conditions_signer_name': 'Nombre en aceptación',
+    'conditions_signer_document': 'Documento en aceptación',
+    'conditions_signature': 'Firma de aceptación',
+    'damage_terms': 'Aceptación tabla de daños',
 }
 
 
 def _client_req_required_keys(req) -> list:
-    """Claves obligatorias según si el contrato exige codeudor."""
+    """Claves obligatorias según tipo de cliente y codeudor."""
+    q = req.quotation
     keys = [
-        'tenant_name', 'client_document',
+        'tenant_name',
         'id_front', 'id_back', 'selfie_with_id',
         'location', 'location_text',
+        'conditions_signer_name', 'conditions_signer_document',
+        'conditions_signature', 'damage_terms',
     ]
+    if q.is_empresa_client:
+        keys += ['company_nit', 'company_legal_rep_name', 'company_legal_rep_document']
+    else:
+        keys.append('client_document')
     if req.codeudor_required:
         keys += [
             'codeudor_name', 'codeudor_document',
@@ -6145,7 +6680,14 @@ def _client_req_missing(req) -> list:
     missing = []
     if not (req.tenant_name or '').strip():
         missing.append('tenant_name')
-    if not (q.display_client_document or '').strip():
+    if q.is_empresa_client:
+        if not (req.company_nit or '').strip():
+            missing.append('company_nit')
+        if not (req.company_legal_rep_name or '').strip():
+            missing.append('company_legal_rep_name')
+        if not (req.company_legal_rep_document or '').strip():
+            missing.append('company_legal_rep_document')
+    elif not (q.display_client_document or '').strip():
         missing.append('client_document')
     if not req.id_front:
         missing.append('id_front')
@@ -6166,6 +6708,14 @@ def _client_req_missing(req) -> list:
             missing.append('codeudor_id_front')
         if not req.codeudor_id_back:
             missing.append('codeudor_id_back')
+    if not (req.conditions_signer_name or '').strip():
+        missing.append('conditions_signer_name')
+    if not (req.conditions_signer_document or '').strip():
+        missing.append('conditions_signer_document')
+    if not req.conditions_signature:
+        missing.append('conditions_signature')
+    if not req.damage_terms_acknowledged:
+        missing.append('damage_terms')
     return missing
 
 
@@ -6222,6 +6772,26 @@ def client_rental_requirements_save(request, token):
         if name:
             q.client_name = name
             q.save(update_fields=['client_name', 'updated_at'])
+
+    if 'company_nit' in request.POST:
+        nit = (request.POST.get('company_nit') or '').strip()
+        q.client_document = nit
+        q.save(update_fields=['client_document', 'updated_at'])
+        saved.append('company_nit')
+
+    if 'damage_terms_acknowledged' in request.POST:
+        req.damage_terms_acknowledged = request.POST.get('damage_terms_acknowledged') in ('1', 'on', 'true', 'yes')
+        update_fields.append('damage_terms_acknowledged')
+        saved.append('damage_terms')
+        if req.damage_terms_acknowledged and not req.conditions_accepted_at:
+            req.conditions_accepted_at = timezone.now()
+            update_fields.append('conditions_accepted_at')
+
+    sig_data = request.POST.get('conditions_signature_data') or ''
+    if sig_data:
+        if _save_data_url_image(req.conditions_signature, sig_data, f'cot{q.id}-conditions'):
+            update_fields.append('conditions_signature')
+            saved.append('conditions_signature')
 
     # Archivos (imágenes)
     for field in _CLIENT_REQ_FILE_FIELDS:
@@ -7187,6 +7757,77 @@ def _parse_quote_line_key(key):
     return product_id, rental_price_id
 
 
+def _is_custom_quote_key(key) -> bool:
+    return str(key or '').startswith('custom:')
+
+
+def _normalize_custom_quote_entry(raw) -> dict:
+    """Normalize custom extra line in quotation session."""
+    name = 'Extra'
+    qty = 1
+    unit_price = Decimal('0.00')
+    discount_value = Decimal('0.00')
+    discount_type = 'percent'
+    if isinstance(raw, dict):
+        name = (str(raw.get('name') or '')).strip() or 'Extra'
+        try:
+            qty = int(raw.get('qty', 1))
+        except (TypeError, ValueError):
+            qty = 1
+        try:
+            unit_price = Decimal(str(raw.get('unit_price', 0)).replace(',', '.'))
+        except Exception:
+            unit_price = Decimal('0.00')
+        raw_type = str(raw.get('discount_type') or 'percent').strip().lower()
+        discount_type = 'amount' if raw_type in ('amount', 'value', 'fixed', '$', 'cop') else 'percent'
+        raw_disc = raw.get('discount_value', None)
+        if raw_disc is None:
+            raw_disc = raw.get('discount_percent', 0)
+        try:
+            discount_value = Decimal(str(raw_disc).replace(',', '.'))
+        except Exception:
+            discount_value = Decimal('0.00')
+    if qty < 1:
+        qty = 1
+    if unit_price < 0:
+        unit_price = Decimal('0.00')
+    if discount_value < 0:
+        discount_value = Decimal('0.00')
+    if discount_type == 'percent' and discount_value > 100:
+        discount_value = Decimal('100.00')
+    if discount_type == 'amount' and discount_value > unit_price:
+        discount_value = unit_price
+    discount_value = discount_value.quantize(Decimal('0.01'))
+    unit_price = unit_price.quantize(Decimal('0.01'))
+    return {
+        'kind': 'custom',
+        'name': name[:200],
+        'qty': qty,
+        'unit_price': float(unit_price),
+        'discount_type': discount_type,
+        'discount_value': float(discount_value),
+        'discount_percent': float(discount_value) if discount_type == 'percent' else 0.0,
+    }
+
+
+def _custom_unit_after_discount(list_price, discount_type='percent', discount_value=0) -> Decimal:
+    base = list_price if isinstance(list_price, Decimal) else Decimal(str(list_price or 0))
+    try:
+        disc = Decimal(str(discount_value or 0))
+    except Exception:
+        disc = Decimal('0.00')
+    if disc <= 0:
+        return base.quantize(Decimal('0.01'))
+    dtype = str(discount_type or 'percent').strip().lower()
+    if dtype == 'amount':
+        final = base - disc
+    else:
+        final = base * (Decimal('1') - (disc / Decimal('100')))
+    if final < 0:
+        final = Decimal('0.00')
+    return final.quantize(Decimal('0.01'))
+
+
 def _normalize_quote_entry(raw) -> dict:
     """Normalize session line to {qty, discount_type, discount_value, rental_price_id}."""
     qty = 1
@@ -7281,13 +7922,17 @@ def _quote_unit_price(
 
 
 def _get_quote_session(request) -> dict:
-    """Return quotation session: {line_key: {qty, discount_type, discount_value, rental_price_id}}"""
+    """Return quotation session: product lines + custom extras."""
     data = request.session.get('quotation', {})
     if not isinstance(data, dict):
         data = {}
     clean: dict[str, dict] = {}
     for k, v in data.items():
-        product_id, rental_from_key = _parse_quote_line_key(k)
+        key = str(k)
+        if _is_custom_quote_key(key):
+            clean[key] = _normalize_custom_quote_entry(v)
+            continue
+        product_id, rental_from_key = _parse_quote_line_key(key)
         if product_id is None:
             continue
         entry = _normalize_quote_entry(v)
@@ -7309,6 +7954,8 @@ def _quote_payload(request) -> dict:
     product_ids = set()
     rental_ids = set()
     for key, entry in q.items():
+        if _is_custom_quote_key(key):
+            continue
         pid, rid = _parse_quote_line_key(key)
         if pid is None:
             continue
@@ -7337,6 +7984,48 @@ def _quote_payload(request) -> dict:
         return base, iva
 
     for line_key, entry in q.items():
+        if _is_custom_quote_key(line_key):
+            custom = _normalize_custom_quote_entry(entry)
+            qty = custom['qty']
+            list_unit = Decimal(str(custom['unit_price']))
+            unit = _custom_unit_after_discount(
+                list_unit,
+                discount_type=custom['discount_type'],
+                discount_value=custom['discount_value'],
+            )
+            subtotal = unit * qty
+            total += subtotal
+            base_subtotal, iva_subtotal = split_iva(subtotal)
+            base_unit, iva_unit = split_iva(unit)
+            total_base += base_subtotal
+            total_iva += iva_subtotal
+            discount_unit = (list_unit - unit) if unit < list_unit else Decimal('0.00')
+            items.append({
+                'id': None,
+                'line_key': line_key,
+                'is_custom': True,
+                'name': custom['name'],
+                'category': 'Extra personalizado',
+                'image_url': '',
+                'qty': qty,
+                'discount_type': custom['discount_type'],
+                'discount_value': float(custom['discount_value']),
+                'discount_percent': float(custom['discount_percent']),
+                'rental_price_id': None,
+                'period_label': '',
+                'list_unit_price': float(list_unit),
+                'unit_price': float(unit),
+                'unit_base': float(base_unit),
+                'unit_iva': float(iva_unit),
+                'original_unit_price': float(list_unit),
+                'discount_unit': float(discount_unit),
+                'discount_total': float(discount_unit * qty),
+                'subtotal': float(subtotal),
+                'subtotal_base': float(base_subtotal),
+                'subtotal_iva': float(iva_subtotal),
+            })
+            continue
+
         pid, rid_from_key = _parse_quote_line_key(line_key)
         p = by_id.get(pid)
         if not p:
@@ -7372,6 +8061,7 @@ def _quote_payload(request) -> dict:
         items.append({
             'id': p.id,
             'line_key': line_key,
+            'is_custom': False,
             'name': display_name,
             'category': p.category.name,
             'image_url': p.image.url if p.image else '',
@@ -7446,6 +8136,43 @@ def quotation_ajax_add(request):
     return JsonResponse(payload)
 
 
+def quotation_ajax_add_custom(request):
+    """Agregar un ítem extra personalizado (nombre + precio + cantidad)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    name = (request.POST.get('name') or '').strip()
+    if not name:
+        return JsonResponse({'error': 'El nombre del extra es obligatorio'}, status=400)
+    try:
+        qty = int(request.POST.get('qty') or 1)
+    except (TypeError, ValueError):
+        qty = 1
+    if qty < 1:
+        qty = 1
+    try:
+        unit_price = Decimal(str(request.POST.get('unit_price') or '0').replace(',', '.'))
+    except Exception:
+        return JsonResponse({'error': 'Precio inválido'}, status=400)
+    if unit_price < 0:
+        unit_price = Decimal('0.00')
+
+    q = _get_quote_session(request)
+    key = f'custom:{uuid.uuid4().hex[:12]}'
+    q[key] = _normalize_custom_quote_entry({
+        'name': name,
+        'qty': qty,
+        'unit_price': float(unit_price),
+        'discount_type': 'percent',
+        'discount_value': 0.0,
+    })
+    request.session['quotation'] = q
+    request.session.modified = True
+    payload = _quote_payload(request)
+    payload['added'] = 1
+    payload['line_key'] = key
+    return JsonResponse(payload)
+
+
 def quotation_ajax_remove(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -7456,9 +8183,10 @@ def quotation_ajax_remove(request):
     # Compat: si llega solo product_id numérico, borra esa clave
     q.pop(line_key, None)
     # También limpia claves legacy del producto sin tarifa
-    pid, _ = _parse_quote_line_key(line_key)
-    if pid is not None and ':' not in line_key:
-        q.pop(str(pid), None)
+    if not _is_custom_quote_key(line_key):
+        pid, _ = _parse_quote_line_key(line_key)
+        if pid is not None and ':' not in line_key:
+            q.pop(str(pid), None)
     request.session['quotation'] = q
     request.session.modified = True
     return JsonResponse(_quote_payload(request))
@@ -7477,8 +8205,12 @@ def quotation_ajax_update_qty(request):
     except (ValueError, TypeError):
         return JsonResponse({'error': 'Invalid data'}, status=400)
     if line_key in q:
-        entry = _normalize_quote_entry(q[line_key])
-        entry['qty'] = qty_int
+        if _is_custom_quote_key(line_key):
+            entry = _normalize_custom_quote_entry(q[line_key])
+            entry['qty'] = qty_int
+        else:
+            entry = _normalize_quote_entry(q[line_key])
+            entry['qty'] = qty_int
         q[line_key] = entry
         request.session['quotation'] = q
         request.session.modified = True
@@ -7503,22 +8235,33 @@ def quotation_ajax_update_discount(request):
     if discount_type == 'percent' and discount > 100:
         discount = Decimal('100.00')
     if line_key in q:
-        entry = _normalize_quote_entry(q[line_key])
-        # Cap amount to list price when possible
-        if discount_type == 'amount':
-            pid, rid = _parse_quote_line_key(line_key)
-            rid = entry.get('rental_price_id') or rid
-            try:
-                product = Product.objects.get(id=pid, available=True)
-                max_amount = _quote_base_unit_price(product, rental_price_id=rid)
+        if _is_custom_quote_key(line_key):
+            entry = _normalize_custom_quote_entry(q[line_key])
+            if discount_type == 'amount':
+                max_amount = Decimal(str(entry.get('unit_price') or 0))
                 if discount > max_amount:
                     discount = max_amount
-            except Product.DoesNotExist:
-                pass
-        entry['discount_type'] = discount_type
-        entry['discount_value'] = float(discount.quantize(Decimal('0.01')))
-        entry['discount_percent'] = entry['discount_value'] if discount_type == 'percent' else 0.0
-        q[line_key] = entry
+            entry['discount_type'] = discount_type
+            entry['discount_value'] = float(discount.quantize(Decimal('0.01')))
+            entry['discount_percent'] = entry['discount_value'] if discount_type == 'percent' else 0.0
+            q[line_key] = _normalize_custom_quote_entry(entry)
+        else:
+            entry = _normalize_quote_entry(q[line_key])
+            # Cap amount to list price when possible
+            if discount_type == 'amount':
+                pid, rid = _parse_quote_line_key(line_key)
+                rid = entry.get('rental_price_id') or rid
+                try:
+                    product = Product.objects.get(id=pid, available=True)
+                    max_amount = _quote_base_unit_price(product, rental_price_id=rid)
+                    if discount > max_amount:
+                        discount = max_amount
+                except Product.DoesNotExist:
+                    pass
+            entry['discount_type'] = discount_type
+            entry['discount_value'] = float(discount.quantize(Decimal('0.01')))
+            entry['discount_percent'] = entry['discount_value'] if discount_type == 'percent' else 0.0
+            q[line_key] = entry
         request.session['quotation'] = q
         request.session.modified = True
     return JsonResponse(_quote_payload(request))

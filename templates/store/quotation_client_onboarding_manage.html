@@ -44,6 +44,72 @@
     border-radius: 0.75rem;
     border: 1px solid #e2e8f0;
   }
+  .rc-doc {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.9rem;
+    background: #fff;
+    overflow: hidden;
+  }
+  .rc-doc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .rc-doc-kicker {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+  }
+  .rc-doc-title { font-size: 1.05rem; font-weight: 800; color: #0f172a; }
+  .rc-doc-section {
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .rc-doc-section h4 {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 0.65rem;
+  }
+  .rc-total-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    background: #0b1f3a;
+    color: #fff;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+  }
+  .rc-signature-preview {
+    max-width: 280px;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: #fff;
+  }
+  .rc-signature-empty {
+    border: 1px dashed #cbd5e1;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    background: #f8fafc;
+  }
+  .format-tabs .nav-link {
+    font-weight: 700;
+    color: #475569;
+  }
+  .format-tabs .nav-link.active {
+    color: #0f6fff;
+  }
 </style>
 {% endblock %}
 
@@ -53,7 +119,44 @@
     <i class="bi bi-arrow-left"></i> Volver a cotización
   </a>
   <h1 class="h4 fw-bold mt-2 mb-1">Remitir requisitos al cliente</h1>
-  <p class="text-muted">COT-{{ quote.id }} · {{ quote.display_client_name }}</p>
+  <p class="text-muted">COT-{{ quote.id }} · {{ quote.display_client_name }} · <strong>{{ quote.display_client_kind }}</strong></p>
+
+  <div class="co-card">
+    <div class="co-head d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>Formato de requisitos y condiciones</span>
+      <a href="{% url 'store:quotation_machine_parts' quotation_id=quote.id %}" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-tools"></i> Editar partes y costos
+      </a>
+    </div>
+    <div class="co-body">
+      <ul class="nav nav-tabs format-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link{% if is_natural %} active{% endif %}" id="tab-natural" data-bs-toggle="tab"
+                  data-bs-target="#panel-natural" type="button" role="tab">
+            Persona natural
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link{% if is_empresa %} active{% endif %}" id="tab-empresa" data-bs-toggle="tab"
+                  data-bs-target="#panel-empresa" type="button" role="tab">
+            Empresa
+          </button>
+        </li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade{% if is_natural %} show active{% endif %}" id="panel-natural" role="tabpanel">
+          {% include "store/partials/rental_conditions_doc.html" with is_empresa=False %}
+        </div>
+        <div class="tab-pane fade{% if is_empresa %} show active{% endif %}" id="panel-empresa" role="tabpanel">
+          {% include "store/partials/rental_conditions_doc.html" with is_empresa=True %}
+        </div>
+      </div>
+      <p class="small text-muted mt-3 mb-0">
+        El cliente verá el formato que corresponda a su tipo ({{ quote.display_client_kind }}) en el enlace móvil,
+        con la tabla de partes, condiciones de daños y campos de firma + documento.
+      </p>
+    </div>
+  </div>
 
   <div class="co-card">
     <div class="co-head">1. Configuración</div>
@@ -174,8 +277,21 @@
         </div>
         <div class="col-md-6">
           <div class="small text-muted">Documento</div>
-          <div class="fw-semibold">{{ quote.display_client_document|default:"—" }}</div>
+          <div class="fw-semibold">
+            {% if is_empresa %}
+              NIT {{ req.company_nit|default:quote.display_client_document|default:"—" }}
+            {% else %}
+              {{ quote.display_client_document|default:"—" }}
+            {% endif %}
+          </div>
         </div>
+        {% if is_empresa %}
+        <div class="col-md-6">
+          <div class="small text-muted">Representante legal</div>
+          <div class="fw-semibold">{{ req.company_legal_rep_name|default:"—" }}</div>
+          <div class="small">CC {{ req.company_legal_rep_document|default:"—" }}</div>
+        </div>
+        {% endif %}
         <div class="col-12">
           <div class="small text-muted">Ubicación</div>
           <div>{{ req.location_text|default:"—" }}</div>
@@ -218,6 +334,19 @@
             <span class="text-muted">No requerido</span>
           {% endif %}
         </div>
+      </div>
+
+      <div class="mt-3 border-top pt-3">
+        <div class="small text-muted mb-1">Aceptación de condiciones y daños</div>
+        {% if req.damage_terms_acknowledged %}
+        <span class="badge text-bg-success">Aceptado</span>
+        <div class="small mt-1">{{ req.conditions_signer_name }} · Doc. {{ req.conditions_signer_document }}</div>
+        {% if req.conditions_signature %}
+        <img src="{{ req.conditions_signature.url }}" alt="Firma condiciones" class="mt-2" style="max-width:220px;border:1px solid #e2e8f0;border-radius:0.5rem;">
+        {% endif %}
+        {% else %}
+        <span class="badge text-bg-secondary">Pendiente</span>
+        {% endif %}
       </div>
 
       <div class="mt-3 d-flex flex-wrap gap-2">

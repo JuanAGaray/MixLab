@@ -1,0 +1,131 @@
+================================================================================
+PLANTILLA DE CUENTA DE COBRO — MIXLAB SAS (Colombia)
+Formato de referencia con variables [ENTRE CORCHETES]
+================================================================================
+
+────────────────────────────────────────
+PÁGINA 1 DE 2
+────────────────────────────────────────
+
+[LOGO DE LA EMPRESA]
+
+                    CUENTA DE COBRO
+                    No. [NUMERO CUENTA DE COBRO]          Ej: CC-31-20260828
+                    Ref. cotización [NUMERO COTIZACION]     Ej: COT-31
+                    Fecha de emisión: [CIUDAD], [FECHA LARGA]
+                    Régimen acreedor: [REGIMEN TRIBUTARIO ACREEDOR]
+                    Resolución DIAN No. [NUMERO RESOLUCION DIAN]
+
+────────────────────────────────────────
+I. DEUDOR (CLIENTE)
+────────────────────────────────────────
+Señor(es):              [NOMBRE DEL CLIENTE]
+C.C. / NIT:             [DOCUMENTO DEL CLIENTE]
+Tipo de persona:        [PERSONA NATURAL / EMPRESA]
+Régimen del cliente:    [RESPONSABLE DE IVA / NO RESPONSABLE DE IVA]
+Dirección:              [DIRECCION DEL CLIENTE]
+Ciudad:                 [CIUDAD, DEPARTAMENTO]
+Teléfono:               [TELEFONO]
+Correo:                 [CORREO ELECTRONICO]
+
+────────────────────────────────────────
+II. ACREEDOR (BENEFICIARIO)
+────────────────────────────────────────
+Razón social:           [RAZON SOCIAL]                    Ej: MIXLAB SAS
+NIT:                    [NIT ACREEDOR]                    Ej: 902031074-1
+Matrícula mercantil:    [NUMERO MATRICULA]
+Dirección:              [DIRECCION ACREEDOR]
+Ciudad / Departamento:  [CIUDAD, DEPARTAMENTO]
+Teléfono:               [TELEFONO ACREEDOR]
+Correo:                 [CORREO ACREEDOR]
+Representante legal:    [NOMBRE REPRESENTANTE LEGAL]
+
+────────────────────────────────────────
+ASUNTO
+────────────────────────────────────────
+Solicitud de pago por la prestación de bienes y/o servicios detallados a
+continuación, de conformidad con la cotización [NUMERO COTIZACION] del [FECHA COTIZACION].
+
+────────────────────────────────────────
+III. DETALLE DE CONCEPTOS
+────────────────────────────────────────
+
+| Concepto              | Tipo operación  | Cant. | Vr. unitario | IVA  | Base gravada | Subtotal   |
+|-----------------------|-----------------|-------|--------------|------|--------------|------------|
+| [CONCEPTO 1]          | [Arrendamiento/ | [QTY] | [VR UNIT]    | [19%]| [BASE]       | [SUBTOTAL] |
+|                       |  Venta/Servicio] |       |              |      |              |            |
+| [CONCEPTO 2]          | ...             | ...   | ...          | ...  | ...          | ...        |
+| (-) DESCUENTOS        |                 |       |              |      |              | [DESCUENTO]|
+
+VALOR EN LETRAS:
+Son: [VALOR EN LETRAS]                              Ej: QUINIENTOS VEINTE MIL PESOS M/CTE
+
+TOTALES:
+  Subtotal gravado (base) .............. [SUBTOTAL BASE]
+  Flete (si aplica) .................... [FLETE]
+  Otros costos (si aplican) ............ [OTROS COSTOS]
+  Base gravable total .................. [BASE GRAVABLE TOTAL]
+  IVA total (19%) ...................... [IVA TOTAL]
+  Total bruto de la operación .......... [TOTAL BRUTO]
+  (-) Descuentos ....................... [DESCUENTOS]
+  (-) Abonos recibidos ................. [ABONOS]
+  TOTAL NETO A PAGAR ................... [VALOR TOTAL A PAGAR]
+
+────────────────────────────────────────
+PÁGINA 2 DE 2
+────────────────────────────────────────
+
+IV. RETENCIONES APLICABLES (si el cliente es agente retenedor)
+
+| Concepto                              | Tarifa      | Base          | Valor        |
+|---------------------------------------|-------------|---------------|--------------|
+| Retención en la fuente (servicios)    | 3,5%        | [BASE]        | [RETEFUENTE] |
+| Retención de IVA (régimen común)      | 15%         | [IVA]         | [RETEIVA]    |
+| Retención de ICA (municipal)          | [X] ‰       | [BASE]        | [RETEICA]    |
+| TOTAL RETENCIONES                     |             |               | [TOTAL RET.] |
+| NETO A CONSIGNAR DESPUÉS DE RETENCIONES                             | [NETO]       |
+
+Nota: Si el cliente es agente retenedor, debe practicar estas retenciones,
+consignar el neto y expedir certificado.
+
+────────────────────────────────────────
+V. FORMA Y PLAZO DE PAGO
+────────────────────────────────────────
+Plazo:                  [CONTADO / 15 DIAS / 30 DIAS]
+Fecha máxima de pago:   [FECHA DE VENCIMIENTO]
+Valor a consignar:      [VALOR TOTAL A PAGAR]
+
+Consignar a:
+  · [BANCO 1] — Cuenta [TIPO] No. [NUMERO] — [TITULAR] ([DOC]) — Llave: [LLAVE]
+  · [BANCO 2] — ...
+
+Acepto: _________________________________     [REPRESENTANTE LEGAL MIXLAB]
+Firma del cliente / rep. legal                [RAZON SOCIAL]
+C.C. / NIT: _________________________         NIT [NIT ACREEDOR]
+                                              [SELLO / FIRMA DIGITAL]
+
+────────────────────────────────────────
+VI. DECLARACIÓN Y NORMATIVIDAD
+────────────────────────────────────────
+- Cuenta de cobro según Art. 617 Estatuto Tributario.
+- Retenciones según Arts. 383 a 404 E.T. y normativa DIAN.
+- MIXLAB SAS es persona jurídica obligada a facturar electrónicamente.
+- Esta cuenta de cobro NO reemplaza la factura electrónica.
+- Tras el pago se emitirá factura electrónica según Resolución DIAN [NUMERO].
+
+────────────────────────────────────────
+VII. OBSERVACIONES
+────────────────────────────────────────
+Tiempo de servicio:       [DIAS DE SERVICIO]
+Lugar de prestación:      [DIRECCION / UBICACION]
+Observaciones adicionales: [TEXTO LIBRE]
+
+────────────────────────────────────────
+PIE DE PÁGINA
+────────────────────────────────────────
+Este documento es una solicitud de pago formal. La factura electrónica será
+emitida según la Resolución DIAN No. [NUMERO RESOLUCION DIAN].
+
+[RAZON SOCIAL] · NIT [NIT] · Documento generado electrónicamente [FECHA HORA]
+
+================================================================================

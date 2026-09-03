@@ -1090,6 +1090,27 @@ class Quotation(models.Model):
         return self.get_client_kind_display()
 
     @property
+    def is_empresa_client(self) -> bool:
+        """True si el cliente es empresa (NIT / persona jurídica)."""
+        kind = (self.client_kind or '').strip()
+        if kind == 'empresa':
+            return True
+        if kind == 'natural':
+            return False
+        profile = self._linked_client_profile()
+        return bool(profile and (profile.client_type or '') == 'empresa')
+
+    @property
+    def is_natural_client(self) -> bool:
+        kind = (self.client_kind or '').strip()
+        if kind == 'natural':
+            return True
+        if kind == 'empresa':
+            return False
+        profile = self._linked_client_profile()
+        return not (profile and (profile.client_type or '') == 'empresa')
+
+    @property
     def display_client_departamento(self) -> str:
         profile = self._linked_client_profile()
         if profile and (profile.departamento or '').strip():
@@ -1102,6 +1123,33 @@ class Quotation(models.Model):
         if profile and (profile.city or '').strip():
             return profile.city.strip()
         return (self.client_city or '').strip()
+
+    @property
+    def display_client_address(self) -> str:
+        profile = self._linked_client_profile()
+        if profile:
+            addr = (getattr(profile, 'address', '') or '').strip()
+            if addr:
+                return addr
+            if profile.default_shipping_address_id:
+                try:
+                    ship = profile.default_shipping_address
+                    if ship:
+                        parts = [
+                            (ship.address or '').strip(),
+                            (ship.city or '').strip(),
+                            (ship.departamento or '').strip(),
+                        ]
+                        joined = ', '.join(p for p in parts if p)
+                        if joined:
+                            return joined
+                except Exception:
+                    pass
+        parts = [
+            (self.client_departamento or '').strip(),
+            (self.client_city or '').strip(),
+        ]
+        return ', '.join(p for p in parts if p)
 
 
 class QuotationItem(models.Model):
@@ -1626,6 +1674,61 @@ class RentalContractRequirements(models.Model):
         verbose_name='Cliente envió datos en',
     )
     notes = models.TextField(blank=True, default='', verbose_name='Notas')
+    company_nit = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        default='',
+        db_default='',
+        verbose_name='NIT de la empresa',
+    )
+    company_legal_rep_name = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        default='',
+        db_default='',
+        verbose_name='Representante legal (empresa)',
+    )
+    company_legal_rep_document = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        default='',
+        db_default='',
+        verbose_name='Cédula del representante legal',
+    )
+    conditions_signer_name = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        default='',
+        db_default='',
+        verbose_name='Nombre quien acepta condiciones',
+    )
+    conditions_signer_document = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        default='',
+        db_default='',
+        verbose_name='Documento quien acepta condiciones',
+    )
+    conditions_signature = models.ImageField(
+        upload_to='quotations/rental_requirements/signatures/',
+        blank=True,
+        null=True,
+        verbose_name='Firma de aceptación de condiciones',
+    )
+    conditions_accepted_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Condiciones aceptadas en',
+    )
+    damage_terms_acknowledged = models.BooleanField(
+        default=False,
+        verbose_name='Aceptó tabla de daños y pérdidas',
+    )
     completed_at = models.DateTimeField(blank=True, null=True, verbose_name='Completado en')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1678,6 +1781,37 @@ class RentalContractRequirements(models.Model):
             return False
         return True
 
+
+class RentalMachinePart(models.Model):
+    """Partes de una máquina de alquiler y costo de reposición por daño o pérdida."""
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='machine_parts',
+        verbose_name='Máquina / producto',
+        help_text='Producto de alquiler al que pertenece esta pieza.',
+    )
+    name = models.CharField(max_length=200, verbose_name='Parte / componente')
+    replacement_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name='Costo de reposición',
+        help_text='Valor que debe pagar el arrendatario en caso de pérdida o daño irreparable.',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Parte de máquina'
+        verbose_name_plural = 'Partes de máquinas'
+        ordering = ['product_id', 'sort_order', 'name']
+
+    def __str__(self):
+        return f'{self.product.name} · {self.name}'
 
 
 class RentalDeliveryActa(models.Model):
@@ -1993,6 +2127,37 @@ class SiteSettings(models.Model):
         blank=True,
         default='',
         verbose_name='Representante legal',
+    )
+    company_tax_regime = models.CharField(
+        max_length=80,
+        blank=True,
+        default='Régimen común',
+        verbose_name='Régimen tributario',
+        help_text='Ej: Régimen común, Régimen simple de tributación.',
+    )
+    company_is_grand_contributor = models.BooleanField(
+        default=False,
+        verbose_name='¿Es Gran Contribuyente?',
+        help_text='Desmarcado: MIXLAB no es Gran Contribuyente (caso habitual). Afecta textos y retención de IVA en cuenta de cobro.',
+    )
+    dian_invoice_resolution = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name='Resolución facturación electrónica DIAN',
+        help_text='Número de resolución autorizada por la DIAN para factura electrónica.',
+    )
+    cuenta_cobro_payment_days = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Plazo cuenta de cobro (días)',
+        help_text='0 = contado. Ej: 15 o 30 días para fecha máxima de pago.',
+    )
+    cuenta_cobro_ica_per_mille = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        default=Decimal('9.6600'),
+        verbose_name='ICA cuenta de cobro (‰)',
+        help_text='Tarifa de retención de ICA por mil sobre la base (referencia municipal).',
     )
     jurisdiction_city = models.CharField(
         max_length=100,
@@ -2489,3 +2654,13 @@ class DrinzzContractConfig(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+# Facturación electrónica DIAN (modelos en subpaquete store.dian)
+from store.dian.models import (  # noqa: E402, F401
+    DianElectronicInvoice,
+    DianHabilitacionBatch,
+    DianHabilitacionDocument,
+    DianInvoiceSequence,
+    DianSubmissionLog,
+)

@@ -168,12 +168,19 @@
     }
     .ml-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .ml-toast.err { background: #dc2626; }
+    .sig-wrap { border: 1px dashed #94a3b8; border-radius: 0.8rem; background: #fff; overflow: hidden; }
+    .sig-canvas { width: 100%; height: 160px; display: block; touch-action: none; cursor: crosshair; background: #fcfcfd; }
+    .sig-toolbar { display: flex; gap: 0.5rem; padding: 0.5rem 0.75rem; border-top: 1px solid #e2e8f0; background: #f8fafc; }
+    .parts-table { font-size: 0.82rem; }
+    .parts-table th, .parts-table td { padding: 0.35rem 0.5rem; }
+    .parts-total { background: var(--ml-navy); color: #fff; border-radius: 0.75rem; padding: 0.65rem 0.85rem; font-weight: 700; display:flex; justify-content:space-between; }
   </style>
 </head>
 <body>
+  {% load store_tags %}
   <div class="topbar">
     <div class="fw-bold">MixLab · Requisitos contrato</div>
-    <div class="small opacity-75">COT-{{ quote.id }} · Completa desde tu celular</div>
+    <div class="small opacity-75">COT-{{ quote.id }} · {{ quote.display_client_kind }} · Completa desde tu celular</div>
   </div>
 
   <div class="container py-3" style="max-width: 560px;">
@@ -220,19 +227,41 @@
       <div id="form-start"></div>
 
       <div class="section-card">
-        <h2><i class="bi bi-person-vcard me-1"></i> Tus datos</h2>
+        <h2><i class="bi bi-person-vcard me-1"></i>
+          {% if is_empresa %}Datos de la empresa{% else %}Tus datos{% endif %}
+        </h2>
         <div class="mb-3">
-          <label class="form-label fw-semibold" for="tenant_name">Nombre completo *</label>
+          <label class="form-label fw-semibold" for="tenant_name">
+            {% if is_empresa %}Razón social / nombre empresa *{% else %}Nombre completo *{% endif %}
+          </label>
           <input type="text" class="form-control form-control-lg" id="tenant_name" name="tenant_name"
                  value="{{ req.tenant_name|default:quote.display_client_name }}" required
-                 autocomplete="name" placeholder="Como aparece en la cédula" data-autosave>
+                 autocomplete="name" placeholder="{% if is_empresa %}Nombre de la empresa{% else %}Como aparece en la cédula{% endif %}" data-autosave>
         </div>
+        {% if is_empresa %}
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="company_nit">NIT *</label>
+          <input type="text" class="form-control form-control-lg" id="company_nit" name="company_nit"
+                 value="{{ req.company_nit|default:quote.display_client_document }}" required data-autosave>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="company_legal_rep_name">Representante legal *</label>
+          <input type="text" class="form-control form-control-lg" id="company_legal_rep_name" name="company_legal_rep_name"
+                 value="{{ req.company_legal_rep_name }}" required data-autosave>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold" for="company_legal_rep_document">Cédula del representante legal *</label>
+          <input type="text" class="form-control form-control-lg" id="company_legal_rep_document" name="company_legal_rep_document"
+                 value="{{ req.company_legal_rep_document }}" required inputmode="numeric" data-autosave>
+        </div>
+        {% else %}
         <div class="mb-0">
           <label class="form-label fw-semibold" for="client_document">Número de cédula *</label>
           <input type="text" class="form-control form-control-lg" id="client_document" name="client_document"
                  value="{{ client_document }}" required inputmode="numeric"
                  placeholder="Ej: 1234567890" data-autosave>
         </div>
+        {% endif %}
       </div>
 
       <div class="section-card">
@@ -335,6 +364,77 @@
         </div>
       </div>
       {% endif %}
+
+      <div class="section-card border-primary">
+        <h2><i class="bi bi-shield-check me-1"></i> Condiciones, daños y firma</h2>
+        <p class="hint mb-3">
+          En caso de <strong>pérdida, hurto o daño</strong> del equipo o sus partes, deberás pagar el costo de reposición
+          según la tabla. Lee con atención y firma al final.
+        </p>
+
+        {% if machines %}
+        {% for machine in machines %}
+        <div class="mb-3">
+          <div class="fw-bold small mb-1">{{ machine.product.name }}</div>
+          {% if machine.commercial_value %}
+          <div class="hint mb-2">Pérdida total referencia: {{ machine.commercial_value|pesos_colombianos }}</div>
+          {% endif %}
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered parts-table mb-2">
+              <thead class="table-light">
+                <tr><th>Parte</th><th class="text-end">Costo daño</th></tr>
+              </thead>
+              <tbody>
+                {% for part in machine.parts %}
+                <tr><td>{{ part.name }}</td><td class="text-end">{{ part.replacement_cost|pesos_colombianos }}</td></tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr class="table-light"><td class="fw-bold">Subtotal</td><td class="text-end fw-bold">{{ machine.parts_total|pesos_colombianos }}</td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+        {% endfor %}
+        <div class="parts-total mb-3">
+          <span>Total referencia partes</span>
+          <span>{{ grand_parts_total|pesos_colombianos }}</span>
+        </div>
+        {% endif %}
+
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="damage_terms_acknowledged" name="damage_terms_acknowledged" value="1"
+                 {% if req.damage_terms_acknowledged %}checked{% endif %}>
+          <label class="form-check-label small" for="damage_terms_acknowledged">
+            Acepto las condiciones de alquiler y me obligo a pagar los costos de daños o pérdidas según la tabla anterior.
+          </label>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="conditions_signer_name">Nombre completo (quien firma) *</label>
+          <input type="text" class="form-control" id="conditions_signer_name" name="conditions_signer_name"
+                 value="{{ req.conditions_signer_name|default:req.tenant_name }}" required data-autosave>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="conditions_signer_document">Cédula / NIT (quien firma) *</label>
+          <input type="text" class="form-control" id="conditions_signer_document" name="conditions_signer_document"
+                 value="{{ req.conditions_signer_document|default:client_document }}" required data-autosave>
+        </div>
+
+        <label class="form-label fw-semibold">Firma *</label>
+        {% if req.conditions_signature %}
+        <div class="mb-2"><img src="{{ req.conditions_signature.url }}" alt="Firma" style="max-width:100%;border:1px solid #e2e8f0;border-radius:0.5rem;"></div>
+        <p class="hint mb-2">Puedes firmar de nuevo abajo para reemplazar la firma anterior.</p>
+        {% endif %}
+        <input type="hidden" name="conditions_signature_data" id="conditions_signature_data">
+        <div class="sig-wrap mb-1">
+          <canvas id="sig-conditions" class="sig-canvas" width="640" height="160"></canvas>
+          <div class="sig-toolbar">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="sig-conditions-clear">Borrar firma</button>
+            <span class="small text-muted align-self-center">Firma con el dedo aquí</span>
+          </div>
+        </div>
+      </div>
 
       <div style="height: 7rem;"></div>
       <div class="sticky-submit">
@@ -481,6 +581,68 @@
       });
     });
 
+    // Checkbox aceptación daños
+    var damageCheck = document.getElementById('damage_terms_acknowledged');
+    if (damageCheck) {
+      damageCheck.addEventListener('change', function () {
+        var fd = new FormData();
+        fd.append('damage_terms_acknowledged', damageCheck.checked ? '1' : '0');
+        postSave(fd, function () { toast('Aceptación guardada ✓'); }, function (msg) { toast(msg, true); });
+      });
+    }
+
+    // Firma de condiciones
+    var sigCanvas = document.getElementById('sig-conditions');
+    var sigHidden = document.getElementById('conditions_signature_data');
+    var sigHasInk = false;
+    function initSignatureCanvas(canvas) {
+      if (!canvas) return;
+      var ctx = canvas.getContext('2d');
+      var drawing = false;
+      function pos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        var y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        return { x: x * (canvas.width / rect.width), y: y * (canvas.height / rect.height) };
+      }
+      function start(e) { drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+      function move(e) {
+        if (!drawing) return;
+        var p = pos(e);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        sigHasInk = true;
+        e.preventDefault();
+      }
+      function end() { drawing = false; }
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      canvas.addEventListener('mouseup', end);
+      canvas.addEventListener('mouseleave', end);
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', move, { passive: false });
+      canvas.addEventListener('touchend', end);
+      var clearBtn = document.getElementById('sig-conditions-clear');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          sigHasInk = false;
+          if (sigHidden) sigHidden.value = '';
+        });
+      }
+    }
+    initSignatureCanvas(sigCanvas);
+
+    function saveSignature(cb) {
+      if (!sigCanvas || !sigHasInk) { if (cb) cb(); return; }
+      var fd = new FormData();
+      fd.append('conditions_signature_data', sigCanvas.toDataURL('image/png'));
+      postSave(fd, function () { if (cb) cb(); }, function () { if (cb) cb(); });
+    }
+
     // Envío final: valida en el servidor y redirige
     var finalizeBtn = document.getElementById('finalize-btn');
     form.addEventListener('submit', function (e) {
@@ -488,30 +650,32 @@
       finalizeBtn.disabled = true;
       var original = finalizeBtn.innerHTML;
       finalizeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando…';
-      var fd = new FormData();
-      fd.append('csrfmiddlewaretoken', CSRF);
-      fetch(FINALIZE_URL, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-        .then(function (res) {
-          if (res.ok && res.data.ok && res.data.redirect_url) {
-            window.location.href = res.data.redirect_url;
-          } else {
+      saveSignature(function () {
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fetch(FINALIZE_URL, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (res.ok && res.data.ok && res.data.redirect_url) {
+              window.location.href = res.data.redirect_url;
+            } else {
+              finalizeBtn.disabled = false;
+              finalizeBtn.innerHTML = original;
+              applyProgress(res.data);
+              toast(res.data.error || 'Faltan datos por completar', true);
+            }
+          })
+          .catch(function () {
             finalizeBtn.disabled = false;
             finalizeBtn.innerHTML = original;
-            applyProgress(res.data);
-            toast(res.data.error || 'Faltan datos por completar', true);
-          }
-        })
-        .catch(function () {
-          finalizeBtn.disabled = false;
-          finalizeBtn.innerHTML = original;
-          toast('Sin conexión', true);
-        });
+            toast('Sin conexión', true);
+          });
+      });
     });
 
     (function initOpMap() {

@@ -57,7 +57,9 @@
                     </div>
                     <div class="card-body">
                         {% for item in quotation_items %}
-                        <input type="hidden" name="products" value="{{ item.product.id }}">
+                        {% if not item.is_custom and item.product %}
+                        <input type="hidden" name="products" value="{{ item.line_key|default:item.product.id }}">
+                        {% endif %}
                         {% endfor %}
                         <div class="row g-3">
                             <div class="col-12">
@@ -127,11 +129,16 @@
 
                 <!-- Productos seleccionados -->
                 <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <h5 class="mb-0">Hoja de cotización</h5>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addProductsCollapse" aria-expanded="false">
-                            <i class="bi bi-plus-circle me-1"></i> Agregar más productos
-                        </button>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#addCustomExtraCollapse" aria-expanded="false">
+                                <i class="bi bi-pencil-square me-1"></i> Extra personalizado
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addProductsCollapse" aria-expanded="false">
+                                <i class="bi bi-plus-circle me-1"></i> Agregar más productos
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -151,13 +158,17 @@
                                     <tr>
                                         <td>
                                             <div class="d-flex align-items-center">
-                                                {% if item.product.image %}
-                                                <img src="{{ item.product.image.url }}" alt="{{ item.display_name|default:item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
-                                                {% else %}
+                                                {% if item.is_custom %}
                                                 <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                                                    <i class="bi bi-image text-muted"></i>
+                                                    <i class="bi bi-pencil-square text-secondary"></i>
                                                 </div>
-                                                {% endif %}
+                                                <div>
+                                                    <strong>{{ item.display_name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">Extra personalizado</small>
+                                                </div>
+                                                {% elif item.product.image %}
+                                                <img src="{{ item.product.image.url }}" alt="{{ item.display_name|default:item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
                                                 <div>
                                                     <strong>{{ item.display_name|default:item.product.name }}</strong>
                                                     <br>
@@ -166,24 +177,37 @@
                                                         {% if item.period_label %} · Alquiler{% endif %}
                                                     </small>
                                                 </div>
+                                                {% else %}
+                                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                    <i class="bi bi-image text-muted"></i>
+                                                </div>
+                                                <div>
+                                                    <strong>{{ item.display_name|default:item.product.name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        {{ item.product.category.name }}
+                                                        {% if item.period_label %} · Alquiler{% endif %}
+                                                    </small>
+                                                </div>
+                                                {% endif %}
                                             </div>
                                         </td>
                                         <td>
-                                            <input type="number" name="quantity_{{ item.line_key|default:item.product.id }}" value="{{ item.quantity }}" min="1" class="form-control form-control-sm quantity-input" data-line-key="{{ item.line_key|default:item.product.id }}" style="width: 90px;">
+                                            <input type="number" name="quantity_{{ item.line_key }}" value="{{ item.quantity }}" min="1" class="form-control form-control-sm quantity-input" data-line-key="{{ item.line_key }}" style="width: 90px;">
                                         </td>
                                         <td>
                                             <div class="input-group input-group-sm quote-discount-group" style="width: 150px;">
                                                 <input type="number"
-                                                       name="discount_{{ item.line_key|default:item.product.id }}"
+                                                       name="discount_{{ item.line_key }}"
                                                        value="{{ item.discount_value|default:item.discount_percent|default:0 }}"
                                                        min="0"
                                                        step="0.01"
                                                        class="form-control discount-input"
-                                                       data-line-key="{{ item.line_key|default:item.product.id }}"
+                                                       data-line-key="{{ item.line_key }}"
                                                        data-list-price="{{ item.list_unit_price }}"
                                                        title="Descuento">
                                                 <select class="form-select discount-type-select"
-                                                        data-line-key="{{ item.line_key|default:item.product.id }}"
+                                                        data-line-key="{{ item.line_key }}"
                                                         style="max-width: 62px;"
                                                         title="Tipo de descuento">
                                                     <option value="percent"{% if item.discount_type != 'amount' %} selected{% endif %}>%</option>
@@ -199,7 +223,7 @@
                                         </td>
                                         <td class="text-end quotation-nowrap quotation-money-col"><strong>{{ item.subtotal|pesos_colombianos }}</strong></td>
                                         <td>
-                                            <button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-line-key="{{ item.line_key|default:item.product.id }}" title="Quitar">
+                                            <button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-line-key="{{ item.line_key }}" title="Quitar">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </td>
@@ -207,7 +231,7 @@
                                     {% empty %}
                                     <tr>
                                         <td colspan="6" class="text-center text-muted py-4">
-                                            Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.
+                                            Aún no hay productos en la cotización. Abre “Agregar más productos” o agrega un extra personalizado.
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -240,6 +264,38 @@
                 </div>
             </form>
             
+            <!-- Extra personalizado -->
+            <div class="collapse mb-4" id="addCustomExtraCollapse">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0">Agregar extra personalizado</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Usa esto para ítems que no están en el catálogo (transporte, instalación, fee, etc.).</p>
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-5">
+                                <label for="custom-extra-name" class="form-label">Nombre *</label>
+                                <input type="text" id="custom-extra-name" class="form-control" maxlength="200" placeholder="Ej: Transporte Cartagena">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="custom-extra-price" class="form-label">Precio unitario *</label>
+                                <input type="number" id="custom-extra-price" class="form-control" min="0" step="1000" placeholder="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="custom-extra-qty" class="form-label">Cantidad</label>
+                                <input type="number" id="custom-extra-qty" class="form-control" min="1" value="1">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" id="btn-quote-add-custom" class="btn btn-primary w-100">
+                                    <i class="bi bi-plus-lg me-1"></i> Agregar
+                                </button>
+                            </div>
+                        </div>
+                        <div id="custom-extra-error" class="text-danger small mt-2 d-none"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Panel colapsable para agregar más productos -->
             <div class="collapse mb-4{% if not quotation_items %} show{% endif %}" id="addProductsCollapse">
                 <div class="card border-0 shadow-sm">
@@ -255,7 +311,9 @@
                         {% if products_by_category %}
                         <form method="get" id="add-products-form">
                             {% for item in quotation_items %}
+                            {% if not item.is_custom %}
                             <input type="hidden" name="products" value="{{ item.line_key|default:item.product.id }}">
+                            {% endif %}
                             {% endfor %}
                             <div class="accordion" id="addProductsAccordion">
                                 {% for category_name, products in products_by_category.items %}
@@ -442,7 +500,7 @@
                             <tbody>
                                 {% for item in quotation_items %}
                                 <tr>
-                                    <td>{{ item.product.name }}</td>
+                                    <td>{{ item.display_name }}{% if item.is_custom %} <span class="text-muted small">(extra)</span>{% endif %}</td>
                                     <td class="text-center">{{ item.quantity }}</td>
                                     <td class="text-end">{{ item.unit_price|pesos_colombianos }}</td>
                                     <td class="text-end">{{ item.subtotal|pesos_colombianos }}</td>
@@ -631,22 +689,27 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!tbody) return;
         tbody.innerHTML = '';
         if (!payload.items || payload.items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay productos en la cotización. Abre “Agregar más productos” y selecciónalos.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay productos en la cotización. Abre “Agregar más productos” o agrega un extra personalizado.</td></tr>';
         } else {
             payload.items.forEach(item => {
                 const lineKey = String(item.line_key || item.id);
-                const img = item.image_url
-                    ? '<img src="' + item.image_url + '" class="rounded me-2" style="width:50px;height:50px;object-fit:cover;" />'
-                    : '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-image text-muted"></i></div>';
+                const isCustom = !!item.is_custom;
+                const img = isCustom
+                    ? '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-pencil-square text-secondary"></i></div>'
+                    : (item.image_url
+                        ? '<img src="' + item.image_url + '" class="rounded me-2" style="width:50px;height:50px;object-fit:cover;" />'
+                        : '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-image text-muted"></i></div>');
                 const disc = Number(item.discount_value != null ? item.discount_value : (item.discount_percent || 0));
                 const priceCell = (disc > 0)
                     ? '<div class="small text-muted text-decoration-line-through">' + fmtCOP(item.list_unit_price) + '</div>' + fmtCOP(item.unit_price)
                     : fmtCOP(item.unit_price);
                 const periodHint = item.period_label ? ' · Alquiler' : '';
+                const categoryLabel = isCustom ? 'Extra personalizado' : ((item.category || '') + periodHint);
+                const safeName = String(item.name || 'Extra').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 const tr = document.createElement('tr');
                 tr.innerHTML =
                     '<td><div class="d-flex align-items-center">' + img +
-                    '<div><strong>' + item.name + '</strong><br><small class="text-muted">' + item.category + periodHint + '</small></div></div></td>' +
+                    '<div><strong>' + safeName + '</strong><br><small class="text-muted">' + categoryLabel + '</small></div></div></td>' +
                     '<td><input type="number" name="quantity_' + lineKey + '" value="' + item.qty + '" min="1" class="form-control form-control-sm quantity-input" data-line-key="' + lineKey + '" style="width:90px;"></td>' +
                     '<td>' + discountControlsHtml(lineKey, item) + '</td>' +
                     '<td class="text-end quotation-nowrap quotation-money-col">' + priceCell + '</td>' +
@@ -779,6 +842,67 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelectorAll('.product-checkbox-add').forEach(cb => cb.checked = false);
                 renderQuote(payload);
             }).catch(() => {});
+        });
+    }
+
+    // AJAX: agregar extra personalizado
+    const addCustomBtn = document.getElementById('btn-quote-add-custom');
+    if (addCustomBtn) {
+        addCustomBtn.addEventListener('click', function() {
+            const nameEl = document.getElementById('custom-extra-name');
+            const priceEl = document.getElementById('custom-extra-price');
+            const qtyEl = document.getElementById('custom-extra-qty');
+            const errEl = document.getElementById('custom-extra-error');
+            const name = (nameEl && nameEl.value || '').trim();
+            let unitPrice = parseFloat(String(priceEl && priceEl.value || '0').replace(',', '.'));
+            let qty = parseInt(qtyEl && qtyEl.value, 10);
+            if (errEl) {
+                errEl.classList.add('d-none');
+                errEl.textContent = '';
+            }
+            if (!name) {
+                if (errEl) {
+                    errEl.textContent = 'Escribe un nombre para el extra.';
+                    errEl.classList.remove('d-none');
+                }
+                if (nameEl) nameEl.focus();
+                return;
+            }
+            if (isNaN(unitPrice) || unitPrice < 0) unitPrice = 0;
+            if (isNaN(qty) || qty < 1) qty = 1;
+            addCustomBtn.disabled = true;
+            fetch("{% url 'store:quotation_ajax_add_custom' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    name: name,
+                    unit_price: String(unitPrice),
+                    qty: String(qty),
+                }),
+            }).then(r => r.json()).then(payload => {
+                if (payload.error) {
+                    if (errEl) {
+                        errEl.textContent = payload.error;
+                        errEl.classList.remove('d-none');
+                    }
+                    return;
+                }
+                if (nameEl) nameEl.value = '';
+                if (priceEl) priceEl.value = '';
+                if (qtyEl) qtyEl.value = '1';
+                renderQuote(payload);
+            }).catch(() => {
+                if (errEl) {
+                    errEl.textContent = 'No se pudo agregar el extra. Intenta de nuevo.';
+                    errEl.classList.remove('d-none');
+                }
+            }).finally(() => {
+                addCustomBtn.disabled = false;
+            });
         });
     }
 

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Factura electrónica · Cotización #{{ quote.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:900px;">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 mb-1"><i class="bi bi-receipt-cutoff text-success"></i> Factura electrónica DIAN</h1>
+      <p class="text-muted mb-0">Cotización COT-{{ quote.id }} · {{ quote.display_client_name }}</p>
+    </div>
+    <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Volver a cotización
+    </a>
+  </div>
+
+  {% if not is_paid %}
+  <div class="alert alert-warning">
+    La cotización debe estar <strong>pagada</strong> para emitir factura electrónica.
+  </div>
+  {% endif %}
+
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">Configuración ambiente</div>
+    <div class="card-body small">
+      <div class="row g-2">
+        <div class="col-md-4"><span class="text-muted">Ambiente:</span> <strong>{{ dian_config.environment }}</strong></div>
+        <div class="col-md-4"><span class="text-muted">Prefijo:</span> <strong>{{ dian_config.prefix }}</strong></div>
+        <div class="col-md-4"><span class="text-muted">Rango:</span> {{ dian_config.range_from }} – {{ dian_config.range_to }}</div>
+        <div class="col-md-6"><span class="text-muted">Software ID:</span> {{ dian_config.software_id }}</div>
+        <div class="col-md-6"><span class="text-muted">Certificado:</span>
+          {% if dian_config.has_certificate %}<span class="text-success">Configurado</span>{% else %}<span class="text-danger">No configurado</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if invoice %}
+  <div class="card mb-3 border-success">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">FE {{ invoice.invoice_number }}</span>
+      <span class="badge {% if invoice.is_accepted %}text-bg-success{% elif invoice.status == 'error' or invoice.status == 'rejected' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">
+        {{ invoice.get_status_display }}
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 small">
+        <div class="col-md-6">
+          <div class="text-muted">CUFE</div>
+          <code class="small" style="word-break:break-all;">{{ invoice.cufe|default:"—" }}</code>
+        </div>
+        <div class="col-md-6">
+          <div class="text-muted">Total</div>
+          <strong>${{ invoice.total_amount|floatformat:2 }} COP</strong>
+        </div>
+        <div class="col-md-6">
+          <div class="text-muted">Emitida</div>
+          {{ invoice.issue_date|date:"d/m/Y" }} {{ invoice.issue_time|time:"H:i" }}
+        </div>
+        <div class="col-md-6">
+          <div class="text-muted">Track ID DIAN</div>
+          {{ invoice.dian_track_id|default:"—" }}
+        </div>
+        {% if invoice.dian_status_message %}
+        <div class="col-12">
+          <div class="text-muted">Respuesta DIAN</div>
+          {{ invoice.dian_status_message }}
+        </div>
+        {% endif %}
+        {% if invoice.qr_url %}
+        <div class="col-12">
+          <a href="{{ invoice.qr_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-qr-code"></i> Verificar en catálogo DIAN
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <a class="btn btn-sm btn-outline-dark" href="{% url 'store:quotation_dian_invoice_xml' quotation_id=quote.id %}">
+          <i class="bi bi-filetype-xml"></i> Descargar XML
+        </a>
+        <a class="btn btn-sm btn-outline-dark" href="{% url 'store:quotation_dian_invoice_pdf' quotation_id=quote.id %}" target="_blank">
+          <i class="bi bi-file-pdf"></i> Ver PDF
+        </a>
+        <a class="btn btn-sm btn-outline-dark" href="{% url 'store:quotation_dian_invoice_pdf' quotation_id=quote.id %}?download=1">
+          <i class="bi bi-download"></i> Descargar PDF
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% if logs %}
+  <div class="card mb-3">
+    <div class="card-header">Historial envíos DIAN</div>
+    <ul class="list-group list-group-flush small">
+      {% for log in logs %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ log.action }} — {{ log.response_summary|truncatechars:120 }}</span>
+        <span class="{% if log.success %}text-success{% else %}text-danger{% endif %}">{{ log.created_at|date:"d/m/Y H:i" }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="alert alert-info">Aún no se ha emitido factura electrónica para esta cotización.</div>
+  {% endif %}
+
+  {% if is_paid %}
+  <div class="card">
+    <div class="card-body">
+      <form method="post" action="{% url 'store:quotation_dian_invoice_emit' quotation_id=quote.id %}" class="d-flex flex-wrap gap-2 align-items-center">
+        {% csrf_token %}
+        {% if invoice and invoice.can_retry %}
+        <input type="hidden" name="force" value="1">
+        <button type="submit" class="btn btn-success">
+          <i class="bi bi-arrow-repeat"></i> Reintentar emisión
+        </button>
+        {% elif not invoice %}
+        <button type="submit" class="btn btn-success">
+          <i class="bi bi-lightning"></i> Emitir factura electrónica
+        </button>
+        {% endif %}
+        <label class="form-check-label ms-2">
+          <input type="checkbox" name="submit_dian" value="1" class="form-check-input" checked>
+          Enviar a DIAN (si hay certificado)
+        </label>
+      </form>
+      <p class="small text-muted mt-2 mb-0">
+        En habilitación el prefijo es <strong>{{ dian_config.prefix }}</strong> (set de pruebas SETP).
+        Sin certificado se genera XML y CUFE localmente.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

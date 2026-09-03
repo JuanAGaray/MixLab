@@ -252,3 +252,46 @@ REST_FRAMEWORK = {
 # Telegram integration (alerts)
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+# ---------------------------------------------------------------------------
+# Facturación electrónica DIAN (Colombia)
+# ---------------------------------------------------------------------------
+DIAN_ENVIRONMENT = os.environ.get('DIAN_ENVIRONMENT', 'HABILITACION').strip().upper()
+DIAN_SOFTWARE_ID = os.environ.get('DIAN_SOFTWARE_ID', 'TU_ID_DEL_SOFTWARE').strip()
+DIAN_SOFTWARE_PIN = os.environ.get('DIAN_SOFTWARE_PIN', 'TU_PIN').strip()
+DIAN_TEST_PREFIX = os.environ.get('DIAN_TEST_PREFIX', 'SETP').strip()
+DIAN_TEST_FROM = int(os.environ.get('DIAN_TEST_FROM', '990000000'))
+DIAN_TEST_TO = int(os.environ.get('DIAN_TEST_TO', '995000000'))
+DIAN_TEST_TECHNICAL_KEY = os.environ.get(
+    'DIAN_TEST_TECHNICAL_KEY',
+    'fc8eac422eba16e22ffd8c6f94b3f40a6e38162c',
+).strip()
+DIAN_CERTIFICATE_PATH = os.environ.get('DIAN_CERTIFICATE_PATH', '').strip()
+DIAN_CERTIFICATE_PASSWORD = os.environ.get('DIAN_CERTIFICATE_PASSWORD', '').strip()
+DIAN_CERTIFICATE_BASE64 = os.environ.get('DIAN_CERTIFICATE_BASE64', '').strip()
+DIAN_AUTO_EMIT_ON_PAYMENT = os.environ.get('DIAN_AUTO_EMIT_ON_PAYMENT', 'false').lower() in (
+    '1', 'true', 'yes',
+)
+DIAN_WS_URL_HABILITACION = os.environ.get(
+    'DIAN_WS_URL_HABILITACION',
+    'https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc',
+).strip()
+DIAN_WS_URL_PRODUCCION = os.environ.get(
+    'DIAN_WS_URL_PRODUCCION',
+    'https://vpfe.dian.gov.co/WcfDianCustomerServices.svc',
+).strip()
+DIAN_QR_URL_HABILITACION = os.environ.get(
+    'DIAN_QR_URL_HABILITACION',
+    'https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=',
+).strip()
+DIAN_QR_URL_PRODUCCION = os.environ.get(
+    'DIAN_QR_URL_PRODUCCION',
+    'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=',
+).strip()
+DIAN_RESOLUTION_NUMBER = os.environ.get('DIAN_RESOLUTION_NUMBER', '18760000001').strip()
+DIAN_RESOLUTION_FROM = os.environ.get('DIAN_RESOLUTION_FROM', '2019-01-19').strip()
+DIAN_RESOLUTION_TO = os.environ.get('DIAN_RESOLUTION_TO', '2030-01-19').strip()
+DIAN_TEST_SET_ID = os.environ.get('DIAN_TEST_SET_ID', '').strip()
+DIAN_HAB_INVOICES = int(os.environ.get('DIAN_HAB_INVOICES', '30'))
+DIAN_HAB_CREDIT_NOTES = int(os.environ.get('DIAN_HAB_CREDIT_NOTES', '10'))
+DIAN_HAB_DEBIT_NOTES = int(os.environ.get('DIAN_HAB_DEBIT_NOTES', '10'))

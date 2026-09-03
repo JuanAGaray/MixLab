@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% load store_tags %}
+
+{% block title %}Partes y costos · COT-{{ quote.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mp-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .mp-head {
+    padding: 0.9rem 1.1rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 800;
+  }
+  .mp-body { padding: 1.1rem; }
+  .mp-total {
+    background: #0b1f3a;
+    color: #fff;
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <a href="{% url 'store:quotation_client_onboarding_manage' quotation_id=quote.id %}" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a remitir requisitos
+  </a>
+  <h1 class="h4 fw-bold mt-2 mb-1">Partes de máquina y costos de daño</h1>
+  <p class="text-muted">COT-{{ quote.id }} · {{ quote.display_client_name }}</p>
+
+  <div class="alert alert-info py-2 small">
+    Estos valores se muestran al cliente en el formulario de requisitos. En caso de pérdida o daño,
+    el arrendatario debe pagar el costo de reposición de la parte afectada o el valor comercial en pérdida total.
+  </div>
+
+  <form method="post" class="mp-card">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="load_defaults">
+    <div class="mp-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
+      <span class="text-muted small">¿La máquina no tiene partes cargadas?</span>
+      <button type="submit" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-download"></i> Cargar partes de referencia
+      </button>
+    </div>
+  </form>
+
+  {% for machine in machines %}
+  <div class="mp-card">
+    <div class="mp-head d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>{{ machine.product.name }}</span>
+      {% if machine.commercial_value %}
+      <span class="badge text-bg-dark">Valor comercial: {{ machine.commercial_value|pesos_colombianos }}</span>
+      {% endif %}
+    </div>
+    <div class="mp-body">
+      <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Parte</th>
+              <th class="text-end">Costo reposición</th>
+              <th style="width:60px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for part in machine.parts %}
+            <tr>
+              <td>{{ part.name }}</td>
+              <td class="text-end">{{ part.replacement_cost|pesos_colombianos }}</td>
+              <td>
+                <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta parte?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_part">
+                  <input type="hidden" name="part_id" value="{{ part.id }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted">Sin partes. Agrega una abajo o carga las de referencia.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-light">
+              <td class="fw-bold">Subtotal</td>
+              <td class="text-end fw-bold">{{ machine.parts_total|pesos_colombianos }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_part">
+        <input type="hidden" name="product_id" value="{{ machine.product.id }}">
+        <div class="col-md-6">
+          <label class="form-label small">Nueva parte</label>
+          <input type="text" name="name" class="form-control form-control-sm" placeholder="Ej: Motor compresor" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Costo (COP)</label>
+          <input type="number" name="replacement_cost" class="form-control form-control-sm" min="0" step="1000" required>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="mp-total">
+    <span>Total referencia partes (todas las máquinas)</span>
+    <span>{{ grand_parts_total|pesos_colombianos }}</span>
+  </div>
+</div>
+{% endblock %}

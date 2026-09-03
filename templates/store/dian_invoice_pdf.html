@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Factura electrónica {{ invoice.invoice_number }}</title>
+  <style>
+    @page { size: A4; margin: 1.2cm; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #111; }
+    .header { border-bottom: 2px solid #166534; padding-bottom: 10px; margin-bottom: 14px; }
+    .header h1 { font-size: 16pt; margin: 0; color: #166534; }
+    .meta { font-size: 9pt; color: #444; }
+    .grid { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .grid td { vertical-align: top; width: 50%; padding: 4px 8px 4px 0; }
+    .lbl { font-size: 8pt; color: #666; text-transform: uppercase; }
+    table.items { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table.items th, table.items td { border: 1px solid #ccc; padding: 5px 6px; font-size: 9pt; }
+    table.items th { background: #f3f4f6; }
+    .totals { margin-top: 12px; width: 45%; margin-left: auto; }
+    .totals td { padding: 3px 6px; font-size: 9pt; }
+    .totals .total { font-weight: bold; font-size: 11pt; }
+    .cufe { font-size: 7pt; word-break: break-all; margin-top: 14px; padding: 8px; background: #f9fafb; border: 1px solid #e5e7eb; }
+    .qr-note { font-size: 8pt; color: #666; margin-top: 8px; }
+    .watermark { color: #166534; font-weight: bold; font-size: 11pt; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{ site.company_legal_name|default:"MIXLAB SAS" }}</h1>
+    <div class="meta">
+      NIT {{ site.company_nit }} · {{ site.company_address }}<br>
+      Factura electrónica de venta · Resolución DIAN {{ site.dian_invoice_resolution|default:"—" }}
+    </div>
+  </div>
+
+  <p class="watermark">FACTURA ELECTRÓNICA DE VENTA</p>
+
+  <table class="grid">
+    <tr>
+      <td>
+        <div class="lbl">Número</div>
+        <strong>{{ invoice.invoice_number }}</strong>
+      </td>
+      <td>
+        <div class="lbl">Fecha y hora</div>
+        {{ invoice.issue_date|date:"d/m/Y" }} {{ invoice.issue_time|time:"H:i" }}
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="lbl">Cliente</div>
+        {{ quote.display_client_name }}<br>
+        Doc. {{ quote.display_client_document }}<br>
+        {{ quote.display_client_email }}
+      </td>
+      <td>
+        <div class="lbl">Cotización origen</div>
+        COT-{{ quote.id }}<br>
+        <div class="lbl">Ambiente</div>
+        {{ invoice.environment }}
+      </td>
+    </tr>
+  </table>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Descripción</th>
+        <th>Cant.</th>
+        <th>V. unit.</th>
+        <th>Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ it.display_name }}</td>
+        <td style="text-align:center">{{ it.quantity }}</td>
+        <td style="text-align:right">${{ it.unit_price|floatformat:0 }}</td>
+        <td style="text-align:right">${{ it.subtotal|floatformat:0 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td>Base gravable</td><td style="text-align:right">${{ invoice.taxable_amount|floatformat:2 }}</td></tr>
+    <tr><td>IVA 19%</td><td style="text-align:right">${{ invoice.iva_amount|floatformat:2 }}</td></tr>
+    <tr class="total"><td>Total</td><td style="text-align:right">${{ invoice.total_amount|floatformat:2 }}</td></tr>
+  </table>
+
+  <div class="cufe">
+    <strong>CUFE:</strong> {{ invoice.cufe }}<br>
+    {% if invoice.qr_url %}
+    <span class="qr-note">Verificar en DIAN: {{ invoice.qr_url }}</span>
+    {% endif %}
+  </div>
+
+  <p class="qr-note" style="margin-top:20px;">
+    Representación gráfica de factura electrónica conforme a la Resolución DIAN.
+    Documento generado por {{ site.company_legal_name }}.
+  </p>
+</body>
+</html>

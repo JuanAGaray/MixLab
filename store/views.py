@@ -4169,6 +4169,8 @@ def inventory_combo_schedule(request, combo_id):
                             'company_legal_rep_document': '',
                             'conditions_signer_name': '',
                             'conditions_signer_document': '',
+                            'codeudor_required': False,
+                            'damage_terms_acknowledged': False,
                         },
                     )
 
@@ -4761,7 +4763,7 @@ def quotation_wa_share(request, quotation_id):
 
     phone = _wa_normalize_phone(q.display_client_phone or q.client_phone or '')
     if not phone:
-        messages.error(request, 'Esta cotización no tiene un teléfono de cliente válido para WhatsApp.')
+        messages.error(request, 'Esta cotización no tiene un celular o usuario de WhatsApp válido.')
         return redirect(next_url)
 
     message = _quotation_wa_share_message(q, request=request)
@@ -4794,7 +4796,7 @@ def quotation_wa_payment_reminder(request, quotation_id):
 
     phone = _wa_normalize_phone(q.display_client_phone or q.client_phone or '')
     if not phone:
-        messages.error(request, 'Esta cotización no tiene un teléfono de cliente válido para WhatsApp.')
+        messages.error(request, 'Esta cotización no tiene un celular o usuario de WhatsApp válido.')
         return redirect(next_url)
 
     message = _quotation_wa_payment_reminder_message(q, request=request)
@@ -6035,9 +6037,9 @@ def quotation_rental_requirements(request, quotation_id):
             except ValidationError:
                 errors.append('Ingresa un correo electrónico válido.')
         if not client_phone:
-            errors.append('El teléfono del cliente es obligatorio.')
-        if q.existing_client_id and len(client_phone) > 20:
-            errors.append('El teléfono debe tener máximo 20 caracteres.')
+            errors.append('El celular o usuario de WhatsApp es obligatorio.')
+        if q.existing_client_id and len(client_phone) > 64:
+            errors.append('El celular o usuario de WhatsApp debe tener máximo 64 caracteres.')
 
         if errors:
             for error in errors:
@@ -6258,7 +6260,7 @@ def _client_req_session_key(token) -> str:
 
 
 def _get_or_create_rental_requirements(quotation):
-    """Crea requisitos de alquiler con textos vacíos (evita NULL en Postgres)."""
+    """Crea requisitos de alquiler con valores vacíos (evita NULL en Postgres)."""
     return RentalContractRequirements.objects.get_or_create(
         quotation=quotation,
         defaults={
@@ -6274,6 +6276,10 @@ def _get_or_create_rental_requirements(quotation):
             'notes': '',
             'codeudor_name': '',
             'codeudor_document': '',
+            'access_password_hash': '',
+            'access_password': '',
+            'codeudor_required': False,
+            'damage_terms_acknowledged': False,
         },
     )
 
@@ -6374,15 +6380,7 @@ def quotation_client_onboarding_manage(request, quotation_id):
 
         phone = (q.display_client_phone or '').strip()
         if phone:
-            from urllib.parse import quote
-            digits = ''.join(ch for ch in phone if ch.isdigit())
-            if digits.startswith('57'):
-                wa_phone = digits
-            elif len(digits) == 10:
-                wa_phone = f'57{digits}'
-            else:
-                wa_phone = digits
-            wa_url = f'https://wa.me/{wa_phone}?text={quote(share_message)}'
+            wa_url = _wa_me_url(phone, share_message)
 
     return render(request, 'store/quotation_client_onboarding_manage.html', {
         'quote': q,
@@ -7246,30 +7244,15 @@ def _wa_money(amount) -> str:
 
 
 def _wa_normalize_phone(phone: str) -> str:
-    """Normaliza teléfono a dígitos con indicativo Colombia (57) si aplica."""
-    digits = ''.join(ch for ch in str(phone or '') if ch.isdigit())
-    if not digits:
-        return ''
-    if digits.startswith('57') and len(digits) >= 12:
-        return digits
-    if len(digits) == 10:
-        return f'57{digits}'
-    if digits.startswith('0') and len(digits) == 11:
-        return f'57{digits.lstrip("0")}'
-    return digits
+    """Celular (dígitos) o usuario de WhatsApp, listo para wa.me / n8n."""
+    from .whatsapp import normalize_wa_contact
+    return normalize_wa_contact(phone)
 
 
 def _wa_me_url(phone: str, message: str = '') -> str:
-    """URL wa.me con mensaje opcional prellenado."""
-    from urllib.parse import quote
-    digits = _wa_normalize_phone(phone)
-    if not digits:
-        return ''
-    url = f'https://wa.me/{digits}'
-    text = (message or '').strip()
-    if text:
-        url += f'?text={quote(text)}'
-    return url
+    """URL wa.me para celular o usuario, con mensaje opcional."""
+    from .whatsapp import wa_me_url
+    return wa_me_url(phone, message)
 
 
 def _quotation_public_link(quote: Quotation, request=None) -> str:

@@ -37,21 +37,19 @@ def pesos_colombianos(value):
 
 
 @register.filter
-def whatsapp_url(phone):
-    """Build a wa.me URL from a phone number (defaults to Colombia +57)."""
-    if not phone:
+def whatsapp_url(value):
+    """wa.me desde celular, usuario de WhatsApp, o perfil de usuario."""
+    from store.whatsapp import wa_me_url
+    if value is None or value == '':
         return '#'
-    digits = ''.join(ch for ch in str(phone) if ch.isdigit())
-    if not digits:
-        return '#'
-    # Si ya viene con indicativo (p.ej. 57...), úsalo; si es celular local 10 dígitos, anteponer 57
-    if digits.startswith('57') and len(digits) >= 12:
-        pass
-    elif len(digits) == 10:
-        digits = '57' + digits
-    elif digits.startswith('0') and len(digits) == 11:
-        digits = '57' + digits.lstrip('0')
-    return f'https://wa.me/{digits}'
+    if hasattr(value, 'profile'):
+        try:
+            phone = (getattr(value.profile, 'phone', None) or '').strip()
+            first = phone.split(',')[0].strip() if phone else ''
+            return wa_me_url(first)
+        except Exception:
+            return ''
+    return wa_me_url(value) or '#'
 
 
 @register.filter
@@ -123,39 +121,9 @@ def profile_phone(user):
 
 @register.filter
 def phone_whatsapp_url(phone):
-    """Convierte un teléfono a URL de WhatsApp (wa.me). Vacío si no hay dígitos."""
-    import re
-    try:
-        digits = re.sub(r'\D', '', str(phone or ''))
-        if not digits:
-            return ''
-        if len(digits) == 10 and digits[0] == '3':
-            digits = '57' + digits
-        return 'https://wa.me/' + digits
-    except Exception:
-        return ''
-
-
-@register.filter
-def whatsapp_url(user):
-    """Devuelve la URL de WhatsApp (wa.me) para el teléfono del usuario. Vacío si no hay teléfono."""
-    import re
-    try:
-        if not user or not hasattr(user, 'profile') or not user.profile:
-            return ''
-        phone = (getattr(user.profile, 'phone', None) or '').strip()
-        if not phone:
-            return ''
-        digits = re.sub(r'\D', '', phone)
-        if not digits:
-            return ''
-        # Colombia: 10 dígitos que empiezan en 3 (celular) -> añadir 57
-        if len(digits) == 10 and digits[0] == '3':
-            digits = '57' + digits
-        # Si ya tiene 12+ dígitos y empieza en 57, usar tal cual
-        return 'https://wa.me/' + digits
-    except Exception:
-        return ''
+    """Convierte celular o usuario a URL de WhatsApp (wa.me)."""
+    from store.whatsapp import wa_me_url
+    return wa_me_url(phone)
 
 
 @register.filter

@@ -73,16 +73,16 @@
               required>
           </div>
           <div class="col-md-4">
-            <label class="form-label fw-semibold" for="client_phone">Número de teléfono</label>
+            <label class="form-label fw-semibold" for="client_phone">Celular o usuario WhatsApp</label>
             <input
-              type="tel"
+              type="text"
               name="client_phone"
               id="client_phone"
               class="form-control"
-              maxlength="20"
+              maxlength="64"
               autocomplete="tel"
               value="{{ posted_client_phone|default:quote.display_client_phone }}"
-              placeholder="Ej: 300 123 4567"
+              placeholder="300 123 4567 o @usuario"
               required>
           </div>
         </div>

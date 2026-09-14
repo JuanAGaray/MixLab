@@ -863,7 +863,12 @@ class Quotation(models.Model):
 
     client_name = models.CharField(max_length=200, blank=True, verbose_name='Nombre/Razón social')
     client_email = models.EmailField(blank=True, verbose_name='Correo')
-    client_phone = models.CharField(max_length=30, blank=True, verbose_name='Teléfono')
+    client_phone = models.CharField(
+        max_length=64,
+        blank=True,
+        verbose_name='Teléfono o usuario WhatsApp',
+        help_text='Celular o usuario de WhatsApp (ej. 3001234567 o @usuario).',
+    )
     client_document = models.CharField(
         max_length=30,
         blank=True,
@@ -1335,7 +1340,12 @@ class ComboBooking(models.Model):
     )
     client_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre / razón social')
     client_email = models.EmailField(blank=True, default='', verbose_name='Correo')
-    client_phone = models.CharField(max_length=30, blank=True, default='', verbose_name='Teléfono')
+    client_phone = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        verbose_name='Teléfono o usuario WhatsApp',
+    )
     client_document = models.CharField(max_length=30, blank=True, default='', verbose_name='Documento')
     client_departamento = models.CharField(max_length=100, blank=True, default='', verbose_name='Departamento')
     client_city = models.CharField(max_length=100, blank=True, default='', verbose_name='Ciudad')
@@ -1616,6 +1626,7 @@ class RentalContractRequirements(models.Model):
     )
     codeudor_required = models.BooleanField(
         default=False,
+        db_default=False,
         verbose_name='Requiere codeudor',
         help_text='Si está activo, el cliente debe registrar datos del codeudor en el formulario móvil.',
     )
@@ -1727,6 +1738,7 @@ class RentalContractRequirements(models.Model):
     )
     damage_terms_acknowledged = models.BooleanField(
         default=False,
+        db_default=False,
         verbose_name='Aceptó tabla de daños y pérdidas',
     )
     completed_at = models.DateTimeField(blank=True, null=True, verbose_name='Completado en')
@@ -2047,10 +2059,10 @@ class SiteSettings(models.Model):
         verbose_name='Teléfono (visualización)',
     )
     whatsapp_number = models.CharField(
-        max_length=20,
+        max_length=64,
         default='573128104046',
-        verbose_name='WhatsApp (solo dígitos con código país)',
-        help_text='Ej: 573045379501 — se usa para el botón flotante y enlaces wa.me',
+        verbose_name='WhatsApp (celular o usuario)',
+        help_text='Celular con código de país (573045379501) o usuario (@usuario). Se usa en el botón flotante y wa.me.',
     )
     wa_n8n_webhook_url = models.URLField(
         blank=True,
@@ -2196,9 +2208,8 @@ class SiteSettings(models.Model):
 
     @property
     def whatsapp_url(self) -> str:
-        import re
-        digits = re.sub(r'\D', '', self.whatsapp_number or '')
-        return f'https://wa.me/{digits}' if digits else ''
+        from .whatsapp import wa_me_url
+        return wa_me_url(self.whatsapp_number or '')
 
     @property
     def social_links(self) -> list:

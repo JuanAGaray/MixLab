@@ -57,7 +57,7 @@ class UserProfile(models.Model):
         ('empresa', 'Empresa'),
     ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    phone = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')  # Stores comma-separated phones
+    phone = models.CharField(max_length=80, blank=True, verbose_name='Teléfono')  # Celular o usuario WA; puede ir separado por comas
     document_number = models.CharField(
         max_length=30,
         blank=True,

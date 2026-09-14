@@ -15,6 +15,8 @@ from .models import (
 from accounts.forms import CustomUserCreationForm
 
 
+from .whatsapp import apply_phone_indicative, is_wa_username
+
 PHONE_INDICATIVO = '+57'
 
 
@@ -35,10 +37,7 @@ class ClientCreateForm(CustomUserCreationForm):
         value = (self.cleaned_data.get('phone') or '').strip()
         if not value:
             return value
-        # Siempre guardar con indicativo delante
-        if not value.startswith('+'):
-            value = f'{PHONE_INDICATIVO} {value}'
-        return value
+        return apply_phone_indicative(value, PHONE_INDICATIVO)
     client_type = forms.ChoiceField(
         choices=[
             ('natural', 'Persona natural'),
@@ -139,10 +138,7 @@ class ClientEditForm(forms.Form):
     )
 
     def clean_phone(self):
-        value = (self.cleaned_data.get('phone') or '').strip()
-        if value and not value.startswith('+'):
-            value = f'{PHONE_INDICATIVO} {value}'
-        return value
+        return apply_phone_indicative(self.cleaned_data.get('phone') or '', PHONE_INDICATIVO)
 
 
 class GuestCheckoutForm(forms.Form):
@@ -204,19 +200,15 @@ class GuestCheckoutForm(forms.Form):
     phone = forms.CharField(
         max_length=25,
         required=True,
-        label='Teléfono (WhatsApp)',
+        label='Celular o usuario WhatsApp',
         widget=forms.TextInput(attrs={
             'class': 'form-control form-control-sm',
-            'placeholder': 'Ej: 300 123 4567 (con WhatsApp habilitado)',
-            'inputmode': 'tel',
+            'placeholder': '300 123 4567 o @usuario',
         }),
     )
 
     def clean_phone(self):
-        value = (self.cleaned_data.get('phone') or '').strip()
-        if value and not value.startswith('+'):
-            value = f'{PHONE_INDICATIVO} {value}'
-        return value
+        return apply_phone_indicative(self.cleaned_data.get('phone') or '', PHONE_INDICATIVO)
 
 
 class ProductForm(forms.ModelForm):
@@ -539,10 +531,13 @@ class QuotationForm(forms.Form):
         widget=forms.EmailInput(attrs={'class': 'form-control'})
     )
     client_phone = forms.CharField(
-        max_length=20,
-        label='Teléfono',
+        max_length=64,
+        label='Celular o usuario WhatsApp',
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'})
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '300 123 4567 o @usuario',
+        })
     )
     client_departamento = forms.CharField(
         max_length=100,
@@ -636,7 +631,7 @@ class SiteSettingsForm(forms.ModelForm):
         widgets = {
             'contact_email': forms.EmailInput(attrs={'class': 'form-control'}),
             'contact_phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '3128104046'}),
-            'whatsapp_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '573128104046'}),
+            'whatsapp_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '573128104046 o @usuario'}),
             'wa_n8n_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'wa_n8n_webhook_url': forms.URLInput(attrs={
                 'class': 'form-control',
@@ -693,7 +688,7 @@ class SiteSettingsForm(forms.ModelForm):
             'facebook_url': 'Facebook (opcional)',
         }
         help_texts = {
-            'whatsapp_number': 'Solo dígitos con código de país, sin + ni espacios. Ej: 573045379501',
+            'whatsapp_number': 'Celular (573045379501) o usuario de WhatsApp (@usuario)',
             'wa_n8n_phone': 'Este valor se envía como body.phone al webhook n8n.',
             'wa_n8n_webhook_url': 'Usa la URL de producción (/webhook/...), no /webhook-test/.',
         }
@@ -856,10 +851,7 @@ class StaffUserCreateForm(CustomUserCreationForm):
         return role
 
     def clean_phone(self):
-        value = (self.cleaned_data.get('phone') or '').strip()
-        if value and not value.startswith('+'):
-            value = f'{PHONE_INDICATIVO} {value}'
-        return value
+        return apply_phone_indicative(self.cleaned_data.get('phone') or '', PHONE_INDICATIVO)
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -927,10 +919,7 @@ class StaffUserEditForm(forms.Form):
             self.fields['role'].choices = [('vendedor', 'Vendedor')]
 
     def clean_phone(self):
-        value = (self.cleaned_data.get('phone') or '').strip()
-        if value and not value.startswith('+'):
-            value = f'{PHONE_INDICATIVO} {value}'
-        return value
+        return apply_phone_indicative(self.cleaned_data.get('phone') or '', PHONE_INDICATIVO)
 
     def clean_role(self):
         role = self.cleaned_data.get('role') or 'vendedor'
@@ -1112,9 +1101,11 @@ class EventLandingLeadForm(forms.ModelForm):
 
     def clean_phone(self):
         value = (self.cleaned_data.get('phone') or '').strip()
+        if is_wa_username(value):
+            return value.lstrip('@').strip().lower()
         digits = ''.join(ch for ch in value if ch.isdigit())
         if len(digits) < 7:
-            raise forms.ValidationError('Ingresa un teléfono o WhatsApp válido.')
+            raise forms.ValidationError('Ingresa un celular o un usuario de WhatsApp válido.')
 
         # Normalizar a Colombia (+57…)
         if digits.startswith('57') and len(digits) >= 12:

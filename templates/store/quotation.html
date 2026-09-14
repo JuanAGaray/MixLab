@@ -132,7 +132,7 @@
                     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <h5 class="mb-0">Hoja de cotización</h5>
                         <div class="d-flex flex-wrap gap-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#addCustomExtraCollapse" aria-expanded="false">
+                            <button type="button" class="btn btn-sm btn-success" id="btn-focus-custom-extra">
                                 <i class="bi bi-pencil-square me-1"></i> Extra personalizado
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addProductsCollapse" aria-expanded="false">
@@ -141,6 +141,42 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <div class="alert alert-light border py-2 px-3 small mb-3" id="custom-extra-hint">
+                            <i class="bi bi-info-circle me-1 text-success"></i>
+                            ¿Necesitas un ítem que no está en el catálogo? Usa
+                            <strong>Extra personalizado</strong> (transporte, instalación, fee, etc.).
+                        </div>
+                        <!-- Extra personalizado (siempre visible) -->
+                        <div class="border rounded-3 p-3 mb-3 bg-light" id="addCustomExtraPanel">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                <div class="fw-semibold">
+                                    <i class="bi bi-pencil-square text-success me-1"></i>
+                                    Agregar extra personalizado
+                                </div>
+                                <small class="text-muted">No usa inventario del catálogo</small>
+                            </div>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-5">
+                                    <label for="custom-extra-name" class="form-label small mb-1">Nombre *</label>
+                                    <input type="text" id="custom-extra-name" class="form-control" maxlength="200" placeholder="Ej: Transporte Cartagena">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="custom-extra-price" class="form-label small mb-1">Precio unitario *</label>
+                                    <input type="number" id="custom-extra-price" class="form-control" min="0" step="1000" placeholder="0">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="custom-extra-qty" class="form-label small mb-1">Cantidad</label>
+                                    <input type="number" id="custom-extra-qty" class="form-control" min="1" value="1">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" id="btn-quote-add-custom" class="btn btn-success w-100">
+                                        <i class="bi bi-plus-lg me-1"></i> Agregar
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="custom-extra-error" class="text-danger small mt-2 d-none"></div>
+                        </div>
+
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
@@ -263,38 +299,6 @@
                     </div>
                 </div>
             </form>
-            
-            <!-- Extra personalizado -->
-            <div class="collapse mb-4" id="addCustomExtraCollapse">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white">
-                        <h6 class="mb-0">Agregar extra personalizado</h6>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-muted small mb-3">Usa esto para ítems que no están en el catálogo (transporte, instalación, fee, etc.).</p>
-                        <div class="row g-3 align-items-end">
-                            <div class="col-md-5">
-                                <label for="custom-extra-name" class="form-label">Nombre *</label>
-                                <input type="text" id="custom-extra-name" class="form-control" maxlength="200" placeholder="Ej: Transporte Cartagena">
-                            </div>
-                            <div class="col-md-3">
-                                <label for="custom-extra-price" class="form-label">Precio unitario *</label>
-                                <input type="number" id="custom-extra-price" class="form-control" min="0" step="1000" placeholder="0">
-                            </div>
-                            <div class="col-md-2">
-                                <label for="custom-extra-qty" class="form-label">Cantidad</label>
-                                <input type="number" id="custom-extra-qty" class="form-control" min="1" value="1">
-                            </div>
-                            <div class="col-md-2">
-                                <button type="button" id="btn-quote-add-custom" class="btn btn-primary w-100">
-                                    <i class="bi bi-plus-lg me-1"></i> Agregar
-                                </button>
-                            </div>
-                        </div>
-                        <div id="custom-extra-error" class="text-danger small mt-2 d-none"></div>
-                    </div>
-                </div>
-            </div>
 
             <!-- Panel colapsable para agregar más productos -->
             <div class="collapse mb-4{% if not quotation_items %} show{% endif %}" id="addProductsCollapse">
@@ -847,62 +851,84 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // AJAX: agregar extra personalizado
     const addCustomBtn = document.getElementById('btn-quote-add-custom');
-    if (addCustomBtn) {
-        addCustomBtn.addEventListener('click', function() {
-            const nameEl = document.getElementById('custom-extra-name');
-            const priceEl = document.getElementById('custom-extra-price');
-            const qtyEl = document.getElementById('custom-extra-qty');
-            const errEl = document.getElementById('custom-extra-error');
-            const name = (nameEl && nameEl.value || '').trim();
-            let unitPrice = parseFloat(String(priceEl && priceEl.value || '0').replace(',', '.'));
-            let qty = parseInt(qtyEl && qtyEl.value, 10);
+    function submitCustomExtra() {
+        if (!addCustomBtn) return;
+        const nameEl = document.getElementById('custom-extra-name');
+        const priceEl = document.getElementById('custom-extra-price');
+        const qtyEl = document.getElementById('custom-extra-qty');
+        const errEl = document.getElementById('custom-extra-error');
+        const name = (nameEl && nameEl.value || '').trim();
+        let unitPrice = parseFloat(String(priceEl && priceEl.value || '0').replace(',', '.'));
+        let qty = parseInt(qtyEl && qtyEl.value, 10);
+        if (errEl) {
+            errEl.classList.add('d-none');
+            errEl.textContent = '';
+        }
+        if (!name) {
             if (errEl) {
-                errEl.classList.add('d-none');
-                errEl.textContent = '';
+                errEl.textContent = 'Escribe un nombre para el extra.';
+                errEl.classList.remove('d-none');
             }
-            if (!name) {
+            if (nameEl) nameEl.focus();
+            return;
+        }
+        if (isNaN(unitPrice) || unitPrice < 0) unitPrice = 0;
+        if (isNaN(qty) || qty < 1) qty = 1;
+        addCustomBtn.disabled = true;
+        fetch("{% url 'store:quotation_ajax_add_custom' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                name: name,
+                unit_price: String(unitPrice),
+                qty: String(qty),
+            }),
+        }).then(r => r.json()).then(payload => {
+            if (payload.error) {
                 if (errEl) {
-                    errEl.textContent = 'Escribe un nombre para el extra.';
+                    errEl.textContent = payload.error;
                     errEl.classList.remove('d-none');
                 }
-                if (nameEl) nameEl.focus();
                 return;
             }
-            if (isNaN(unitPrice) || unitPrice < 0) unitPrice = 0;
-            if (isNaN(qty) || qty < 1) qty = 1;
-            addCustomBtn.disabled = true;
-            fetch("{% url 'store:quotation_ajax_add_custom' %}", {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrftoken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    name: name,
-                    unit_price: String(unitPrice),
-                    qty: String(qty),
-                }),
-            }).then(r => r.json()).then(payload => {
-                if (payload.error) {
-                    if (errEl) {
-                        errEl.textContent = payload.error;
-                        errEl.classList.remove('d-none');
-                    }
-                    return;
-                }
-                if (nameEl) nameEl.value = '';
-                if (priceEl) priceEl.value = '';
-                if (qtyEl) qtyEl.value = '1';
-                renderQuote(payload);
-            }).catch(() => {
-                if (errEl) {
-                    errEl.textContent = 'No se pudo agregar el extra. Intenta de nuevo.';
-                    errEl.classList.remove('d-none');
-                }
-            }).finally(() => {
-                addCustomBtn.disabled = false;
-            });
+            if (nameEl) nameEl.value = '';
+            if (priceEl) priceEl.value = '';
+            if (qtyEl) qtyEl.value = '1';
+            renderQuote(payload);
+            if (nameEl) nameEl.focus();
+        }).catch(() => {
+            if (errEl) {
+                errEl.textContent = 'No se pudo agregar el extra. Intenta de nuevo.';
+                errEl.classList.remove('d-none');
+            }
+        }).finally(() => {
+            addCustomBtn.disabled = false;
+        });
+    }
+    if (addCustomBtn) {
+        addCustomBtn.addEventListener('click', submitCustomExtra);
+    }
+    ['custom-extra-name', 'custom-extra-price', 'custom-extra-qty'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitCustomExtra();
+            }
+        });
+    });
+    const focusCustomBtn = document.getElementById('btn-focus-custom-extra');
+    if (focusCustomBtn) {
+        focusCustomBtn.addEventListener('click', function() {
+            const panel = document.getElementById('addCustomExtraPanel');
+            const nameEl = document.getElementById('custom-extra-name');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (nameEl) nameEl.focus();
         });
     }
 

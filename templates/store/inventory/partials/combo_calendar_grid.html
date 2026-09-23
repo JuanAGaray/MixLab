@@ -1,12 +1,24 @@
 {% for week in calendar_weeks %}
   {% for day in week %}
   <div class="combo-cal-day {% if not day.in_month %}out{% endif %} {% if day.is_today %}today{% endif %} {% if day.bookings %}has-events{% endif %}">
-    <div class="combo-cal-daynum">{{ day.date.day }}</div>
+    <div class="combo-cal-daynum d-flex justify-content-between align-items-center gap-1">
+      <span>{{ day.date.day }}</span>
+      {% if day.bookings and day.in_month %}
+      <a class="combo-day-pdf"
+         href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ day.date|date:'Y-m-d' }}&download=1"
+         target="_blank"
+         rel="noopener"
+         title="Descargar resumen del día"
+         onclick="event.stopPropagation();">
+        <i class="bi bi-download"></i>
+      </a>
+      {% endif %}
+    </div>
     {% for b in day.bookings %}
     <button type="button"
             class="combo-event-chip"
             data-booking-id="{{ b.id }}"
-            title="{{ b.client_name }} · {% if b.location_text %}{{ b.location_text }}{% else %}Sin lugar{% endif %}">
+            title="{{ b.display_client_name|default:b.client_name }} · {% if b.location_text %}{{ b.location_text }}{% else %}Sin lugar{% endif %}">
       <span class="chip-time">
         {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}Sin hora{% endif %}
       </span>

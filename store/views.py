@@ -3334,6 +3334,12 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
         if quote else ''
     )
     combo_url = reverse('store:inventory_combo_detail', kwargs={'combo_id': booking.combo_id})
+    delete_url = reverse('store:inventory_combo_booking_delete', kwargs={'booking_id': booking.id})
+    try:
+        notes_url = reverse('store:inventory_combo_booking_notes', kwargs={'booking_id': booking.id})
+    except Exception:
+        # Fallback si el proceso aún no recargó urls.py
+        notes_url = f'/inventory/combos/bookings/{booking.id}/notas/'
     return {
         'ok': True,
         'id': booking.id,
@@ -3355,6 +3361,8 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
         'quotation_url': quote_url,
         'order_status': quote.get_order_status_display() if quote else '',
         'edit_url': edit_url,
+        'delete_url': delete_url,
+        'notes_url': notes_url,
     }
 
 
@@ -3380,6 +3388,7 @@ def inventory_combo_detail(request, combo_id):
         .filter(combo=combo)
         .exclude(status='cancelado')
         .select_related('quotation')
+        .prefetch_related('quotation__payments')
         .order_by('event_date', 'event_time', 'created_at')
     )
 
@@ -3435,6 +3444,7 @@ def inventory_combo_calendar_ajax(request, combo_id):
         .filter(combo=combo)
         .exclude(status='cancelado')
         .select_related('quotation')
+        .prefetch_related('quotation__payments')
         .order_by('event_date', 'event_time', 'created_at')
     )
     cal_data = _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today)
@@ -3461,6 +3471,198 @@ def inventory_combo_calendar_ajax(request, combo_id):
     })
 
 
+def _combo_booking_agenda_lines(booking: ComboBooking) -> list:
+    """Ítems operativos del evento: cotización, o paquete del combo + extras."""
+    lines = []
+    quote = booking.quotation
+    if quote is not None:
+        for qi in quote.items.select_related('product', 'rental_price').all():
+            lines.append({
+                'name': qi.display_name,
+                'quantity': qi.quantity,
+                'unit_price': qi.unit_price,
+                'line_total': qi.subtotal,
+                'notes': '',
+                'source': 'cotizacion',
+            })
+        return lines
+
+    combo = booking.combo
+    if combo is not None:
+        for ci in combo.items.select_related('product', 'category', 'rental_price').all():
+            qty = ci.quantity or 0
+            unit = Decimal(str(ci.unit_cost or 0))
+            lines.append({
+                'name': ci.display_name,
+                'quantity': qty,
+                'unit_price': unit,
+                'line_total': unit * Decimal(qty),
+                'notes': (ci.notes or '').strip(),
+                'source': 'paquete',
+            })
+    for ex in booking.extras.select_related('product', 'category').all():
+        lines.append({
+            'name': ex.display_name,
+            'quantity': ex.quantity or 0,
+            'unit_price': ex.unit_price,
+            'line_total': ex.line_total,
+            'notes': (ex.notes or '').strip(),
+            'source': 'extra',
+        })
+    return lines
+
+
+@staff_member_required
+def inventory_combo_day_summary_pdf(request, combo_id):
+    """PDF descargable con el resumen operativo de todos los eventos de un día."""
+    from datetime import datetime as _dt
+    from io import BytesIO
+
+    from django.template.loader import get_template
+
+    combo = get_object_or_404(RentalCombo, id=combo_id)
+    date_raw = (request.GET.get('date') or '').strip()
+    try:
+        event_date = _dt.strptime(date_raw, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return HttpResponse(
+            'Fecha inválida. Use ?date=YYYY-MM-DD',
+            content_type='text/plain; charset=utf-8',
+            status=400,
+        )
+
+    bookings = list(
+        ComboBooking.objects
+        .filter(combo=combo, event_date=event_date)
+        .exclude(status='cancelado')
+        .select_related('quotation', 'existing_client', 'combo', 'created_by')
+        .prefetch_related(
+            Prefetch(
+                'extras',
+                queryset=ComboBookingExtra.objects.select_related('product', 'category').order_by('order', 'id'),
+            ),
+            Prefetch(
+                'quotation__items',
+                queryset=QuotationItem.objects.select_related('product', 'rental_price'),
+            ),
+            Prefetch(
+                'quotation__payments',
+                queryset=QuotationPayment.objects.order_by('created_at', 'id'),
+            ),
+            Prefetch(
+                'combo__items',
+                queryset=RentalComboItem.objects.select_related('product', 'category', 'rental_price').order_by('order', 'id'),
+            ),
+        )
+        .order_by('event_time', 'created_at', 'id')
+    )
+
+    weekday_names = (
+        'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+    )
+    month_names = (
+        '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+    )
+    date_label = (
+        f'{weekday_names[event_date.weekday()]} '
+        f'{event_date.day} de {month_names[event_date.month]} de {event_date.year}'
+    )
+
+    events = []
+    day_total = Decimal('0.00')
+    day_paid = Decimal('0.00')
+    day_remaining = Decimal('0.00')
+    for b in bookings:
+        lines = _combo_booking_agenda_lines(b)
+        extras_total = b.extras_total
+        grand = Decimal(str(b.grand_total or 0))
+        quote = b.quotation
+        if quote is not None:
+            quote_total = Decimal(str(quote.total or 0))
+            if quote_total > 0:
+                grand = quote_total
+            paid = Decimal(str(quote.amount_paid or 0))
+            remaining = Decimal(str(quote.remaining_balance or 0))
+            # Si no hay total en cotización, calcular saldo sobre el booking.
+            if quote_total <= 0:
+                remaining = grand - paid
+                if remaining < 0:
+                    remaining = Decimal('0.00')
+        else:
+            paid = Decimal('0.00')
+            remaining = grand
+
+        day_total += grand
+        day_paid += paid
+        day_remaining += remaining
+        events.append({
+            'booking': b,
+            'client_name': b.display_client_name,
+            'client_phone': (b.client_phone or '').strip(),
+            'client_email': (b.client_email or '').strip(),
+            'event_time': b.event_time,
+            'location_text': (b.location_text or '').strip(),
+            'maps_url': (b.maps_url or '').strip(),
+            'notes': (b.notes or '').strip(),
+            'status_display': b.get_status_display(),
+            'package_price': b.package_price,
+            'extras_total': extras_total,
+            'grand_total': grand,
+            'amount_paid': paid,
+            'remaining_balance': remaining,
+            'lines': lines,
+            'quotation_id': b.quotation_id,
+        })
+
+    settings_obj = SiteSettings.load()
+    try:
+        from xhtml2pdf import pisa
+    except Exception:
+        return HttpResponse(
+            'Generador PDF no disponible (xhtml2pdf).',
+            content_type='text/plain; charset=utf-8',
+            status=500,
+        )
+
+    html = get_template('store/inventory/combo_day_summary_pdf.html').render({
+        'combo': combo,
+        'event_date': event_date,
+        'date_label': date_label,
+        'events': events,
+        'events_count': len(events),
+        'day_total': day_total,
+        'day_paid': day_paid,
+        'day_remaining': day_remaining,
+        'settings': settings_obj,
+        'generated_at': timezone.now(),
+        'for_pdf_engine': True,
+    })
+    result = BytesIO()
+    pdf = pisa.pisaDocument(
+        BytesIO(html.encode('utf-8')),
+        result,
+        encoding='utf-8',
+        link_callback=_pdf_link_callback,
+    )
+    if pdf.err:
+        return HttpResponse(
+            'Error al generar el PDF del resumen del día.',
+            content_type='text/plain; charset=utf-8',
+            status=500,
+        )
+
+    safe_combo = slugify(combo.name or 'combo')[:40] or 'combo'
+    filename = f'resumen-{safe_combo}-{event_date.isoformat()}.pdf'
+    as_download = str(request.GET.get('download') or '1') in ('1', 'true', 'yes')
+    response = HttpResponse(result.getvalue(), content_type='application/pdf')
+    disposition = 'attachment' if as_download else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    response['Content-Length'] = str(len(result.getvalue()))
+    response['Cache-Control'] = 'private, max-age=60'
+    return response
+
+
 @staff_member_required
 def inventory_combo_booking_detail_ajax(request, booking_id):
     """AJAX: detalle de un evento para el modal."""
@@ -3469,6 +3671,77 @@ def inventory_combo_booking_detail_ajax(request, booking_id):
         id=booking_id,
     )
     return JsonResponse(_combo_booking_detail_payload(booking))
+
+
+@staff_member_required
+def inventory_combo_booking_notes(request, booking_id):
+    """AJAX: actualizar notas del agendamiento desde el modal de detalle."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+
+    booking = get_object_or_404(
+        ComboBooking.objects.select_related('combo', 'quotation'),
+        id=booking_id,
+    )
+    notes = (request.POST.get('notes') or '').strip()
+    booking.notes = notes
+    booking.save(update_fields=['notes', 'updated_at'])
+    return JsonResponse({
+        'ok': True,
+        'id': booking.id,
+        'notes': booking.notes or '',
+        'message': 'Notas guardadas.',
+    })
+
+
+@staff_member_required
+def inventory_combo_booking_delete(request, booking_id):
+    """Elimina (o cancela) un agendamiento de combo."""
+    booking = get_object_or_404(
+        ComboBooking.objects.select_related('combo', 'quotation', 'existing_client'),
+        id=booking_id,
+    )
+    combo = booking.combo
+    quote = booking.quotation
+    next_url = (request.GET.get('next') or request.POST.get('next') or '').strip()
+    if not next_url or not next_url.startswith('/'):
+        next_url = reverse('store:inventory_combo_detail', kwargs={'combo_id': combo.id})
+
+    if request.method == 'POST':
+        client_label = (booking.client_name or '').strip() or 'Cliente'
+        date_label = booking.event_date.strftime('%d/%m/%Y') if booking.event_date else ''
+        cancel_quote = (request.POST.get('cancel_quotation') or '') == '1'
+        quote_id = quote.id if quote else None
+
+        # Desvincular cotización antes de borrar (OneToOne SET_NULL)
+        if quote:
+            booking.quotation = None
+            booking.save(update_fields=['quotation', 'updated_at'])
+            if cancel_quote and quote.quotation_status not in ('cancelada', 'cerrada'):
+                if quote.order_status not in _fully_paid_statuses():
+                    quote.quotation_status = 'cancelada'
+                    quote.save(update_fields=['quotation_status', 'updated_at'])
+
+        booking.delete()
+        messages.success(
+            request,
+            f'Agendamiento eliminado: {client_label}'
+            + (f' · {date_label}' if date_label else '')
+            + (f' (COT-{quote_id}{" cancelada" if cancel_quote else ""}).' if quote_id else '.'),
+        )
+        return redirect(next_url)
+
+    return render(request, 'store/inventory/combo_booking_confirm_delete.html', {
+        'booking': booking,
+        'combo': combo,
+        'quote': quote,
+        'next_url': next_url,
+        'can_cancel_quote': bool(
+            quote
+            and quote.quotation_status not in ('cancelada', 'cerrada')
+            and quote.order_status not in _fully_paid_statuses()
+        ),
+    })
 
 
 @staff_member_required

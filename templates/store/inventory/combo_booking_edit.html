@@ -71,5 +71,16 @@
       </form>
     </div>
   </div>
+
+  <div class="card border-danger-subtle border shadow-sm mt-3">
+    <div class="card-body">
+      <div class="fw-semibold text-danger mb-1">Eliminar este agendamiento</div>
+      <p class="small text-muted mb-2">Lo quita del calendario del combo. Puedes decidir si también cancelas la cotización.</p>
+      <a class="btn btn-outline-danger btn-sm"
+         href="{% url 'store:inventory_combo_booking_delete' booking_id=booking.id %}?next={% if next_url %}{{ next_url|urlencode }}{% else %}{% url 'store:inventory_combo_detail' combo.id %}{% endif %}">
+        <i class="bi bi-trash"></i> Eliminar agendado
+      </a>
+    </div>
+  </div>
 </div>
 {% endblock %}

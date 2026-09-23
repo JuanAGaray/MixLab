@@ -130,6 +130,11 @@ urlpatterns = [
         views.inventory_combo_calendar_ajax,
         name='inventory_combo_calendar_ajax',
     ),
+    path(
+        'inventory/combos/<int:combo_id>/resumen-dia/',
+        views.inventory_combo_day_summary_pdf,
+        name='inventory_combo_day_summary_pdf',
+    ),
     path('inventory/combos/<int:combo_id>/edit/', views.inventory_combo_edit, name='inventory_combo_edit'),
     path('inventory/combos/<int:combo_id>/delete/', views.inventory_combo_delete, name='inventory_combo_delete'),
     path('inventory/combos/<int:combo_id>/toggle-available/', views.inventory_combo_toggle_available, name='inventory_combo_toggle_available'),
@@ -140,9 +145,19 @@ urlpatterns = [
         name='inventory_combo_booking_edit',
     ),
     path(
+        'inventory/combos/bookings/<int:booking_id>/eliminar/',
+        views.inventory_combo_booking_delete,
+        name='inventory_combo_booking_delete',
+    ),
+    path(
         'inventory/combos/bookings/<int:booking_id>/detalle-ajax/',
         views.inventory_combo_booking_detail_ajax,
         name='inventory_combo_booking_detail_ajax',
+    ),
+    path(
+        'inventory/combos/bookings/<int:booking_id>/notas/',
+        views.inventory_combo_booking_notes,
+        name='inventory_combo_booking_notes',
     ),
     path('inventory/combos/ajax/product-price/', views.inventory_combo_product_price, name='inventory_combo_product_price'),
 

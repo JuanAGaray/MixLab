@@ -100,7 +100,7 @@
     color: #0f172a;
     line-height: 1;
   }
-  .combo-cal-day.today .combo-cal-daynum {
+  .combo-cal-day.today .combo-cal-daynum > span:first-child {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -110,6 +110,15 @@
     background: #0f6fff;
     color: #fff;
   }
+  .combo-day-pdf {
+    color: #0f6fff;
+    font-size: .72rem;
+    line-height: 1;
+    text-decoration: none;
+    padding: .1rem;
+  }
+  .combo-day-pdf:hover { color: #084298; }
+  .combo-cal-day.today .combo-day-pdf { color: #0f6fff; }
   .combo-event-chip {
     display: block;
     width: 100%;
@@ -312,6 +321,8 @@
       <div class="small text-muted mb-4">
         Cada día muestra la <strong>hora</strong> y el <strong>lugar</strong>.
         Haz clic en un evento para ver el detalle.
+        En el listado puedes <strong>descargar el resumen PDF del día</strong>
+        (notas, ubicación, hora de llegada e ítems de agenda).
       </div>
 
       <div class="combo-day-list mb-4" id="combo-cal-detail">
@@ -451,8 +462,17 @@
                 <div class="modal-value" id="ev-order-status"></div>
               </div>
               <div class="col-12">
-                <div class="modal-label">Notas</div>
-                <div class="modal-value fw-normal" id="ev-notes"></div>
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                  <div class="modal-label mb-0">Notas</div>
+                  <span class="small text-muted d-none" id="ev-notes-status"></span>
+                </div>
+                <textarea id="ev-notes-input" class="form-control" rows="3"
+                          placeholder="Agrega notas del evento…"></textarea>
+                <div class="d-flex justify-content-end mt-2">
+                  <button type="button" class="btn btn-sm btn-success" id="ev-notes-save-btn" disabled>
+                    <i class="bi bi-check2"></i> Guardar notas
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -465,8 +485,11 @@
           <a href="#" class="btn btn-outline-primary d-none" id="ev-maps-btn" target="_blank" rel="noopener">
             <i class="bi bi-geo-alt"></i> Abrir Maps
           </a>
-          <a href="#" class="btn btn-primary" id="ev-edit-btn">
+          <a href="#" class="btn btn-primary d-none" id="ev-edit-btn">
             <i class="bi bi-calendar-event"></i> Editar fecha
+          </a>
+          <a href="#" class="btn btn-outline-danger d-none" id="ev-delete-btn">
+            <i class="bi bi-trash"></i> Eliminar agendado
           </a>
         </div>
       </div>
@@ -553,6 +576,35 @@
   const loadingEl = document.getElementById('combo-event-modal-loading');
   const errorEl = document.getElementById('combo-event-modal-error');
   const bodyEl = document.getElementById('combo-event-modal-body');
+  const notesInput = document.getElementById('ev-notes-input');
+  const notesSaveBtn = document.getElementById('ev-notes-save-btn');
+  const notesStatus = document.getElementById('ev-notes-status');
+  let currentBookingId = null;
+  let currentNotesUrl = '';
+  let notesBaseline = '';
+
+  function getCsrfToken() {
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  function setNotesStatus(text, isError) {
+    if (!notesStatus) return;
+    if (!text) {
+      notesStatus.classList.add('d-none');
+      notesStatus.textContent = '';
+      return;
+    }
+    notesStatus.textContent = text;
+    notesStatus.classList.remove('d-none', 'text-success', 'text-danger', 'text-muted');
+    notesStatus.classList.add(isError ? 'text-danger' : 'text-success');
+  }
+
+  function syncNotesDirty() {
+    if (!notesSaveBtn || !notesInput) return;
+    const dirty = (notesInput.value || '') !== notesBaseline;
+    notesSaveBtn.disabled = !dirty || !currentNotesUrl;
+  }
 
   function bookingDetailUrl(id) {
     return detailTpl.replace('/0/', '/' + id + '/');
@@ -615,9 +667,19 @@
 
   function openBookingDetail(bookingId) {
     if (!modal || !bookingId) return;
+    currentBookingId = bookingId;
+    currentNotesUrl = '';
+    notesBaseline = '';
+    if (notesInput) notesInput.value = '';
+    if (notesSaveBtn) notesSaveBtn.disabled = true;
+    setNotesStatus('');
     loadingEl.classList.remove('d-none');
     errorEl.classList.add('d-none');
     bodyEl.classList.add('d-none');
+    setLink('ev-edit-btn', '#', false);
+    setLink('ev-delete-btn', '#', false);
+    setLink('ev-quote-btn', '#', false);
+    setLink('ev-maps-btn', '#', false);
     modal.show();
 
     fetch(bookingDetailUrl(bookingId), {
@@ -636,8 +698,12 @@
         setText('ev-time', data.event_time || 'Sin hora');
         setText('ev-phone', data.client_phone || '—');
         setText('ev-order-status', data.order_status || '—');
-        setText('ev-notes', data.notes || 'Sin notas');
         setText('ev-place', data.location_text || 'Sin lugar registrado');
+
+        currentNotesUrl = data.notes_url || '';
+        notesBaseline = data.notes || '';
+        if (notesInput) notesInput.value = notesBaseline;
+        syncNotesDirty();
 
         if (data.quotation_id && data.quotation_url) {
           document.getElementById('ev-quote').innerHTML =
@@ -649,6 +715,8 @@
         const next = '{% url "store:inventory_combo_detail" combo.id %}?cal=' + (root.dataset.cal || '');
         const editUrl = data.edit_url + (data.edit_url.indexOf('?') >= 0 ? '&' : '?') + 'next=' + encodeURIComponent(next);
         setLink('ev-edit-btn', editUrl, true);
+        const deleteUrl = (data.delete_url || '#') + ((data.delete_url || '').indexOf('?') >= 0 ? '&' : '?') + 'next=' + encodeURIComponent(next);
+        setLink('ev-delete-btn', deleteUrl, !!data.delete_url);
         setLink('ev-quote-btn', data.quotation_url, !!data.quotation_url);
         setLink('ev-maps-btn', data.maps_url, !!data.maps_url);
       })
@@ -657,6 +725,43 @@
         errorEl.textContent = 'No se pudo cargar el detalle del evento.';
         errorEl.classList.remove('d-none');
       });
+  }
+
+  if (notesInput) {
+    notesInput.addEventListener('input', syncNotesDirty);
+  }
+  if (notesSaveBtn) {
+    notesSaveBtn.addEventListener('click', function () {
+      if (!currentNotesUrl || !notesInput) return;
+      const notes = notesInput.value || '';
+      notesSaveBtn.disabled = true;
+      setNotesStatus('Guardando…');
+      notesStatus.classList.remove('text-success', 'text-danger');
+      notesStatus.classList.add('text-muted');
+
+      fetch(currentNotesUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        credentials: 'same-origin',
+        body: new URLSearchParams({ notes: notes }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Error');
+          notesBaseline = data.notes || '';
+          if (notesInput) notesInput.value = notesBaseline;
+          setNotesStatus('Notas guardadas');
+          syncNotesDirty();
+        })
+        .catch(function () {
+          setNotesStatus('No se pudieron guardar las notas', true);
+          syncNotesDirty();
+        });
+    });
   }
 
   if (prevBtn) {

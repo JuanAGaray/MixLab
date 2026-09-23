@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar agendamiento · MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 560px;">
+  <a href="{{ next_url }}" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver
+  </a>
+
+  <h1 class="h4 fw-bold mt-2 mb-1 text-danger">Eliminar agendamiento</h1>
+  <p class="text-muted small mb-3">
+    Esta acción quita el evento del calendario del combo. No se puede deshacer.
+  </p>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="small text-muted">Combo</div>
+      <div class="fw-semibold mb-2">{{ combo.name }}</div>
+      <div class="small text-muted">Cliente</div>
+      <div class="fw-semibold">{{ booking.client_name|default:"—" }}</div>
+      {% if booking.client_phone %}
+      <div class="small text-muted mt-1">{{ booking.client_phone }}</div>
+      {% endif %}
+      <div class="small text-muted mt-2">Fecha</div>
+      <div class="fw-semibold">
+        {{ booking.event_date|date:"d/m/Y" }}
+        {% if booking.event_time %} · {{ booking.event_time|time:"H:i" }}{% endif %}
+      </div>
+      {% if quote %}
+      <div class="small text-muted mt-2">Cotización vinculada</div>
+      <div class="fw-semibold">
+        <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}">COT-{{ quote.id }}</a>
+        · {{ quote.get_quotation_status_display }} / {{ quote.get_order_status_display }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next_url }}">
+
+        {% if can_cancel_quote %}
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" value="1" id="cancel_quotation" name="cancel_quotation">
+          <label class="form-check-label" for="cancel_quotation">
+            También cancelar la cotización COT-{{ quote.id }}
+          </label>
+        </div>
+        {% elif quote %}
+        <div class="alert alert-light border small mb-3">
+          La cotización COT-{{ quote.id }} se mantendrá (ya está cerrada/pagada o cancelada).
+        </div>
+        {% endif %}
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash"></i> Sí, eliminar agendamiento
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ next_url }}">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

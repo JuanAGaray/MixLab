@@ -1,9 +1,18 @@
 <div class="fw-semibold mb-2">Detalle por día · {{ cal_month_label }}</div>
 {% for row in month_event_rows %}
 <div class="day-block" id="dia-{{ row.date|date:'Y-m-d' }}">
-  <div class="day-title">
-    {{ row.date|date:"l d/m/Y" }}
-    <span class="badge text-bg-light text-dark border ms-1">{{ row.bookings|length }}</span>
+  <div class="day-title d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span>
+      {{ row.date|date:"l d/m/Y" }}
+      <span class="badge text-bg-light text-dark border ms-1">{{ row.bookings|length }}</span>
+    </span>
+    <a class="btn btn-sm btn-outline-primary"
+       href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
+       target="_blank"
+       rel="noopener"
+       title="Descargar PDF con notas, ubicación, hora e ítems del día">
+      <i class="bi bi-download"></i> Resumen PDF
+    </a>
   </div>
   {% for b in row.bookings %}
   <div class="event-row">
@@ -11,7 +20,7 @@
       {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}—{% endif %}
     </div>
     <div class="flex-grow-1">
-      <div class="fw-semibold">{{ b.client_name|default:"Cliente" }}</div>
+      <div class="fw-semibold">{{ b.display_client_name|default:b.client_name|default:"Cliente" }}</div>
       <div class="small text-muted">
         <i class="bi bi-geo-alt"></i>
         {% if b.location_text %}
@@ -21,6 +30,20 @@
         {% endif %}
         {% if b.maps_url %}
           · <a href="{{ b.maps_url }}" target="_blank" rel="noopener">Maps</a>
+        {% endif %}
+      </div>
+      {% if b.notes %}
+      <div class="small text-muted mt-1">
+        <i class="bi bi-sticky"></i> {{ b.notes|truncatechars:90 }}
+      </div>
+      {% endif %}
+      <div class="small mt-1">
+        {% if b.quotation %}
+        <span class="text-success me-2">Pagado: ${{ b.quotation.amount_paid|floatformat:0 }}</span>
+        <span class="text-warning-emphasis">Por pagar: ${{ b.quotation.remaining_balance|floatformat:0 }}</span>
+        {% else %}
+        <span class="text-success me-2">Pagado: $0</span>
+        <span class="text-warning-emphasis">Por pagar: ${{ b.grand_total|floatformat:0 }}</span>
         {% endif %}
       </div>
       <div class="small mt-1">

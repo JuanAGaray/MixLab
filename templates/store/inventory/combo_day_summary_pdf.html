@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Resumen {{ combo.name }} · {{ event_date|date:"Y-m-d" }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 12mm 11mm 14mm 11mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      line-height: 1.35;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { vertical-align: top; }
+    .header {
+      width: 100%;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #0f172a;
+    }
+    .header td { padding: 0 0 8px 0; border: 0; }
+    .brand {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .muted { color: #64748b; }
+    .title {
+      font-size: 14px;
+      font-weight: 800;
+      margin: 8px 0 2px;
+    }
+    .subtitle { font-size: 11px; margin-bottom: 10px; }
+    .meta-box {
+      width: 100%;
+      margin-bottom: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .meta-box td {
+      padding: 6px 8px;
+      border: 0;
+      font-size: 10px;
+    }
+    .event {
+      margin: 0 0 14px 0;
+      border: 1px solid #cbd5e1;
+      page-break-inside: avoid;
+    }
+    .event-head {
+      background: #0f172a;
+      color: #fff;
+      padding: 7px 9px;
+    }
+    .event-head .time {
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .event-body { padding: 8px 9px; }
+    .kv { width: 100%; margin-bottom: 6px; }
+    .kv td { padding: 2px 0; border: 0; }
+    .kv .label {
+      width: 22%;
+      color: #64748b;
+      font-weight: 700;
+      font-size: 9.5px;
+      text-transform: uppercase;
+    }
+    .notes-box {
+      margin-top: 4px;
+      padding: 6px 8px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      white-space: pre-wrap;
+    }
+    .items {
+      margin-top: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .items th {
+      background: #f1f5f9;
+      text-align: left;
+      padding: 5px 6px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      color: #475569;
+    }
+    .items td {
+      padding: 5px 6px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 10px;
+    }
+    .items .num { text-align: right; white-space: nowrap; }
+    .totals {
+      width: 100%;
+      margin-top: 6px;
+    }
+    .totals td {
+      padding: 2px 0;
+      border: 0;
+      font-size: 10px;
+    }
+    .totals .right { text-align: right; }
+    .totals .grand {
+      font-weight: 800;
+      font-size: 11px;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 4px;
+    }
+    .empty {
+      padding: 18px;
+      text-align: center;
+      color: #64748b;
+      border: 1px dashed #cbd5e1;
+    }
+    .footer {
+      margin-top: 12px;
+      padding-top: 6px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9px;
+      color: #94a3b8;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: #e2e8f0;
+      color: #0f172a;
+      font-size: 9px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <table class="header">
+    <tr>
+      <td>
+        <div class="brand">{% if settings.company_legal_name %}{{ settings.company_legal_name }}{% else %}Frozz{% endif %}</div>
+        <div class="muted">Resumen operativo de agenda</div>
+      </td>
+      <td style="text-align:right;">
+        <div><strong>{{ combo.name }}</strong></div>
+        <div class="muted">{{ date_label }}</div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="title">Eventos del día</div>
+  <div class="subtitle muted">
+    {{ events_count }} evento{{ events_count|pluralize:"s" }} activo{{ events_count|pluralize:"s" }}
+    (sin cancelados)
+  </div>
+
+  <table class="meta-box">
+    <tr>
+      <td><strong>Combo:</strong> {{ combo.name }}</td>
+      <td><strong>Fecha:</strong> {{ event_date|date:"d/m/Y" }}</td>
+      <td><strong>Generado:</strong> {{ generated_at|date:"d/m/Y H:i" }}</td>
+    </tr>
+  </table>
+
+  {% if events %}
+    {% for ev in events %}
+    <div class="event">
+      <div class="event-head">
+        <span class="time">
+          {% if ev.event_time %}{{ ev.event_time|time:"H:i" }}{% else %}Sin hora{% endif %}
+        </span>
+        &nbsp;·&nbsp; {{ ev.client_name }}
+        &nbsp;·&nbsp; {{ ev.status_display }}
+        {% if ev.quotation_id %}
+          &nbsp;·&nbsp; COT-{{ ev.quotation_id }}
+        {% endif %}
+      </div>
+      <div class="event-body">
+        <table class="kv">
+          <tr>
+            <td class="label">Cliente</td>
+            <td>{{ ev.client_name }}</td>
+          </tr>
+          {% if ev.client_phone %}
+          <tr>
+            <td class="label">Contacto</td>
+            <td>{{ ev.client_phone }}{% if ev.client_email %} · {{ ev.client_email }}{% endif %}</td>
+          </tr>
+          {% elif ev.client_email %}
+          <tr>
+            <td class="label">Correo</td>
+            <td>{{ ev.client_email }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td class="label">Hora llegada</td>
+            <td>{% if ev.event_time %}{{ ev.event_time|time:"H:i" }}{% else %}—{% endif %}</td>
+          </tr>
+          <tr>
+            <td class="label">Ubicación</td>
+            <td>
+              {% if ev.location_text %}{{ ev.location_text }}{% else %}Sin lugar registrado{% endif %}
+              {% if ev.maps_url %}<br><span class="muted">{{ ev.maps_url }}</span>{% endif %}
+            </td>
+          </tr>
+        </table>
+
+        {% if ev.notes %}
+        <div><span class="badge">Notas</span></div>
+        <div class="notes-box">{{ ev.notes }}</div>
+        {% endif %}
+
+        {% if ev.lines %}
+        <table class="items">
+          <thead>
+            <tr>
+              <th style="width:46%;">Ítem de agenda</th>
+              <th style="width:10%;" class="num">Cant.</th>
+              <th style="width:18%;" class="num">Unitario</th>
+              <th style="width:18%;" class="num">Total</th>
+              <th style="width:8%;">Tipo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in ev.lines %}
+            <tr>
+              <td>
+                {{ line.name }}
+                {% if line.notes %}<div class="muted">{{ line.notes }}</div>{% endif %}
+              </td>
+              <td class="num">{{ line.quantity }}</td>
+              <td class="num">${{ line.unit_price|floatformat:0 }}</td>
+              <td class="num">${{ line.line_total|floatformat:0 }}</td>
+              <td>
+                {% if line.source == 'extra' %}Extra
+                {% elif line.source == 'paquete' %}Paquete
+                {% else %}COT{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="muted" style="margin-top:6px;">Sin ítems detallados en la agenda.</div>
+        {% endif %}
+
+        <table class="totals">
+          <tr>
+            <td>Paquete</td>
+            <td class="right">${{ ev.package_price|floatformat:0 }}</td>
+          </tr>
+          <tr>
+            <td>Extras</td>
+            <td class="right">${{ ev.extras_total|floatformat:0 }}</td>
+          </tr>
+          <tr>
+            <td class="grand">Total evento</td>
+            <td class="right grand">${{ ev.grand_total|floatformat:0 }}</td>
+          </tr>
+          <tr>
+            <td style="color:#16a34a;font-weight:700;">Pagado</td>
+            <td class="right" style="color:#16a34a;font-weight:700;">${{ ev.amount_paid|floatformat:0 }}</td>
+          </tr>
+          <tr>
+            <td style="color:#b45309;font-weight:700;">Por pagar</td>
+            <td class="right" style="color:#b45309;font-weight:700;">${{ ev.remaining_balance|floatformat:0 }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    <table class="totals" style="margin-top:4px;">
+      <tr>
+        <td class="grand">Total del día ({{ events_count }} evento{{ events_count|pluralize:"s" }})</td>
+        <td class="right grand">${{ day_total|floatformat:0 }}</td>
+      </tr>
+      <tr>
+        <td style="color:#16a34a;font-weight:700;">Total pagado del día</td>
+        <td class="right" style="color:#16a34a;font-weight:700;">${{ day_paid|floatformat:0 }}</td>
+      </tr>
+      <tr>
+        <td style="color:#b45309;font-weight:800;">Total por pagar del día</td>
+        <td class="right" style="color:#b45309;font-weight:800;">${{ day_remaining|floatformat:0 }}</td>
+      </tr>
+    </table>
+  {% else %}
+    <div class="empty">No hay eventos activos para este día.</div>
+  {% endif %}
+
+  <div class="footer">
+    Documento interno · {{ combo.name }} · {{ event_date|date:"Y-m-d" }}
+  </div>
+</body>
+</html>

@@ -3,6 +3,7 @@ import logging
 import json
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
@@ -380,6 +381,9 @@ def _event_landing_included_items(combo: RentalCombo) -> list[dict]:
         'stand': 'bi-shop-window',
         'azucar': 'bi-basket2',
         'sal': 'bi-basket2',
+        'pasaboca': 'bi-egg-fried',
+        'frapp': 'bi-cup-straw',
+        'desechable': 'bi-cup',
     }
     rows = []
     for item in combo.items.all():
@@ -516,7 +520,7 @@ def _event_landing_context(request, combo: RentalCombo, *, form=None, lead_ok=Fa
     }
 
 
-def _process_event_landing_lead(request, combo: RentalCombo):
+def _process_event_landing_lead(request, combo: RentalCombo, *, source='landing_eventos'):
     """Valida el form, crea solo el lead de eventos y notifica por WhatsApp."""
     form = EventLandingLeadForm(request.POST)
     if not form.is_valid():
@@ -527,7 +531,7 @@ def _process_event_landing_lead(request, combo: RentalCombo):
     lead.quotation = None
     lead.city = 'Cartagena'
     lead.status = 'nuevo'
-    lead.source = 'landing_eventos'
+    lead.source = source or 'landing_eventos'
     lead.save()
 
     wa_ok = False
@@ -589,14 +593,23 @@ def _notify_wa_event_landing_lead(lead: EventLandingLead, *, request=None) -> bo
     return _notify_whatsapp_n8n(message=message, link='', request=request)
 
 
+PAQUETE_MESA_SLUG = 'paquete-de-mesa'
+
+
 def event_landing(request):
     """Landing pública del combo principal para eventos."""
     combo = (
         RentalCombo.objects.filter(available=True, for_events=True)
+        .exclude(slug=PAQUETE_MESA_SLUG)
         .prefetch_related('items__product', 'items__category', 'items__rental_price')
         .order_by('-updated_at', '-id')
         .first()
     )
+    if not combo:
+        combo = (
+            RentalCombo.objects.filter(available=True, for_events=True, slug=PAQUETE_MESA_SLUG)
+            .first()
+        )
     if not combo:
         messages.info(request, 'Pronto publicaremos nuestros combos para eventos.')
         return redirect('store:home')
@@ -613,6 +626,9 @@ def event_landing_combo(request, slug):
         available=True,
         for_events=True,
     )
+
+    if combo.slug == PAQUETE_MESA_SLUG:
+        return redirect('store:paquete_mesa_landing')
 
     if request.method == 'POST':
         form, ok, wa_ok = _process_event_landing_lead(request, combo)
@@ -634,6 +650,131 @@ def event_landing_combo(request, slug):
     lead_ok = (request.GET.get('ok') or '') == '1'
     ctx = _event_landing_context(request, combo, lead_ok=lead_ok)
     return render(request, 'store/event_landing.html', ctx)
+
+
+def _ensure_paquete_mesa_combo() -> RentalCombo:
+    """Crea o actualiza el combo comercial Paquete de Mesa."""
+    from django.conf import settings as dj_settings
+    from django.core.files import File
+
+    combo, created = RentalCombo.objects.get_or_create(
+        slug=PAQUETE_MESA_SLUG,
+        defaults={
+            'name': 'Paquete de Mesa',
+            'description': (
+                '200 pasabocas + 14 L de frappé en 4 sabores diferentes. '
+                'Operario y desechables incluidos. Todo listo para tu evento.'
+            ),
+            'for_events': True,
+            'period_type': 'event',
+            'package_price': Decimal('840000.00'),
+            'available': True,
+        },
+    )
+    if created or not combo.items.exists():
+        wanted = [
+            (0, '200 pasabocas', 'Surtido de pasabocas para mesa'),
+            (1, '14 L de frappé', 'Frappé listo para servir'),
+            (2, '4 sabores diferentes', 'Sabores a elección del cliente'),
+            (3, 'Operario por el evento', 'Personal MixLab durante el evento'),
+            (4, 'Desechables incluidos', 'Vasos, pajitas y servilletas'),
+        ]
+        existing = {item.custom_name.strip().lower() for item in combo.items.all()}
+        for order, name, notes in wanted:
+            if name.lower() in existing:
+                continue
+            RentalComboItem.objects.create(
+                combo=combo,
+                custom_name=name,
+                quantity=1,
+                unit_cost=Decimal('0.00'),
+                notes=notes,
+                order=order,
+                is_modifiable=False,
+            )
+
+    if not combo.image:
+        img_path = Path(dj_settings.BASE_DIR) / 'static' / 'img' / 'paquete-mesa.jpg'
+        if img_path.exists():
+            with img_path.open('rb') as fh:
+                combo.image.save('paquete-mesa.jpg', File(fh), save=True)
+
+    return combo
+
+
+def _paquete_mesa_context(request, combo: RentalCombo):
+    settings_obj = SiteSettings.load()
+    highlights = [
+        {'icon': 'bi-egg-fried', 'title': '200 pasabocas', 'text': 'Elige 4 de 6 fritos caribeños'},
+        {'icon': 'bi-cup-straw', 'title': '14 L de frappé', 'text': 'Elige 2 de 4 sabores'},
+        {'icon': 'bi-person-badge', 'title': 'Operario', 'text': 'Atención durante el evento'},
+        {'icon': 'bi-cup', 'title': 'Desechables', 'text': 'Vasos y pajitas incluidos'},
+    ]
+    flavors = [
+        {'id': 'cafe', 'name': 'Café'},
+        {'id': 'milo', 'name': 'Milo'},
+        {'id': 'frutos-rojos', 'name': 'Frutos rojos'},
+        {'id': 'limonada', 'name': 'Limonada'},
+    ]
+    snacks = [
+        {'id': 'deditos', 'name': 'Deditos de queso'},
+        {'id': 'arepas', 'name': 'Arepas de huevo con carne'},
+        {'id': 'empanadas-harina', 'name': 'Empanadas de harina', 'fillings': ['Queso', 'Pollo', 'Carne']},
+        {'id': 'carimanolas', 'name': 'Carimañolas', 'fillings': ['Queso', 'Carne']},
+        {'id': 'kibbeh', 'name': 'Kibbeh'},
+        {'id': 'empanadas-maiz', 'name': 'Empanadas de maíz', 'fillings': ['Queso', 'Pollo', 'Carne']},
+    ]
+    faqs = [
+        {
+            'q': '¿Qué incluye el Paquete de Mesa de $840.000?',
+            'a': '200 pasabocas (4 tipos a tu elección), 14 litros de frappé (2 sabores), operario MixLab y desechables. El transporte se cotiza según la ubicación.',
+        },
+        {
+            'q': '¿Cuántos sabores y pasabocas puedo elegir?',
+            'a': 'Eliges 2 sabores de 4 (café, Milo, frutos rojos o limonada) y 4 pasabocas de 6 opciones. La reserva se confirma solo por WhatsApp.',
+        },
+        {
+            'q': '¿Para cuántas personas alcanza?',
+            'a': 'Está pensado para mesas de evento de ~80 a 120 invitados, según el consumo. Si tu lista es más grande, armamos un extra de pasabocas o litros.',
+        },
+        {
+            'q': '¿El operario viene incluido?',
+            'a': 'Sí. Un operario MixLab instala la máquina, sirve el frappé y apoya la mesa durante el evento.',
+        },
+    ]
+    granizadora_url = ''
+    other = (
+        RentalCombo.objects.filter(available=True, for_events=True)
+        .exclude(slug=PAQUETE_MESA_SLUG)
+        .order_by('-updated_at', '-id')
+        .first()
+    )
+    if other:
+        granizadora_url = reverse('store:event_landing_combo', kwargs={'slug': other.slug})
+    return {
+        'combo': combo,
+        'highlights': highlights,
+        'flavors': flavors,
+        'snacks': snacks,
+        'faqs': faqs,
+        'site_settings': settings_obj,
+        'hero_image_url': combo.image.url if combo.image else '/static/img/paquete-mesa.jpg',
+        'flavors_image_url': '/static/img/paquete-mesa-sabores.jpg',
+        'snacks_image_url': '/static/img/paquete-mesa-pasabocas.jpg',
+        'package_price_label': '$840.000',
+        'whatsapp_url': settings_obj.whatsapp_url,
+        'whatsapp_prefill': (
+            'Hola MixLab, quiero el Paquete de Mesa ($840.000): '
+            '200 pasabocas + 14 L de frappé.'
+        ),
+        'granizadora_url': granizadora_url,
+    }
+
+
+def paquete_mesa_landing(request):
+    """Landing pública del Paquete de Mesa (pasabocas + frappé)."""
+    combo = _ensure_paquete_mesa_combo()
+    return render(request, 'store/paquete_mesa_landing.html', _paquete_mesa_context(request, combo))
 
 
 @staff_member_required

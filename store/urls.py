@@ -15,6 +15,7 @@ urlpatterns = [
     path('alianza/drinzz/contrato.pdf', views.drinzz_contract_pdf, name='drinzz_contract_pdf'),
     path('alianza-biztra/', views.alianza_biztra, name='alianza_biztra_legacy'),
     path('eventos/', views.event_landing, name='event_landing'),
+    path('eventos/paquete-de-mesa/', views.paquete_mesa_landing, name='paquete_mesa_landing'),
     path('eventos/<slug:slug>/', views.event_landing_combo, name='event_landing_combo'),
     path('products/', views.product_list, name='product_list'),
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),

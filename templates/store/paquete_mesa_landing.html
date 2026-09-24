@@ -1,0 +1,571 @@
+{% extends "base.html" %}
+{% load static %}
+{% load store_tags %}
+
+{% block title %}Paquete de Mesa $840.000 · 200 pasabocas + 14 L de frappé · MixLab{% endblock %}
+{% block meta_description %}Paquete de mesa MixLab en Cartagena: 200 pasabocas, 14 litros de frappé en 4 sabores, operario y desechables incluidos por $840.000. Todo listo para tu evento.{% endblock %}
+{% block meta_keywords %}paquete de mesa MixLab, pasabocas eventos Cartagena, frappé para eventos, alquiler granizadora, MixLab eventos{% endblock %}
+{% block og_image %}{{ request.scheme }}://{{ request.get_host }}{{ hero_image_url }}{% endblock %}
+{% block body_class %}pm-body{% endblock %}
+
+{% block site_chrome %}
+<header class="pm-topbar">
+  <a href="{% url 'store:home' %}" class="pm-topbar-logo" aria-label="MixLab">
+    <img src="{% static 'img/TotalLogoWhite.png' %}" alt="MixLab" height="28">
+  </a>
+  <span class="pm-topbar-pill">Paquete de mesa</span>
+</header>
+{% endblock %}
+
+{% block site_footer %}
+<footer class="pm-mini-footer">
+  <div>
+    <span>© 2026 MixLab · NIT {{ site_settings.company_nit|default:"902031074-1" }}</span>
+  </div>
+  {% if granizadora_url %}
+  <a href="{{ granizadora_url }}">Ver combo granizadora</a>
+  {% endif %}
+</footer>
+{% endblock %}
+
+{% block floating_actions %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pm-body {
+    background: #f4f1ea;
+    color: #111827;
+  }
+  .pm-body .main-content-wrapper { padding-bottom: 5.5rem; }
+  @media (min-width: 768px) {
+    .pm-body .main-content-wrapper { padding-bottom: 1rem; }
+  }
+
+  .pm-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .7rem .95rem;
+    background: #111;
+    border-bottom: 1px solid #222;
+  }
+  .pm-topbar-logo img { display: block; height: 28px; width: auto; }
+  .pm-topbar-pill {
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #111;
+    background: #e8c547;
+    border-radius: 999px;
+    padding: .3rem .75rem;
+  }
+
+  .pm-page {
+    --gold: #c9a227;
+    --ink: #111827;
+    --muted: #4b5563;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 0 1.4rem;
+  }
+  @media (min-width: 992px) {
+    .pm-page { max-width: 820px; }
+  }
+
+  .pm-hero {
+    background: #000;
+  }
+  .pm-hero img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: center top;
+    vertical-align: middle;
+  }
+  .pm-hero-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    padding: .95rem .95rem 1.05rem;
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .pm-shot {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: .85rem;
+    margin-bottom: .85rem;
+    background: #000;
+  }
+  .pm-pick-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .55rem;
+  }
+  .pm-pick {
+    display: block;
+    margin: 0;
+    padding: .75rem .7rem;
+    border: 1.5px solid #d1d5db;
+    border-radius: .85rem;
+    background: #fff;
+    cursor: pointer;
+    color: #111827;
+  }
+  .pm-pick input { accent-color: #111; margin-right: .4rem; }
+  .pm-pick.is-on {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
+  .pm-pick .name { font-weight: 800; font-size: .92rem; }
+  .pm-fillings {
+    display: none;
+    gap: .35rem;
+    flex-wrap: wrap;
+    margin-top: .55rem;
+  }
+  .pm-pick.is-on .pm-fillings { display: flex; }
+  .pm-fillings label {
+    font-size: .75rem;
+    font-weight: 700;
+    border: 1px solid rgba(255,255,255,.35);
+    border-radius: 999px;
+    padding: .18rem .5rem;
+    margin: 0;
+    cursor: pointer;
+  }
+  .pm-fillings input { accent-color: #e8c547; }
+  .pm-count {
+    font-size: .82rem;
+    font-weight: 700;
+    color: #111827;
+  }
+  .pm-count.is-ok { color: #047857; }
+  .pm-wa-note {
+    font-size: .8rem;
+    color: #b45309;
+    margin: .65rem 0 0;
+    min-height: 1.2em;
+  }
+  .pm-btn.is-off {
+    opacity: .45;
+    pointer-events: none;
+  }
+
+  .pm-body-inner {
+    padding: 0 .95rem;
+  }
+
+  .pm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    min-height: 48px;
+    padding: .7rem 1.05rem;
+    border-radius: .85rem;
+    font-weight: 800;
+    text-decoration: none;
+    border: 0;
+    flex: 1 1 180px;
+  }
+  .pm-btn-gold {
+    background: #111;
+    color: #fff !important;
+  }
+  .pm-btn-gold:hover { background: #1f2937; color: #fff !important; }
+  .pm-btn-wa {
+    background: #128C7E;
+    color: #fff !important;
+  }
+  .pm-micro {
+    width: 100%;
+    margin: 0;
+    color: #4b5563;
+    font-size: .8rem;
+    text-align: center;
+  }
+
+  .pm-price {
+    margin: 1rem 0 0;
+    padding: 1rem 1.05rem;
+    border-radius: 1rem;
+    background: #111;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+  .pm-price .lbl { color: #d1d5db; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .pm-price .val { font-size: 2rem; font-weight: 900; color: #fff; line-height: 1.1; }
+  .pm-price .hint { color: #e5e7eb; font-size: .82rem; }
+  .pm-price .tag {
+    text-align: center;
+    font-size: .72rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #111;
+    background: #e8c547;
+    border-radius: .7rem;
+    padding: .45rem .55rem;
+    min-width: 76px;
+  }
+
+  .pm-sec { margin-top: 1.35rem; }
+  .pm-sec h2 {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: #111827;
+    margin-bottom: .25rem;
+  }
+  .pm-sec .sub { color: #4b5563; margin-bottom: .9rem; }
+
+  .pm-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .65rem;
+  }
+  @media (min-width: 576px) {
+    .pm-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .pm-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: .95rem;
+    padding: .9rem;
+    color: #111827;
+  }
+  .pm-card .ico {
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: .65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+    color: #e8c547;
+    margin-bottom: .45rem;
+  }
+  .pm-card .ttl { font-weight: 800; color: #111827; }
+  .pm-card .meta { color: #4b5563; font-size: .82rem; }
+
+  .pm-form {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+  .pm-form .form-label { color: #111827; font-weight: 700; }
+  .pm-form .form-control,
+  .pm-form .form-select {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #111827;
+  }
+  .pm-form .form-control:focus,
+  .pm-form .form-select:focus {
+    border-color: #111827;
+    box-shadow: 0 0 0 .2rem rgba(17,24,39,.12);
+    background: #fff;
+    color: #111827;
+  }
+  .pm-phone-wrap { display: flex; align-items: stretch; }
+  .pm-phone-prefix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 .75rem;
+    background: #f3f4f6;
+    border: 1px solid #cbd5e1;
+    border-right: 0;
+    border-radius: .5rem 0 0 .5rem;
+    color: #111827;
+    font-weight: 700;
+  }
+  .pm-phone-wrap .form-control { border-radius: 0 .5rem .5rem 0; }
+  .pm-success {
+    text-align: center;
+    padding: 1.2rem .6rem;
+    color: #111827;
+  }
+  .pm-req { color: #b45309; }
+
+  .pm-faq .accordion-item { background: #fff; color: #111827; }
+  .pm-faq .accordion-button {
+    background: #fff;
+    color: #111827;
+    font-weight: 750;
+  }
+  .pm-faq .accordion-button:not(.collapsed) {
+    background: #f9fafb;
+    color: #111827;
+    box-shadow: none;
+  }
+  .pm-faq .accordion-body { color: #374151; }
+
+  .pm-dock {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 40;
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    padding: .65rem .75rem calc(.65rem + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: .5rem;
+  }
+  @media (min-width: 768px) { .pm-dock { display: none; } }
+
+  .pm-mini-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem .9rem calc(1rem + env(safe-area-inset-bottom));
+    background: #111;
+    color: #d1d5db;
+    font-size: .78rem;
+  }
+  @media (max-width: 767.98px) {
+    .pm-mini-footer { padding-bottom: calc(5.2rem + env(safe-area-inset-bottom)); }
+  }
+  .pm-mini-footer a { color: #e8c547; font-weight: 700; text-decoration: none; }
+
+  #incluye, #elegir, #pasabocas, #reservar, #faq { scroll-margin-top: 4.25rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pm-page">
+  <section class="pm-hero">
+    <img src="{{ hero_image_url }}" alt="Paquete de Mesa MixLab: 200 pasabocas + 14 L de frappé">
+    <div class="pm-hero-cta">
+      <a class="pm-btn pm-btn-wa" href="#elegir"><i class="bi bi-whatsapp"></i> Reservar por WhatsApp</a>
+      <p class="pm-micro">Elige 2 sabores y 4 pasabocas · La reserva es solo por WhatsApp</p>
+    </div>
+  </section>
+
+  <div class="pm-body-inner">
+  <div class="pm-price">
+    <div>
+      <div class="lbl">Precio del paquete</div>
+      <div class="val">{{ combo.selling_price|pesos_colombianos }}</div>
+      <div class="hint">Por evento · operario + desechables incluidos</div>
+    </div>
+    <div class="tag">Todo<br>listo</div>
+  </div>
+
+  <section class="pm-sec" id="incluye">
+    <h2>Qué llega a tu evento</h2>
+    <p class="sub">Mesa + frappé. Un solo precio. Cero extras de último minuto.</p>
+    <div class="pm-grid">
+      {% for item in highlights %}
+      <div class="pm-card">
+        <div class="ico"><i class="bi {{ item.icon }}"></i></div>
+        <div class="ttl">{{ item.title }}</div>
+        <div class="meta">{{ item.text }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="pm-sec" id="elegir">
+    <h2>Elige 2 sabores de frappé</h2>
+    <p class="sub">Hay 4 opciones. Solo puedes llevar <strong>2</strong>.</p>
+    <img class="pm-shot" src="{{ flavors_image_url }}" alt="Sabores de frappé MixLab: café, Milo, frutos rojos y limonada">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="pm-count" id="flavor-count">0 / 2 sabores</span>
+    </div>
+    <div class="pm-pick-grid" id="flavor-grid">
+      {% for flavor in flavors %}
+      <label class="pm-pick">
+        <input type="checkbox" name="flavor" value="{{ flavor.name }}">
+        <span class="name">{{ flavor.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="pm-sec" id="pasabocas">
+    <h2>Elige 4 pasabocas</h2>
+    <p class="sub">Hay 6 fritos caribeños. Solo puedes llevar <strong>4</strong>.</p>
+    <img class="pm-shot" src="{{ snacks_image_url }}" alt="Pasabocas MixLab: deditos, arepas de huevo, empanadas, carimañolas y kibbeh">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="pm-count" id="snack-count">0 / 4 pasabocas</span>
+    </div>
+    <div class="pm-pick-grid" id="snack-grid">
+      {% for snack in snacks %}
+      <div class="pm-pick">
+        <label class="d-block mb-0">
+          <input type="checkbox" name="snack" value="{{ snack.name }}">
+          <span class="name">{{ snack.name }}</span>
+        </label>
+        {% if snack.fillings %}
+        <div class="pm-fillings">
+          {% for fill in snack.fillings %}
+          <label>
+            <input type="radio" name="fill-{{ snack.id }}" value="{{ fill }}"> {{ fill }}
+          </label>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="pm-sec" id="reservar">
+    <h2>Reserva por WhatsApp</h2>
+    <p class="sub">Sin formulario. Armamos tu pedido y lo envías al asesor.</p>
+    <a class="pm-btn pm-btn-wa is-off" id="pm-wa-btn" href="{{ whatsapp_url|default:'#' }}" target="_blank" rel="noopener">
+      <i class="bi bi-whatsapp"></i> Reservar por WhatsApp
+    </a>
+    <p class="pm-wa-note" id="pm-wa-note">Elige 2 sabores y 4 pasabocas para continuar.</p>
+  </section>
+
+  <section class="pm-sec pm-faq" id="faq">
+    <h2>Preguntas frecuentes</h2>
+    <p class="sub">Lo que más preguntan antes de reservar.</p>
+    <div class="accordion accordion-flush" id="pmFaq">
+      {% for faq in faqs %}
+      <div class="accordion-item border rounded mb-2 overflow-hidden">
+        <h3 class="accordion-header">
+          <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#pm-faq-{{ forloop.counter }}">
+            {{ faq.q }}
+          </button>
+        </h3>
+        <div id="pm-faq-{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#pmFaq">
+          <div class="accordion-body">{{ faq.a }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <p class="small text-center mb-0" style="color:#4b5563;">
+    El transporte no está incluido; se cotiza según la ubicación del evento.
+  </p>
+  </div>
+</div>
+
+<div class="pm-dock" role="navigation" aria-label="Acciones rápidas">
+  <a class="pm-btn pm-btn-gold" href="#elegir">Elegir menú</a>
+  <a class="pm-btn pm-btn-wa is-off" id="pm-wa-dock" href="{{ whatsapp_url|default:'#' }}" target="_blank" rel="noopener">
+    <i class="bi bi-whatsapp"></i> Reservar
+  </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var waBase = "{{ whatsapp_url|default:''|escapejs }}";
+  var flavorMax = 2;
+  var snackMax = 4;
+  var flavorBoxes = Array.prototype.slice.call(document.querySelectorAll('input[name="flavor"]'));
+  var snackBoxes = Array.prototype.slice.call(document.querySelectorAll('input[name="snack"]'));
+  var flavorCount = document.getElementById('flavor-count');
+  var snackCount = document.getElementById('snack-count');
+  var note = document.getElementById('pm-wa-note');
+  var buttons = [document.getElementById('pm-wa-btn'), document.getElementById('pm-wa-dock')];
+
+  function selected(boxes) {
+    return boxes.filter(function (el) { return el.checked; });
+  }
+
+  function enforceMax(boxes, max) {
+    boxes.forEach(function (box) {
+      box.addEventListener('change', function () {
+        var on = selected(boxes);
+        if (on.length > max) {
+          box.checked = false;
+        }
+        syncCard(box);
+        refresh();
+      });
+      syncCard(box);
+    });
+  }
+
+  function syncCard(box) {
+    var card = box.closest('.pm-pick');
+    if (!card) return;
+    card.classList.toggle('is-on', box.checked);
+    if (!box.checked) {
+      card.querySelectorAll('.pm-fillings input').forEach(function (r) { r.checked = false; });
+    } else {
+      var radios = card.querySelectorAll('.pm-fillings input');
+      if (radios.length && !Array.prototype.some.call(radios, function (r) { return r.checked; })) {
+        radios[0].checked = true;
+      }
+    }
+  }
+
+  function snackLine(box) {
+    var card = box.closest('.pm-pick');
+    var name = box.value;
+    var fill = card ? card.querySelector('.pm-fillings input:checked') : null;
+    if (fill) return name + ' (' + fill.value + ')';
+    return name;
+  }
+
+  function buildMessage() {
+    var flavors = selected(flavorBoxes).map(function (el) { return el.value; });
+    var snacks = selected(snackBoxes).map(snackLine);
+    var lines = [
+      'Hola MixLab, quiero el Paquete de Mesa ($840.000).',
+      '',
+      'Sabores (2): ' + flavors.join(', '),
+      'Pasabocas (4):',
+    ].concat(snacks.map(function (s) { return '- ' + s; }));
+    lines.push('');
+    lines.push('¿Tienen cupo para mi fecha?');
+    return lines.join('\n');
+  }
+
+  function refresh() {
+    var f = selected(flavorBoxes).length;
+    var s = selected(snackBoxes).length;
+    if (flavorCount) {
+      flavorCount.textContent = f + ' / ' + flavorMax + ' sabores';
+      flavorCount.classList.toggle('is-ok', f === flavorMax);
+    }
+    if (snackCount) {
+      snackCount.textContent = s + ' / ' + snackMax + ' pasabocas';
+      snackCount.classList.toggle('is-ok', s === snackMax);
+    }
+    var ready = f === flavorMax && s === snackMax && waBase;
+    var href = ready ? (waBase + '?text=' + encodeURIComponent(buildMessage())) : (waBase || '#');
+    buttons.forEach(function (btn) {
+      if (!btn) return;
+      btn.href = href;
+      btn.classList.toggle('is-off', !ready);
+    });
+    if (note) {
+      if (ready) note.textContent = 'Listo. Al tocar el botón se abre WhatsApp con tu menú.';
+      else if (f < flavorMax && s < snackMax) note.textContent = 'Elige 2 sabores y 4 pasabocas para continuar.';
+      else if (f < flavorMax) note.textContent = 'Te falta elegir ' + (flavorMax - f) + ' sabor' + (flavorMax - f === 1 ? '' : 'es') + '.';
+      else note.textContent = 'Te falta elegir ' + (snackMax - s) + ' pasaboca' + (snackMax - s === 1 ? '' : 's') + '.';
+    }
+  }
+
+  document.querySelectorAll('.pm-fillings input').forEach(function (r) {
+    r.addEventListener('change', refresh);
+  });
+  enforceMax(flavorBoxes, flavorMax);
+  enforceMax(snackBoxes, snackMax);
+  refresh();
+})();
+</script>
+{% endblock %}

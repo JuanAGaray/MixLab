@@ -32,13 +32,15 @@
         · {{ settings_obj.review_bonus_days }} días desde tu reseña
       </div>
 
-      <div class="mx-label">Código para canjear con el asesor</div>
+      <div class="mx-label">Código para un evento futuro</div>
       <div class="mx-code-box mb-3" id="bonus-code">{{ coupon.code }}</div>
 
       <div class="mx-info mb-3">
-        <strong>Cómo usarlo:</strong> este código <strong>no abre el formulario</strong>.
-        Entrégaselo a tu <strong>asesor MixLab</strong> al cotizar (tú o quien lo reciba).
-        Es de <strong>un solo uso</strong> y se aplica sobre la cotización.
+        <strong>Cómo usarlo:</strong> este código <strong>no abre el formulario</strong>
+        y <strong>no aplica sobre esta cotización</strong>.
+        Sirve para un <strong>evento futuro</strong>: tú, un familiar o un amigo
+        se lo entregan al <strong>asesor MixLab</strong> al cotizar ese nuevo evento.
+        Es de <strong>un solo uso</strong>.
       </div>
 
       {% if coupon.status == 'redeemed' %}
@@ -59,8 +61,8 @@
         <i class="bi bi-whatsapp"></i> Enviar bono a un familiar o amigo
       </a>
       <p class="mx-hint mt-3 mb-0">
-        Puedes regalárselo a alguien: al compartir, recibe el código para canjearlo
-        con un asesor MixLab en su próxima cotización.
+        Puedes regalárselo: quien lo reciba lo usa en un <strong>próximo evento</strong>
+        con un asesor MixLab (no en la cotización que acabas de reseñar).
       </p>
       {% endif %}
     </div>

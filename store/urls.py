@@ -60,6 +60,7 @@ urlpatterns = [
     path('cotizaciones/<int:quotation_id>/remitir-requisitos/', views.quotation_client_onboarding_manage, name='quotation_client_onboarding_manage'),
     path('cotizaciones/<int:quotation_id>/enviar-resena/', service_review_views.quotation_review_manage, name='quotation_review_manage'),
     path('cotizaciones/<int:quotation_id>/canjear-bono/', service_review_views.quotation_redeem_bonus, name='quotation_redeem_bonus'),
+    path('cotizaciones/resenas/', service_review_views.service_reviews_dashboard, name='service_reviews_dashboard'),
 
     # Reseña pública + bono
     path('resena/<uuid:token>/', service_review_views.service_review_unlock, name='service_review_unlock'),

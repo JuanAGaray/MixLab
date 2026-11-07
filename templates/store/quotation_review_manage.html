@@ -10,6 +10,9 @@
       <h1 class="h4 fw-bold mb-0 mt-1">Reseña + bono · COT-{{ quote.id }}</h1>
       <p class="text-muted small mb-0">{{ quote.display_client_name }} · {{ quote.display_client_phone }}</p>
     </div>
+    <a href="{% url 'store:service_reviews_dashboard' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-star"></i> Ver todas las reseñas
+    </a>
   </div>
 
   {% if review.is_submitted %}
@@ -67,7 +70,7 @@
       <div class="mb-3">
         <label class="small fw-semibold">Código de verificación (abre el formulario)</label>
         <input class="form-control form-control-sm fw-bold" readonly value="{{ plain_code }}" onclick="this.select()">
-        <div class="form-text">No confundir con el bono MIX-XXXXXX, que se genera al terminar la reseña y se canjea aquí en cotización.</div>
+        <div class="form-text">No confundir con el bono MIX-XXXXXX: ese se genera al terminar la reseña y sirve para un <strong>evento futuro</strong> (cliente, familiar o amigo), no para esta cotización.</div>
       </div>
       {% if review.link_is_active %}
       <div class="mb-2">

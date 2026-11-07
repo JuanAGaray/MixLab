@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}Reseñas · MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .reviews-dash { max-width: 1180px; }
+  .reviews-dash .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+  }
+  @media (min-width: 768px) {
+    .reviews-dash .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  .reviews-dash .kpi-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: .9rem;
+    padding: .9rem 1rem;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .04);
+  }
+  .reviews-dash .kpi-label {
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: .2rem;
+  }
+  .reviews-dash .kpi-value {
+    font-size: 1.45rem;
+    font-weight: 900;
+    color: #071526;
+    line-height: 1.15;
+  }
+  .reviews-dash .kpi-sub {
+    font-size: .78rem;
+    color: #64748b;
+    margin-top: .15rem;
+  }
+  .reviews-dash .kpi-value.is-blue { color: #0F6FFF; }
+  .reviews-dash .kpi-value.is-ok { color: #15803d; }
+  .reviews-dash .filter-card {
+    border: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    border-radius: 1rem;
+  }
+  .reviews-dash .table-card {
+    border: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  .reviews-dash .table thead th {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+    font-weight: 800;
+    background: #f8fafc;
+    white-space: nowrap;
+  }
+  .reviews-dash .score-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.7rem;
+    padding: .1rem .35rem;
+    border-radius: .4rem;
+    background: #eff6ff;
+    color: #0F6FFF;
+    font-weight: 800;
+    font-size: .78rem;
+  }
+  .reviews-dash .avg-pill {
+    background: #071526;
+    color: #fff;
+  }
+  .reviews-dash .reason-cell {
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #475569;
+    font-size: .82rem;
+  }
+  .reviews-dash .badge-evento {
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    font-weight: 700;
+  }
+  .reviews-dash .badge-producto {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    font-weight: 700;
+  }
+  .reviews-dash .modal-label {
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: .2rem;
+  }
+  .reviews-dash .modal-value {
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: .85rem;
+  }
+  .reviews-dash .modal-score-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .65rem;
+  }
+  .reviews-dash .modal-score-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    padding: .7rem .6rem;
+    text-align: center;
+  }
+  .reviews-dash .modal-score-card .n {
+    font-size: 1.45rem;
+    font-weight: 900;
+    color: #0F6FFF;
+    line-height: 1.1;
+  }
+  .reviews-dash .modal-score-card .t {
+    font-size: .68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+  }
+  .reviews-dash .modal-reason {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    padding: .85rem 1rem;
+    white-space: pre-wrap;
+    color: #334155;
+    font-size: .92rem;
+    line-height: 1.45;
+  }
+  .reviews-dash tr.review-row { cursor: pointer; }
+  .reviews-dash tr.review-row:hover { background: #f8fafc; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 reviews-dash">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Reseñas de servicio</h1>
+      <p class="text-muted small mb-0">Promedios, tipo Evento/Producto y bonos generados.</p>
+    </div>
+    <a href="{% url 'store:quotation_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-file-earmark-text"></i> Cotizaciones
+    </a>
+  </div>
+
+  <div class="kpi-grid mb-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total reseñas</div>
+      <div class="kpi-value">{{ kpis.total }}</div>
+      <div class="kpi-sub">Con filtro actual</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Promedio general</div>
+      <div class="kpi-value is-blue">{% if kpis.avg_general != None %}{{ kpis.avg_general }}{% else %}—{% endif %}</div>
+      <div class="kpi-sub">Operario · Sabores · Recomienda</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Por tipo</div>
+      <div class="kpi-value" style="font-size:1.1rem;">
+        <span class="text-success">{{ kpis.count_evento }}</span>
+        <span class="text-muted fw-normal">/</span>
+        <span style="color:#1d4ed8">{{ kpis.count_producto }}</span>
+      </div>
+      <div class="kpi-sub">Evento / Producto</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Bonos</div>
+      <div class="kpi-value is-ok" style="font-size:1.1rem;">
+        {{ kpis.bonuses_active }}
+        <span class="text-muted fw-normal">act.</span>
+        · {{ kpis.bonuses_redeemed }}
+        <span class="text-muted fw-normal">canj.</span>
+      </div>
+      <div class="kpi-sub">
+        Prom. eje:
+        {% if kpis.avg_operator != None %}Op {{ kpis.avg_operator }}{% else %}Op —{% endif %}
+        · {% if kpis.avg_flavors != None %}Sab {{ kpis.avg_flavors }}{% else %}Sab —{% endif %}
+        · {% if kpis.avg_recommend != None %}Rec {{ kpis.avg_recommend }}{% else %}Rec —{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card filter-card mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1" for="id_q">Buscar</label>
+          <input type="text" class="form-control form-control-sm" id="id_q" name="q"
+                 value="{{ filter_q }}" placeholder="Cliente, teléfono o # COT">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1" for="id_tipo">Tipo</label>
+          <select class="form-select form-select-sm" id="id_tipo" name="tipo">
+            <option value="" {% if not filter_tipo %}selected{% endif %}>Todos</option>
+            <option value="evento" {% if filter_tipo == 'evento' %}selected{% endif %}>Evento</option>
+            <option value="producto" {% if filter_tipo == 'producto' %}selected{% endif %}>Producto</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1" for="id_orden">Orden</label>
+          <select class="form-select form-select-sm" id="id_orden" name="orden">
+            <option value="recientes" {% if filter_orden == 'recientes' %}selected{% endif %}>Más recientes</option>
+            <option value="peor" {% if filter_orden == 'peor' %}selected{% endif %}>Peor promedio</option>
+            <option value="mejor" {% if filter_orden == 'mejor' %}selected{% endif %}>Mejor promedio</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1" for="id_desde">Desde</label>
+          <input type="date" class="form-control form-control-sm" id="id_desde" name="desde" value="{{ filter_desde }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1" for="id_hasta">Hasta</label>
+          <input type="date" class="form-control form-control-sm" id="id_hasta" name="hasta" value="{{ filter_hasta }}">
+        </div>
+        <div class="col-12 col-md-1 d-flex gap-1">
+          <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <a href="{% url 'store:service_reviews_dashboard' %}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card table-card">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>COT</th>
+            <th>Cliente</th>
+            <th>Tipo</th>
+            <th>Scores</th>
+            <th>Prom.</th>
+            <th>Motivo</th>
+            <th>Bono</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr class="review-row"
+              data-bs-toggle="modal"
+              data-bs-target="#reviewDetailModal"
+              data-cot="COT-{{ row.quote.id }}"
+              data-quote-url="{% url 'store:quotation_detail' quotation_id=row.quote.id %}"
+              data-manage-url="{% url 'store:quotation_review_manage' quotation_id=row.quote.id %}"
+              data-client="{{ row.client_name|escape }}"
+              data-phone="{{ row.client_phone|escape }}"
+              data-tipo="{{ row.tipo_label }}"
+              data-tipo-key="{{ row.tipo }}"
+              data-date="{{ row.review.submitted_at|date:'d/m/Y H:i' }}"
+              data-op="{{ row.review.score_operator }}"
+              data-fl="{{ row.review.score_flavors }}"
+              data-rec="{{ row.review.score_recommend }}"
+              data-avg="{% if row.row_avg != None %}{{ row.row_avg }}{% else %}—{% endif %}"
+              data-reason="{{ row.review.reason|default:''|escape }}"
+              data-coupon="{% if row.coupon %}{{ row.coupon.code }}{% endif %}"
+              data-coupon-meta="{% if row.coupon %}{{ row.coupon.discount_percent }}% · {{ row.coupon.get_status_display }} · hasta {{ row.coupon.valid_until|date:'d/m/Y' }}{% endif %}">
+            <td class="text-nowrap small">
+              {{ row.review.submitted_at|date:"d/m/Y" }}
+              <div class="text-muted">{{ row.review.submitted_at|date:"H:i" }}</div>
+            </td>
+            <td>
+              <span class="fw-semibold text-primary">COT-{{ row.quote.id }}</span>
+            </td>
+            <td>
+              <div class="fw-semibold">{{ row.client_name }}</div>
+              {% if row.client_phone %}
+              <div class="small text-muted">{{ row.client_phone }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge rounded-pill {% if row.tipo == 'evento' %}badge-evento{% else %}badge-producto{% endif %}">
+                {{ row.tipo_label }}
+              </span>
+            </td>
+            <td class="text-nowrap">
+              <span class="score-pill" title="Operario">{{ row.review.score_operator }}</span>
+              <span class="score-pill" title="Sabores">{{ row.review.score_flavors }}</span>
+              <span class="score-pill" title="Recomendación">{{ row.review.score_recommend }}</span>
+            </td>
+            <td>
+              {% if row.row_avg != None %}
+              <span class="score-pill avg-pill">{{ row.row_avg }}</span>
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              <div class="reason-cell" title="{{ row.review.reason }}">{{ row.review.reason|default:"—" }}</div>
+            </td>
+            <td class="small">
+              {% if row.coupon %}
+              <div class="fw-semibold">{{ row.coupon.code }}</div>
+              <div class="text-muted">{{ row.coupon.discount_percent }}% · {{ row.coupon.get_status_display }}</div>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap" onclick="event.stopPropagation();">
+              <button type="button"
+                      class="btn btn-sm btn-outline-dark btn-open-review"
+                      title="Ver detalle"
+                      data-bs-toggle="modal"
+                      data-bs-target="#reviewDetailModal">
+                <i class="bi bi-eye"></i>
+              </button>
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{% url 'store:quotation_review_manage' quotation_id=row.quote.id %}"
+                 title="Gestionar reseña">
+                <i class="bi bi-star"></i>
+              </a>
+              <a class="btn btn-sm btn-outline-secondary"
+                 href="{% url 'store:quotation_detail' quotation_id=row.quote.id %}"
+                 title="Ver cotización">
+                <i class="bi bi-file-earmark-text"></i>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center text-muted py-4">
+              No hay reseñas con estos filtros.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+      <div class="small text-muted">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        · {{ page_obj.paginator.count }} reseñas
+      </div>
+      <div class="btn-group btn-group-sm">
+        {% if page_obj.has_previous %}
+        <a class="btn btn-outline-secondary"
+           href="?page={{ page_obj.previous_page_number }}&tipo={{ filter_tipo }}&q={{ filter_q|urlencode }}&orden={{ filter_orden }}&desde={{ filter_desde }}&hasta={{ filter_hasta }}">
+          Anterior
+        </a>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <a class="btn btn-outline-secondary"
+           href="?page={{ page_obj.next_page_number }}&tipo={{ filter_tipo }}&q={{ filter_q|urlencode }}&orden={{ filter_orden }}&desde={{ filter_desde }}&hasta={{ filter_hasta }}">
+          Siguiente
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="modal fade" id="reviewDetailModal" tabindex="-1" aria-labelledby="reviewDetailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-3 shadow">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title fw-bold mb-0" id="reviewDetailModalLabel">Detalle de reseña</h5>
+          <div class="small text-muted" id="rd-subtitle">—</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-2">
+          <div class="col-md-4">
+            <div class="modal-label">Cliente</div>
+            <div class="modal-value mb-0" id="rd-client">—</div>
+            <div class="small text-muted" id="rd-phone"></div>
+          </div>
+          <div class="col-md-4">
+            <div class="modal-label">Tipo</div>
+            <div class="modal-value" id="rd-tipo">—</div>
+          </div>
+          <div class="col-md-4">
+            <div class="modal-label">Fecha</div>
+            <div class="modal-value" id="rd-date">—</div>
+          </div>
+        </div>
+
+        <div class="modal-label mb-2">Calificaciones</div>
+        <div class="modal-score-grid mb-3">
+          <div class="modal-score-card">
+            <div class="n" id="rd-op">—</div>
+            <div class="t">Operario</div>
+          </div>
+          <div class="modal-score-card">
+            <div class="n" id="rd-fl">—</div>
+            <div class="t">Sabores</div>
+          </div>
+          <div class="modal-score-card">
+            <div class="n" id="rd-rec">—</div>
+            <div class="t">Recomienda</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <div class="modal-label mb-0">Promedio</div>
+          <span class="score-pill avg-pill" id="rd-avg">—</span>
+        </div>
+
+        <div class="modal-label">Motivo / comentarios</div>
+        <div class="modal-reason mb-3" id="rd-reason">—</div>
+
+        <div class="modal-label">Bono</div>
+        <div class="modal-value mb-0" id="rd-coupon">Sin bono</div>
+        <div class="small text-muted" id="rd-coupon-meta"></div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <a href="#" class="btn btn-outline-dark" id="rd-quote-btn">
+          <i class="bi bi-file-earmark-text"></i> Ver COT
+        </a>
+        <a href="#" class="btn btn-primary" id="rd-manage-btn">
+          <i class="bi bi-star"></i> Gestionar reseña
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var modalEl = document.getElementById('reviewDetailModal');
+  if (!modalEl) return;
+
+  function fillFromRow(row) {
+    if (!row) return;
+    var d = row.dataset;
+    document.getElementById('reviewDetailModalLabel').textContent = 'Reseña ' + (d.cot || '');
+    document.getElementById('rd-subtitle').textContent = (d.tipo || '') + (d.date ? ' · ' + d.date : '');
+    document.getElementById('rd-client').textContent = d.client || '—';
+    document.getElementById('rd-phone').textContent = d.phone || '';
+    document.getElementById('rd-tipo').textContent = d.tipo || '—';
+    document.getElementById('rd-date').textContent = d.date || '—';
+    document.getElementById('rd-op').textContent = d.op || '—';
+    document.getElementById('rd-fl').textContent = d.fl || '—';
+    document.getElementById('rd-rec').textContent = d.rec || '—';
+    document.getElementById('rd-avg').textContent = d.avg || '—';
+    document.getElementById('rd-reason').textContent = (d.reason || '').trim() || 'Sin comentarios.';
+    document.getElementById('rd-coupon').textContent = d.coupon || 'Sin bono';
+    document.getElementById('rd-coupon-meta').textContent = d.couponMeta || '';
+    var quoteBtn = document.getElementById('rd-quote-btn');
+    var manageBtn = document.getElementById('rd-manage-btn');
+    if (quoteBtn) quoteBtn.href = d.quoteUrl || '#';
+    if (manageBtn) manageBtn.href = d.manageUrl || '#';
+  }
+
+  modalEl.addEventListener('show.bs.modal', function (event) {
+    var trigger = event.relatedTarget;
+    var row = trigger ? trigger.closest('tr.review-row') : null;
+    if (!row && trigger && trigger.classList.contains('review-row')) row = trigger;
+    fillFromRow(row);
+  });
+
+  document.querySelectorAll('.btn-open-review').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      fillFromRow(btn.closest('tr.review-row'));
+    });
+  });
+})();
+</script>
+{% endblock %}

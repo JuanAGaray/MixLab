@@ -1881,7 +1881,7 @@ class QuotationServiceReview(models.Model):
 
 
 class ServiceBonusCoupon(models.Model):
-    """Cupón % generado al completar la reseña: compartible, un solo uso, vigencia limitada."""
+    """Cupón % por reseña: para un evento futuro (cliente/familiar/amigo), un solo uso."""
 
     STATUS_CHOICES = [
         ('active', 'Activo'),

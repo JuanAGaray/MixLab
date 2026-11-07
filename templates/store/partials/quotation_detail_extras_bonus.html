@@ -1,25 +1,26 @@
 {% if redeemed_bonus %}
 <div class="alert alert-success py-2 mb-0 small">
-  Bono <strong>{{ redeemed_bonus.code }}</strong> canjeado
+  Bono <strong>{{ redeemed_bonus.code }}</strong> usado en este evento futuro
   ({{ redeemed_bonus.discount_percent }}%)
   el {{ redeemed_bonus.redeemed_at|date:"d/m/Y H:i" }}.
 </div>
 {% elif can_edit_quote %}
 <p class="qd-help mb-2">
-  Canjea con el asesor el código <strong>MIX-XXXXXX</strong> del cliente (o de un familiar/amigo)
-  que completó la reseña. Un solo uso · % sobre todas las líneas.
+  Código <strong>MIX-XXXXXX</strong> de reseña para un <strong>evento futuro</strong>
+  (cliente, familiar o amigo). No corresponde a la cotización que originó el bono.
+  Un solo uso · el asesor lo registra aquí al cotizar ese nuevo evento.
 </p>
 <form method="post" action="{% url 'store:quotation_redeem_bonus' quotation_id=quote.id %}" class="row g-2 align-items-end">
   {% csrf_token %}
   <div class="col-sm-8">
-    <label class="qd-label" for="bonus_code">Código MIX (canje con asesor)</label>
+    <label class="qd-label" for="bonus_code">Código MIX (evento futuro)</label>
     <input type="text" class="form-control form-control-sm text-uppercase" name="bonus_code"
            id="bonus_code" placeholder="MIX-ABC123" required maxlength="24">
   </div>
   <div class="col-sm-4">
-    <button type="submit" class="qd-btn qd-btn-soft w-100">Canjear bono</button>
+    <button type="submit" class="qd-btn qd-btn-soft w-100">Registrar bono</button>
   </div>
 </form>
 {% else %}
-<div class="qd-help mb-0">Esta cotización no admite canje (cerrada o sin edición).</div>
+<div class="qd-help mb-0">Esta cotización no admite registro de bono (cerrada o sin edición).</div>
 {% endif %}

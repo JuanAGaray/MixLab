@@ -236,6 +236,44 @@
     opacity: 0.55;
     pointer-events: none;
   }
+
+  .quotes-page .quotes-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(15, 23, 42, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .quotes-page .quotes-overlay[hidden] { display: none !important; }
+  .quotes-page .quotes-overlay-card {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 1.1rem 1.4rem;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .quotes-page .skel-row td {
+    padding: 0.7rem 0.65rem !important;
+  }
+  .quotes-page .skel {
+    display: block;
+    height: 0.75rem;
+    border-radius: 0.35rem;
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: quotesSkel 1.1s ease-in-out infinite;
+  }
+  @keyframes quotesSkel {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
 </style>
 
 <div class="container py-4 quotes-page">
@@ -282,208 +320,17 @@
     </div>
   </div>
 
-  {# ─── Confirmadas pendientes de pago ─── #}
-  <div class="card section-card" id="pendientes">
-    <div class="section-head">
-      <div>
-        <p class="section-kicker">Pendientes</p>
-        <h2 class="section-title">
-          Confirmadas · faltan por pago
-          <span class="badge text-bg-warning align-middle ms-1">{{ pending.count }}</span>
-        </h2>
-      </div>
-      <div class="section-total is-pending">
-        <span class="label">Total pendiente</span>
-        <div class="value">{{ pending.total|pesos_colombianos }}</div>
-      </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle quotes-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th>Hecha por</th>
-            <th>Estado del pedido</th>
-            <th class="text-end col-total">Total</th>
-            <th class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for q in pending.items %}
-          {% include "store/partials/quotation_list_row.html" with q=q section="pending" %}
-          {% empty %}
-          <tr>
-            <td colspan="7" class="text-center text-muted py-4">No hay cotizaciones confirmadas pendientes de pago.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        {% if pending.items %}
-        <tfoot>
-          <tr>
-            <td colspan="6" class="text-end">
-              <span class="total-label me-2">Total pendiente</span>
-              <span class="total-value is-pending">{{ pending.total|pesos_colombianos }}</span>
-            </td>
-            <td></td>
-          </tr>
-        </tfoot>
-        {% endif %}
-      </table>
+  <div class="quotes-overlay" id="quotesOverlay" {% if not lazy_load_sections %}hidden{% endif %}>
+    <div class="quotes-overlay-card">
+      <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
+      <span>Cargando cotizaciones…</span>
     </div>
   </div>
 
-  {# ─── Pagos parciales ─── #}
-  <div class="card section-card" id="parciales">
-    <div class="section-head">
-      <div>
-        <p class="section-kicker">Abonos</p>
-        <h2 class="section-title">
-          Pagos parciales
-          <span class="badge text-bg-info align-middle ms-1">{{ partial.count }}</span>
-        </h2>
-      </div>
-      <div class="section-totals-grid">
-        <div class="section-total is-partial">
-          <span class="label">Abonado</span>
-          <div class="value">{{ partial.paid_total|default:0|pesos_colombianos }}</div>
-        </div>
-        <div class="section-total is-pending">
-          <span class="label">Saldo pendiente</span>
-          <div class="value">{{ partial.remaining_total|default:0|pesos_colombianos }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle quotes-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th>Hecha por</th>
-            <th>Estado del pedido</th>
-            <th class="text-end col-total">Total</th>
-            <th class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for q in partial.items %}
-          {% include "store/partials/quotation_list_row.html" with q=q section="partial" %}
-          {% empty %}
-          <tr>
-            <td colspan="7" class="text-center text-muted py-4">No hay cotizaciones con pago parcial.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        {% if partial.items %}
-        <tfoot>
-          <tr>
-            <td colspan="6" class="text-end">
-              <span class="total-label me-2">Abonado</span>
-              <span class="total-value is-partial me-3">{{ partial.paid_total|pesos_colombianos }}</span>
-              <span class="total-label me-2">Saldo pendiente</span>
-              <span class="total-value is-pending">{{ partial.remaining_total|pesos_colombianos }}</span>
-            </td>
-            <td></td>
-          </tr>
-        </tfoot>
-        {% endif %}
-      </table>
-    </div>
-  </div>
-
-  {# ─── Cerradas / pago recibido ─── #}
-  <div class="card section-card" id="pagadas">
-    <div class="section-head">
-      <div>
-        <p class="section-kicker">Cerradas</p>
-        <h2 class="section-title">
-          Pago recibido
-          <span class="badge text-bg-success align-middle ms-1">{{ paid.count }}</span>
-        </h2>
-      </div>
-      <div class="section-total is-paid">
-        <span class="label">Total cancelado</span>
-        <div class="value">{{ paid.total|pesos_colombianos }}</div>
-      </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle quotes-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th>Hecha por</th>
-            <th>Estado del pedido</th>
-            <th class="text-end col-total">Total</th>
-            <th class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for q in paid.items %}
-          {% include "store/partials/quotation_list_row.html" with q=q section="paid" %}
-          {% empty %}
-          <tr>
-            <td colspan="7" class="text-center text-muted py-4">Aún no hay cotizaciones con pago recibido.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        {% if paid.items %}
-        <tfoot>
-          <tr>
-            <td colspan="6" class="text-end">
-              <span class="total-label me-2">Total cancelado</span>
-              <span class="total-value is-paid">{{ paid.total|pesos_colombianos }}</span>
-            </td>
-            <td></td>
-          </tr>
-        </tfoot>
-        {% endif %}
-      </table>
-    </div>
-  </div>
-
-  {# ─── Otras (sin respuesta / rechazadas) ─── #}
-  {% if other.count %}
-  <div class="card section-card" id="otras">
-    <div class="section-head">
-      <div>
-        <p class="section-kicker">Otras</p>
-        <h2 class="section-title">
-          Sin respuesta / rechazadas
-          <span class="badge text-bg-secondary align-middle ms-1">{{ other.count }}</span>
-        </h2>
-      </div>
-      <div class="section-total">
-        <span class="label">Total</span>
-        <div class="value">{{ other.total|pesos_colombianos }}</div>
-      </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle quotes-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th>Hecha por</th>
-            <th>Estado del pedido</th>
-            <th class="text-end col-total">Total</th>
-            <th class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for q in other.items %}
-          {% include "store/partials/quotation_list_row.html" with q=q section="other" %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
+  {% include "store/partials/quotation_list_section_shell.html" with section_id="pendientes" section_key="pending" kicker="Pendientes" title="Confirmadas · faltan por pago" badge_class="text-bg-warning" total_class="is-pending" total_label="Total pendiente" %}
+  {% include "store/partials/quotation_list_section_shell.html" with section_id="parciales" section_key="partial" kicker="Abonos" title="Pagos parciales" badge_class="text-bg-info" is_partial=1 %}
+  {% include "store/partials/quotation_list_section_shell.html" with section_id="pagadas" section_key="paid" kicker="Cerradas" title="Pago recibido" badge_class="text-bg-success" total_class="is-paid" total_label="Total cancelado" %}
+  {% include "store/partials/quotation_list_section_shell.html" with section_id="otras" section_key="other" kicker="Otras" title="Sin respuesta / rechazadas" badge_class="text-bg-secondary" total_class="" total_label="Total" initially_hidden=1 %}
 </div>
 
 <script>
@@ -503,43 +350,103 @@
       return cookieValue;
     }
     const csrftoken = getCookie('csrftoken');
+    const overlay = document.getElementById('quotesOverlay');
 
-    document.querySelectorAll('.order-status-select').forEach(function (sel) {
-      sel.setAttribute('data-prev', sel.value);
-      sel.addEventListener('change', function () {
-        const row = this.closest('tr[data-quotation-id]');
-        const qid = row ? row.getAttribute('data-quotation-id') : '';
-        const val = this.value;
-        const prevVal = sel.getAttribute('data-prev');
-        const hasProof = sel.getAttribute('data-has-payment-proof') === '1';
-        const requiresProof = ['pago_parcial', 'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'];
+    function bindStatusSelects(root) {
+      (root || document).querySelectorAll('.order-status-select').forEach(function (sel) {
+        if (sel.dataset.bound === '1') return;
+        sel.dataset.bound = '1';
+        sel.setAttribute('data-prev', sel.value);
+        sel.addEventListener('change', function () {
+          const row = this.closest('tr[data-quotation-id]');
+          const qid = row ? row.getAttribute('data-quotation-id') : '';
+          const val = this.value;
+          const prevVal = sel.getAttribute('data-prev');
+          const hasProof = sel.getAttribute('data-has-payment-proof') === '1';
+          const requiresProof = ['pago_parcial', 'pago_recibido', 'enviado', 'recibido', 'modificado_y_enviado'];
 
-        if (!hasProof && requiresProof.includes(val)) {
-          sel.value = prevVal;
-          alert('Debes registrar un pago (transferencia o efectivo) en el detalle de la cotización antes de marcar este estado.');
-          return;
-        }
+          if (!hasProof && requiresProof.includes(val)) {
+            sel.value = prevVal;
+            alert('Debes registrar un pago (transferencia o efectivo) en el detalle de la cotización antes de marcar este estado.');
+            return;
+          }
 
-        fetch("{% url 'store:quotation_ajax_set_status' %}", {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': csrftoken,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({ quotation_id: qid, order_status: val }),
-        })
-          .then(r => r.json()).then(payload => {
-            if (!payload || payload.error) {
-              sel.value = prevVal;
-              alert(payload && payload.error ? payload.error : 'Error al actualizar.');
-              return;
-            }
-            // Al cambiar entre secciones (pendiente ↔ pagada) recargar para mover la fila
-            window.location.reload();
-          }).catch(function () { window.location.reload(); });
+          fetch("{% url 'store:quotation_ajax_set_status' %}", {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrftoken,
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ quotation_id: qid, order_status: val }),
+          })
+            .then(r => r.json()).then(payload => {
+              if (!payload || payload.error) {
+                sel.value = prevVal;
+                alert(payload && payload.error ? payload.error : 'Error al actualizar.');
+                return;
+              }
+              window.location.reload();
+            }).catch(function () { window.location.reload(); });
+        });
       });
-    });
+    }
+
+    function applySection(key, data) {
+      const card = document.querySelector('.section-card[data-section-key="' + key + '"]');
+      if (!card || !data) return;
+      if (key === 'other') {
+        card.hidden = !(data.show || data.count > 0);
+      }
+      const badge = card.querySelector('[data-role="count"]');
+      if (badge) badge.textContent = data.count != null ? data.count : '0';
+      const totalEl = card.querySelector('[data-role="total"]');
+      if (totalEl && data.total != null) totalEl.innerHTML = data.total;
+      const paidEl = card.querySelector('[data-role="paid-total"]');
+      if (paidEl && data.paid_total != null) paidEl.innerHTML = data.paid_total;
+      const remEl = card.querySelector('[data-role="remaining-total"]');
+      if (remEl && data.remaining_total != null) remEl.innerHTML = data.remaining_total;
+      const tbody = card.querySelector('tbody[data-role="rows"]');
+      if (tbody && data.html != null) tbody.innerHTML = data.html;
+      const tfoot = card.querySelector('tfoot[data-role="foot"]');
+      if (tfoot) {
+        tfoot.hidden = !(data.count > 0);
+        const footTotal = tfoot.querySelector('[data-role="foot-total"]');
+        if (footTotal && data.total != null) footTotal.innerHTML = data.total;
+        const footPaid = tfoot.querySelector('[data-role="foot-paid"]');
+        if (footPaid && data.paid_total != null) footPaid.innerHTML = data.paid_total;
+        const footRem = tfoot.querySelector('[data-role="foot-remaining"]');
+        if (footRem && data.remaining_total != null) footRem.innerHTML = data.remaining_total;
+      }
+      bindStatusSelects(card);
+    }
+
+    {% if lazy_load_sections %}
+    const params = new URLSearchParams(window.location.search);
+    fetch("{% url 'store:quotation_ajax_list_sections' %}?" + params.toString(), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (payload) {
+        if (!payload || !payload.ok || !payload.sections) {
+          throw new Error('bad payload');
+        }
+        ['pending', 'partial', 'paid', 'other'].forEach(function (key) {
+          applySection(key, payload.sections[key]);
+        });
+      })
+      .catch(function () {
+        document.querySelectorAll('tbody[data-role="rows"]').forEach(function (tb) {
+          tb.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">No se pudieron cargar las cotizaciones. Recarga la página.</td></tr>';
+        });
+      })
+      .finally(function () {
+        if (overlay) overlay.hidden = true;
+      });
+    {% else %}
+    if (overlay) overlay.hidden = true;
+    bindStatusSelects(document);
+    {% endif %}
   });
 </script>
 {% endblock %}

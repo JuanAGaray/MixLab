@@ -1,0 +1,156 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  {% include "store/partials/review_brand_head.html" %}
+  <title>Tu bono MixLab · Gracias</title>
+</head>
+<body class="mx-review-body">
+  <header class="mx-topbar">
+    <a href="{% url 'store:home' %}" class="mx-topbar-logo" aria-label="MixLab">
+      <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab">
+    </a>
+    <span class="mx-topbar-pill">Bono</span>
+  </header>
+
+  <main class="mx-main">
+  <div class="mx-wrap">
+    <div class="mx-hero">
+      <div class="mx-hero-logo">
+        <img src="{% static 'img/TotalLogoWhite.png' %}" alt="MixLab">
+      </div>
+      <h1>¡Gracias por preferirnos!</h1>
+      <p>Tu opinión quedó registrada. Como agradecimiento, tienes un bono MixLab.</p>
+    </div>
+
+    {% if coupon %}
+    <div class="mx-card text-center">
+      <div class="mx-label">Tu descuento</div>
+      <div class="mx-discount mb-1">{{ coupon.discount_percent }}%</div>
+      <div class="mx-hint mb-3">
+        Válido hasta <strong>{{ coupon.valid_until|date:"d/m/Y" }}</strong>
+        · {{ settings_obj.review_bonus_days }} días desde tu reseña
+      </div>
+
+      <div class="mx-label">Código para canjear con el asesor</div>
+      <div class="mx-code-box mb-3" id="bonus-code">{{ coupon.code }}</div>
+
+      <div class="mx-info mb-3">
+        <strong>Cómo usarlo:</strong> este código <strong>no abre el formulario</strong>.
+        Entrégaselo a tu <strong>asesor MixLab</strong> al cotizar (tú o quien lo reciba).
+        Es de <strong>un solo uso</strong> y se aplica sobre la cotización.
+      </div>
+
+      {% if coupon.status == 'redeemed' %}
+      <div class="alert alert-secondary py-2 small mb-0">Este bono ya fue canjeado.</div>
+      {% elif coupon.status == 'expired' %}
+      <div class="alert alert-warning py-2 small mb-0">Este bono ya venció.</div>
+      {% else %}
+      <div class="mx-actions mx-actions-2 mb-2">
+        <button type="button" class="mx-btn mx-btn-ghost" id="btn-copy-code">
+          <i class="bi bi-clipboard"></i> Copiar
+        </button>
+        <button type="button" class="mx-btn mx-btn-soft" id="btn-native-share">
+          <i class="bi bi-share"></i> Compartir
+        </button>
+      </div>
+      <a class="mx-btn mx-btn-wa" id="btn-wa-share" href="{{ share_wa_url|default:'#' }}"
+         {% if share_wa_url %}target="_blank" rel="noopener noreferrer"{% else %}hidden{% endif %}>
+        <i class="bi bi-whatsapp"></i> Enviar bono a un familiar o amigo
+      </a>
+      <p class="mx-hint mt-3 mb-0">
+        Puedes regalárselo a alguien: al compartir, recibe el código para canjearlo
+        con un asesor MixLab en su próxima cotización.
+      </p>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="mx-card">
+      <div class="alert alert-warning small mb-0">
+        Tu reseña está guardada. El bono se generará en breve; contacta a MixLab si no lo ves.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  </main>
+
+  <footer class="mx-footer">
+    <div class="d-flex align-items-center">
+      <img src="{% static 'img/IsoLogo.png' %}" alt="">
+      <span>© {% now "Y" %} MixLab</span>
+    </div>
+    <a href="{% url 'store:home' %}">Ir a la tienda</a>
+  </footer>
+
+  {{ share_payload|json_script:"bonus-share-payload" }}
+  <script>
+  (function () {
+    var payload = {};
+    try {
+      payload = JSON.parse(document.getElementById('bonus-share-payload').textContent || '{}');
+    } catch (e) {
+      payload = {};
+    }
+    var codeEl = document.getElementById('bonus-code');
+    var code = (codeEl && codeEl.textContent || '').trim();
+    var message = payload.message || (
+      '¡Te regalo un bono MixLab!\nCódigo: ' + code +
+      '\nMuestra este código a tu asesor MixLab al cotizar (un solo uso).'
+    );
+
+    function notify(text) {
+      var btn = document.getElementById('btn-copy-code');
+      if (!btn) return;
+      var prev = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check2"></i> ' + text;
+      setTimeout(function () { btn.innerHTML = prev; }, 1600);
+    }
+
+    var copyBtn = document.getElementById('btn-copy-code');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        if (!code) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(function () {
+            notify('Copiado');
+          }).catch(function () {
+            window.prompt('Copia el código:', code);
+          });
+        } else {
+          window.prompt('Copia el código:', code);
+        }
+      });
+    }
+
+    var shareBtn = document.getElementById('btn-native-share');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', function () {
+        if (navigator.share) {
+          navigator.share({
+            title: payload.title || 'Bono MixLab',
+            text: message,
+          }).catch(function () {});
+          return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(message).then(function () {
+            alert('Mensaje del bono copiado. Pégalo donde quieras compartirlo.');
+          });
+        } else {
+          window.prompt('Copia este mensaje para compartirlo:', message);
+        }
+      });
+    }
+
+    var waBtn = document.getElementById('btn-wa-share');
+    if (waBtn && (!waBtn.getAttribute('href') || waBtn.getAttribute('href') === '#')) {
+      var url = 'https://wa.me/?text=' + encodeURIComponent(message);
+      waBtn.href = url;
+      waBtn.hidden = false;
+      waBtn.target = '_blank';
+      waBtn.rel = 'noopener noreferrer';
+    }
+  })();
+  </script>
+</body>
+</html>

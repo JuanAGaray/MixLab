@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Managers · MixLab{% endblock %}
+{% block body_class %}mgr-body{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mgr-body { background:#f1f5f9; }
+  .mgr-wrap { max-width: 1000px; margin: 0 auto; padding: 1rem .85rem 2.5rem; }
+  .mgr-nav-pills { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:1rem; }
+  .mgr-nav-pills a { text-decoration:none; font-weight:700; font-size:.82rem; padding:.4rem .75rem; border-radius:999px; background:#fff; color:#0f172a; border:1px solid #e2e8f0; }
+  .mgr-nav-pills a.active { background:#0F6FFF; color:#fff; border-color:#0F6FFF; }
+  .mgr-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.1rem; margin-bottom:1rem; }
+  .mgr-card h2 { font-size:1rem; font-weight:800; margin-bottom:.75rem; }
+  .tpl-row { border-bottom:1px solid #f1f5f9; padding:.75rem 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-wrap">
+  <h1 class="h4 fw-bold">Admin · MixLab Managers</h1>
+  <div class="mgr-nav-pills">
+    <a href="{% url 'store:managers_dashboard' %}">Dashboard</a>
+    <a href="{% url 'store:managers_activities' %}">Actividades</a>
+    <a href="{% url 'store:managers_results' %}">Resultados</a>
+    <a class="active" href="{% url 'store:managers_admin' %}">Admin</a>
+  </div>
+
+  {% if seed_hint %}
+  <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+    <span>Aún no hay plantillas. Inicializa el catálogo de actividades MixLab.</span>
+    <form method="post" class="m-0">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="seed">
+      <button class="btn btn-sm btn-warning">Crear catálogo inicial</button>
+    </form>
+  </div>
+  {% else %}
+  <form method="post" class="mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="seed">
+    <button class="btn btn-sm btn-outline-secondary">Re-sincronizar catálogo (solo faltantes)</button>
+  </form>
+  {% endif %}
+
+  <div class="mgr-card">
+    <h2>Configuración · metas y rueda</h2>
+    <form method="post" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_settings">
+      <div class="col-md-2">
+        <label class="form-label small">Meta diaria</label>
+        <input type="number" name="default_daily_goal" class="form-control form-control-sm" value="{{ settings_obj.default_daily_goal }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Meta semanal</label>
+        <input type="number" name="default_weekly_goal" class="form-control form-control-sm" value="{{ settings_obj.default_weekly_goal }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Modalidad rueda</label>
+        <select name="wheel_modality" class="form-select form-select-sm">
+          <option value="activities" {% if settings_obj.wheel_modality == 'activities' %}selected{% endif %}>Actividades</option>
+          <option value="points" {% if settings_obj.wheel_modality == 'points' %}selected{% endif %}>Puntuación</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Periodo default</label>
+        <select name="wheel_default_period" class="form-select form-select-sm">
+          <option value="daily" {% if settings_obj.wheel_default_period == 'daily' %}selected{% endif %}>Diario</option>
+          <option value="weekly" {% if settings_obj.wheel_default_period == 'weekly' %}selected{% endif %}>Semanal</option>
+          <option value="monthly" {% if settings_obj.wheel_default_period == 'monthly' %}selected{% endif %}>Mensual</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Casillas</label>
+        <input type="number" name="wheel_cell_count" class="form-control form-control-sm" value="{{ settings_obj.wheel_cell_count }}" min="24" max="400">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Anillos</label>
+        <input type="number" name="wheel_ring_count" class="form-control form-control-sm" value="{{ settings_obj.wheel_ring_count }}" min="3" max="10">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Pts objetivo</label>
+        <input type="number" name="wheel_target_points" class="form-control form-control-sm" value="{{ settings_obj.wheel_target_points }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Pts máximos</label>
+        <input type="number" name="wheel_max_points" class="form-control form-control-sm" value="{{ settings_obj.wheel_max_points }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Pts / casilla</label>
+        <input type="number" name="wheel_points_per_cell" class="form-control form-control-sm" value="{{ settings_obj.wheel_points_per_cell }}" min="1">
+      </div>
+      <div class="col-md-3">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="ranking_enabled" value="1" id="rank" {% if settings_obj.ranking_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="rank">Mostrar ranking</label>
+        </div>
+      </div>
+      <div class="col-md-3"><button class="btn btn-primary btn-sm w-100">Guardar configuración</button></div>
+    </form>
+  </div>
+
+  <div class="mgr-card">
+    <h2>8 decisiones clave de venta</h2>
+    {% for d in decisions %}
+    <form method="post" class="row g-2 align-items-end border-bottom py-3">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_decision">
+      <input type="hidden" name="decision_id" value="{{ d.id }}">
+      <div class="col-md-1">
+        <label class="small">#</label>
+        <div class="fw-bold">{{ d.order }}</div>
+      </div>
+      <div class="col-md-3">
+        <label class="small">Nombre</label>
+        <input name="name" class="form-control form-control-sm" value="{{ d.name }}">
+        <input name="short_label" class="form-control form-control-sm mt-1" value="{{ d.short_label }}" placeholder="Etiqueta corta">
+      </div>
+      <div class="col-md-1">
+        <label class="small">Meta</label>
+        <input type="number" name="default_target" class="form-control form-control-sm" value="{{ d.default_target }}" min="1">
+      </div>
+      <div class="col-md-1">
+        <label class="small">Pts/u</label>
+        <input type="number" name="points_per_unit" class="form-control form-control-sm" value="{{ d.points_per_unit }}" min="0">
+      </div>
+      <div class="col-md-2">
+        <label class="small">Periodo</label>
+        <select name="period_kind" class="form-select form-select-sm">
+          <option value="daily" {% if d.period_kind == 'daily' %}selected{% endif %}>Diaria</option>
+          <option value="every_n_days" {% if d.period_kind == 'every_n_days' %}selected{% endif %}>Cada N días</option>
+          <option value="weekly" {% if d.period_kind == 'weekly' %}selected{% endif %}>Semanal</option>
+          <option value="monthly" {% if d.period_kind == 'monthly' %}selected{% endif %}>Mensual</option>
+        </select>
+        <input type="number" name="every_n_days" class="form-control form-control-sm mt-1" value="{{ d.every_n_days }}" min="1" title="N días">
+      </div>
+      <div class="col-md-1">
+        <label class="small">Color</label>
+        <input type="color" name="color" class="form-control form-control-sm form-control-color" value="{{ d.color }}">
+      </div>
+      <div class="col-md-2">
+        <label class="small">Cargo (vacío=todos)</label>
+        <input name="role_filter" class="form-control form-control-sm" value="{{ d.role_filter }}" placeholder="Ej: Ventas">
+        <div class="form-check mt-1">
+          <input type="checkbox" class="form-check-input" name="is_active" value="1" {% if d.is_active %}checked{% endif %} id="dact{{ d.id }}">
+          <label class="form-check-label small" for="dact{{ d.id }}">Activa</label>
+        </div>
+      </div>
+      <div class="col-md-1"><button class="btn btn-sm btn-outline-primary w-100">OK</button></div>
+    </form>
+    {% empty %}
+    <div class="text-muted small">Sin decisiones. Sincroniza el catálogo.</div>
+    {% endfor %}
+  </div>
+
+  <div class="mgr-card">
+    <h2>Meta personalizada por manager</h2>
+    <form method="post" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_manager_decision_goal">
+      <div class="col-md-4">
+        <label class="small">Manager</label>
+        <select name="user_id" class="form-select form-select-sm" required>
+          {% for p in profiles %}
+          <option value="{{ p.user_id }}">{{ p.get_display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="small">Decisión</label>
+        <select name="decision_id" class="form-select form-select-sm" required>
+          {% for d in decisions %}
+          <option value="{{ d.id }}">{{ d.order }}. {{ d.short_label|default:d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="small">Meta</label>
+        <input type="number" name="target" class="form-control form-control-sm" min="1" value="1" required>
+      </div>
+      <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Asignar</button></div>
+    </form>
+    {% if decision_goals %}
+    <div class="mt-3 small">
+      {% for g in decision_goals %}
+      <div class="border-bottom py-1">{{ g.manager.get_full_name|default:g.manager.username }} · {{ g.decision.short_label }} = <strong>{{ g.target }}</strong></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="mgr-card">
+    <h2>Pendientes de validación ({{ pending_review|length }})</h2>
+    {% for a in pending_review %}
+    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+      <div>
+        <div class="fw-semibold">{{ a.title }}</div>
+        <div class="small text-muted">{{ a.assignee.get_full_name|default:a.assignee.username }} · {{ a.completed_at|date:"d/m H:i" }}</div>
+      </div>
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'store:managers_activity_detail' a.id %}">Revisar</a>
+    </div>
+    {% empty %}
+    <div class="text-muted small">Nada por revisar.</div>
+    {% endfor %}
+  </div>
+
+  <div class="mgr-card">
+    <h2>Metas por manager</h2>
+    {% for p in profiles %}
+    <form method="post" class="row g-2 align-items-end border-bottom py-3">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_goals">
+      <input type="hidden" name="user_id" value="{{ p.user_id }}">
+      <div class="col-md-3">
+        <div class="fw-semibold">{{ p.get_display_name }}</div>
+        <input name="role_label" class="form-control form-control-sm" value="{{ p.role_label }}" placeholder="Cargo">
+      </div>
+      <div class="col-md-2">
+        <label class="small">Diaria</label>
+        <input type="number" name="daily_goal" class="form-control form-control-sm" value="{{ p.daily_goal_points }}">
+      </div>
+      <div class="col-md-2">
+        <label class="small">Semanal</label>
+        <input type="number" name="weekly_goal" class="form-control form-control-sm" value="{{ p.weekly_goal_points }}">
+      </div>
+      <div class="col-md-2">
+        <div class="form-check mt-4">
+          <input type="checkbox" class="form-check-input" name="is_active" value="1" {% if p.is_active %}checked{% endif %}>
+          <label class="form-check-label small">Activo</label>
+        </div>
+      </div>
+      <div class="col-md-3"><button class="btn btn-sm btn-outline-primary w-100">Guardar</button></div>
+    </form>
+    {% empty %}
+    <div class="text-muted small">Sin perfiles. Ejecuta el catálogo inicial.</div>
+    {% endfor %}
+  </div>
+
+  <div class="mgr-card">
+    <h2>Plantillas de actividad</h2>
+    {% for t in templates %}
+    <div class="tpl-row">
+      <form method="post" class="row g-2 align-items-center">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_points">
+        <input type="hidden" name="template_id" value="{{ t.id }}">
+        <div class="col-md-4">
+          <div class="fw-semibold {% if not t.is_active %}text-muted text-decoration-line-through{% endif %}">{{ t.name }}</div>
+          <div class="small text-muted">{{ t.category.name }} · {{ t.get_frequency_display }}</div>
+        </div>
+        <div class="col-md-1">
+          <label class="small">Pts</label>
+          <input type="number" name="points" class="form-control form-control-sm" value="{{ t.points }}" min="1">
+        </div>
+        <div class="col-md-1">
+          <label class="small">Lím.</label>
+          <input type="number" name="daily_limit" class="form-control form-control-sm" value="{{ t.daily_limit }}" min="0">
+        </div>
+        <div class="col-md-3 small pt-3">
+          <label class="me-2"><input type="checkbox" name="requires_evidence" value="1" {% if t.requires_evidence %}checked{% endif %}> Evidencia</label>
+          <label><input type="checkbox" name="requires_validation" value="1" {% if t.requires_validation %}checked{% endif %}> Validación</label>
+        </div>
+        <div class="col-md-3 d-flex gap-1 pt-3">
+          <button class="btn btn-sm btn-primary">Guardar</button>
+      </form>
+      <form method="post" class="m-0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="toggle_template">
+        <input type="hidden" name="template_id" value="{{ t.id }}">
+        <button class="btn btn-sm btn-outline-secondary">{% if t.is_active %}Desactivar{% else %}Activar{% endif %}</button>
+      </form>
+        </div>
+    </div>
+    {% empty %}
+    <div class="text-muted small">Sin plantillas.</div>
+    {% endfor %}
+  </div>
+
+  <div class="mgr-card">
+    <h2>Ajuste auditable de puntos</h2>
+    <form method="post" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="adjust_points">
+      <div class="col-md-3">
+        <label class="small">Manager</label>
+        <select name="user_id" class="form-select form-select-sm" required>
+          {% for p in profiles %}
+          <option value="{{ p.user_id }}">{{ p.get_display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="small">Puntos (+/-)</label>
+        <input type="number" name="points" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-5">
+        <label class="small">Motivo</label>
+        <input type="text" name="reason" class="form-control form-control-sm" required placeholder="Ej: corrección duplicado">
+      </div>
+      <div class="col-md-2"><button class="btn btn-sm btn-warning w-100">Ajustar</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

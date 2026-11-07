@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Agendar COT-{{ quote.id }} · MixLab{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 640px;">
+  <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a COT-{{ quote.id }}
+  </a>
+
+  <h1 class="h4 fw-bold mt-2 mb-1">Agendar desde cotización</h1>
+  <p class="text-muted small mb-3">
+    Vincula COT-{{ quote.id }} al calendario de un combo.
+    No se crea otra cotización: se usa esta misma.
+  </p>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="small text-muted">Cliente</div>
+      <div class="fw-semibold">{{ client_name }}</div>
+      {% if client_phone %}
+      <div class="small text-muted mt-1"><i class="bi bi-whatsapp"></i> {{ client_phone }}</div>
+      {% endif %}
+      <div class="small text-muted mt-2">Total cotización</div>
+      <div class="fw-bold">{{ quote.total|pesos_colombianos }}</div>
+    </div>
+  </div>
+
+  {% if form_error %}
+  <div class="alert alert-danger py-2">{{ form_error }}</div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="combo_id">Combo / calendario *</label>
+          <select class="form-select" id="combo_id" name="combo_id" required>
+            <option value="">Selecciona un combo…</option>
+            {% for c in combos %}
+            <option value="{{ c.id }}" {% if selected_combo_id == c.id %}selected{% endif %}>
+              {{ c.name }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">El evento aparecerá en la agenda de ese combo.</div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" for="event_date">Fecha del evento *</label>
+            <input type="date" class="form-control" id="event_date" name="event_date"
+                   value="{{ prefill_date }}" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" for="event_time">Hora de llegada</label>
+            <input type="time" class="form-control" id="event_time" name="event_time"
+                   value="{{ prefill_time }}">
+          </div>
+        </div>
+
+        <div class="mb-3 mt-3">
+          <label class="form-label fw-semibold" for="location_text">Ubicación / dirección</label>
+          <input type="text" class="form-control" id="location_text" name="location_text"
+                 value="{{ prefill_location }}" placeholder="Ej: Salón Miramar, Blaz de Lezo">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="maps_url">Enlace Google Maps (opcional)</label>
+          <input type="url" class="form-control" id="maps_url" name="maps_url"
+                 value="{{ prefill_maps }}" placeholder="https://maps.google.com/...">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="status">Estado de la agenda</label>
+          <select class="form-select" id="status" name="status">
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if prefill_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="notes">Notas del evento</label>
+          <textarea class="form-control" id="notes" name="notes" rows="3"
+                    placeholder="Sabores, pasabocas, llegada, etc.">{{ prefill_notes }}</textarea>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-calendar-plus"></i> Agendar evento
+          </button>
+          <a class="btn btn-outline-secondary" href="{% url 'store:quotation_detail' quotation_id=quote.id %}">
+            Cancelar
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

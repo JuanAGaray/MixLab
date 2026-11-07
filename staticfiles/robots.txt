@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /accounts/
+Disallow: /manager/
+Disallow: /inventory/
+Disallow: /cotizaciones/
+Disallow: /api/
+Disallow: /cart/
+Disallow: /checkout/
+Disallow: /orders/
+
+# Sitemap
+Sitemap: https://mix-lab-git-main-juandgarays-projects.vercel.app/sitemap.xml

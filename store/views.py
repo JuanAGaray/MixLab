@@ -52,7 +52,7 @@ from .forms import (
     DrinzzContractConfigForm,
     EventLandingLeadForm,
 )
-from .models import Quotation, QuotationItem
+from .models import Quotation, QuotationItem, QuotationServiceReview, ServiceBonusCoupon
 
 # IVA en Colombia (por defecto 19%). Los precios ya incluyen IVA en este proyecto.
 IVA_RATE = Decimal('0.19')
@@ -3398,19 +3398,169 @@ def _parse_cal_year_month(cal_raw, today):
     return cal_year, cal_month
 
 
+# Paleta estable para colorear eventos por departamento (contraste sobre texto blanco)
+_COMBO_DEPT_COLORS = (
+    '#047857', '#0369a1', '#7c3aed', '#c2410c', '#be185d',
+    '#0f766e', '#1d4ed8', '#a21caf', '#b45309', '#9f1239',
+    '#15803d', '#075985', '#6d28d9', '#ea580c', '#db2777',
+    '#115e59', '#1e40af', '#86198f', '#92400e', '#881337',
+    '#166534', '#0c4a6e', '#5b21b6', '#9a3412', '#9d174d',
+    '#14532d', '#082f49', '#4c1d95', '#7c2d12', '#831843',
+    '#3f6212', '#155e75', '#701a75',
+)
+
+
+# Ciudades frecuentes → departamento (corrige snapshots viejos / defaults erróneos)
+_COMBO_CITY_TO_DEPT = {
+    'barranquilla': 'Atlántico',
+    'soledad': 'Atlántico',
+    'malambo': 'Atlántico',
+    'puerto colombia': 'Atlántico',
+    'galapa': 'Atlántico',
+    'sabanalarga': 'Atlántico',
+    'cartagena': 'Bolívar',
+    'turbaco': 'Bolívar',
+    'arjona': 'Bolívar',
+    'magangue': 'Bolívar',
+    'magangué': 'Bolívar',
+}
+
+
+def _combo_dept_from_city(city: str) -> str:
+    key = (city or '').strip().casefold()
+    if not key:
+        return ''
+    if key in _COMBO_CITY_TO_DEPT:
+        return _COMBO_CITY_TO_DEPT[key]
+    for city_name, dept in _COMBO_CITY_TO_DEPT.items():
+        if city_name in key or key in city_name:
+            return dept
+    return ''
+
+
+def _combo_booking_departamento(booking) -> str:
+    """
+    Departamento del evento para color/agenda.
+    Prioriza la cotización (fuente de verdad) sobre el snapshot del booking,
+    que a veces quedó en Bolívar por default aunque la COT esté en Barranquilla.
+    """
+    quote = getattr(booking, 'quotation', None)
+    quote_dept = ''
+    quote_city = ''
+    if quote is not None:
+        quote_dept = (getattr(quote, 'client_departamento', None) or '').strip()
+        if not quote_dept:
+            try:
+                quote_dept = (quote.display_client_departamento or '').strip()
+            except Exception:
+                quote_dept = ''
+        quote_city = (getattr(quote, 'client_city', None) or '').strip()
+        if not quote_city:
+            try:
+                quote_city = (quote.display_client_city or '').strip()
+            except Exception:
+                quote_city = ''
+        if quote_dept:
+            return quote_dept
+        inferred = _combo_dept_from_city(quote_city)
+        if inferred:
+            return inferred
+
+    book_dept = (getattr(booking, 'client_departamento', None) or '').strip()
+    book_city = (getattr(booking, 'client_city', None) or '').strip()
+    inferred_book = _combo_dept_from_city(book_city)
+    # Si el booking dice Bolívar pero la ciudad es Barranquilla (u otra del mapa), corregir
+    if inferred_book and book_dept and inferred_book != book_dept:
+        return inferred_book
+    if book_dept:
+        return book_dept
+    if inferred_book:
+        return inferred_book
+    return ''
+
+
+def _combo_dept_color(departamento: str) -> str:
+    """Color hex estable según departamento."""
+    key = (departamento or '').strip()
+    if not key:
+        return '#64748b'
+    try:
+        from accounts.forms import DEPARTAMENTOS_COLOMBIA
+        names = [d[0] for d in DEPARTAMENTOS_COLOMBIA if d[0]]
+        idx = names.index(key) if key in names else (
+            sum(ord(c) for c in key.casefold()) % len(_COMBO_DEPT_COLORS)
+        )
+    except Exception:
+        idx = sum(ord(c) for c in key.casefold()) % len(_COMBO_DEPT_COLORS)
+    return _COMBO_DEPT_COLORS[idx % len(_COMBO_DEPT_COLORS)]
+
+
+def _combo_annotate_booking_dept(booking):
+    """Adjunta dept + color en el booking para plantillas del calendario."""
+    dept = _combo_booking_departamento(booking)
+    booking.dept_name = dept or 'Sin departamento'
+    booking.dept_color = _combo_dept_color(dept)
+    return booking
+
+
 def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
     """Construye datos del calendario mensual del combo."""
     from calendar import monthrange
     from datetime import date as _date
 
-    def _group_rows(bookings):
+    def _group_rows(bookings, *, only_visible=None):
+        """
+        only_visible:
+          None = todos
+          True = hoy/futuro o pasados con saldo
+          False = solo pasados ya cobrados (realizados)
+        """
         by_date = {}
         for b in bookings:
-            by_date.setdefault(b.event_date, []).append(b)
-        return [
-            {'date': d, 'bookings': by_date[d]}
-            for d in sorted(by_date.keys())
-        ]
+            snap = _combo_booking_payment_snapshot(b)
+            is_past = b.event_date < today
+            has_debt = snap['remaining_balance'] > 0
+            is_active = (not is_past) or has_debt
+            if only_visible is True and not is_active:
+                continue
+            if only_visible is False and is_active:
+                continue
+            by_date.setdefault(b.event_date, []).append({
+                'booking': b,
+                'snap': snap,
+                'is_past': is_past,
+                'has_debt': has_debt,
+            })
+        rows = []
+        for d in sorted(by_date.keys()):
+            day_items = by_date[d]
+            day_total = Decimal('0.00')
+            day_paid = Decimal('0.00')
+            day_remaining = Decimal('0.00')
+            bookings_out = []
+            for item in day_items:
+                day_total += item['snap']['grand_total']
+                day_paid += item['snap']['amount_paid']
+                day_remaining += item['snap']['remaining_balance']
+                b = item['booking']
+                bookings_out.append({
+                    'booking': b,
+                    'pay_total': item['snap']['grand_total'],
+                    'pay_paid': item['snap']['amount_paid'],
+                    'pay_remaining': item['snap']['remaining_balance'],
+                    'is_past': item['is_past'],
+                    'has_debt': item['has_debt'],
+                })
+            rows.append({
+                'date': d,
+                'bookings': bookings_out,
+                'day_total': day_total,
+                'day_paid': day_paid,
+                'day_remaining': day_remaining,
+                'is_past_day': d < today,
+                'has_open_debt': day_remaining > 0,
+            })
+        return rows
 
     month_start = _date(cal_year, cal_month, 1)
     days_in_month = monthrange(cal_year, cal_month)[1]
@@ -3422,8 +3572,11 @@ def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
         bookings_qs.filter(event_date__range=(grid_start, grid_end))
     )
     bookings_by_date = {}
+    dept_legend = {}
     for b in month_bookings:
+        _combo_annotate_booking_dept(b)
         bookings_by_date.setdefault(b.event_date, []).append(b)
+        dept_legend[b.dept_name] = b.dept_color
 
     calendar_weeks = []
     cursor = grid_start
@@ -3452,17 +3605,53 @@ def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
         '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
     )
+    month_qs = bookings_qs.filter(event_date__range=(month_start, month_end))
+    month_list = list(month_qs)
+    for b in month_list:
+        _combo_annotate_booking_dept(b)
+        dept_legend[b.dept_name] = b.dept_color
+    month_event_rows = _group_rows(month_list, only_visible=True)
+    month_past_done_rows = _group_rows(month_list, only_visible=False)
+    dept_legend_items = [
+        {'name': name, 'color': color}
+        for name, color in sorted(dept_legend.items(), key=lambda x: x[0].casefold())
+    ]
     return {
         'combo': combo,
+        'today': today,
         'calendar_weeks': calendar_weeks,
         'cal_month_label': f'{month_names[cal_month]} {cal_year}',
         'cal_year': cal_year,
         'cal_month': cal_month,
         'prev_cal': prev_cal,
         'next_cal': next_cal,
-        'month_event_rows': _group_rows(
-            bookings_qs.filter(event_date__range=(month_start, month_end)),
-        ),
+        'month_event_rows': month_event_rows,
+        'month_past_done_rows': month_past_done_rows,
+        'month_past_done_count': sum(len(r['bookings']) for r in month_past_done_rows),
+        'dept_legend_items': dept_legend_items,
+    }
+
+def _combo_booking_payment_snapshot(booking: ComboBooking) -> dict:
+    """Total / abonado / por pagar de un evento (cotización o precio del booking)."""
+    quote = booking.quotation
+    grand = Decimal(str(booking.grand_total or 0))
+    if quote is not None:
+        quote_total = Decimal(str(quote.total or 0))
+        if quote_total > 0:
+            grand = quote_total
+        paid = Decimal(str(quote.amount_paid or 0))
+        remaining = Decimal(str(quote.remaining_balance or 0))
+        if quote_total <= 0:
+            remaining = grand - paid
+            if remaining < 0:
+                remaining = Decimal('0.00')
+    else:
+        paid = Decimal('0.00')
+        remaining = grand
+    return {
+        'grand_total': grand,
+        'amount_paid': paid,
+        'remaining_balance': remaining,
     }
 
 
@@ -3474,6 +3663,22 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
         reverse('store:quotation_detail', kwargs={'quotation_id': quote.id})
         if quote else ''
     )
+    review_url = (
+        reverse('store:quotation_review_manage', kwargs={'quotation_id': quote.id})
+        if quote else ''
+    )
+    review_submitted = False
+    if quote is not None:
+        try:
+            review_submitted = bool(
+                getattr(quote, 'service_review', None)
+                and quote.service_review.is_submitted
+            )
+        except Exception:
+            review_submitted = QuotationServiceReview.objects.filter(
+                quotation_id=quote.id,
+                submitted_at__isnull=False,
+            ).exists()
     combo_url = reverse('store:inventory_combo_detail', kwargs={'combo_id': booking.combo_id})
     delete_url = reverse('store:inventory_combo_booking_delete', kwargs={'booking_id': booking.id})
     try:
@@ -3481,6 +3686,37 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
     except Exception:
         # Fallback si el proceso aún no recargó urls.py
         notes_url = f'/inventory/combos/bookings/{booking.id}/notas/'
+
+    pay = _combo_booking_payment_snapshot(booking)
+
+    # Totales del mismo día (todos los eventos activos del combo)
+    day_total = Decimal('0.00')
+    day_paid = Decimal('0.00')
+    day_remaining = Decimal('0.00')
+    day_events = []
+    siblings = (
+        ComboBooking.objects
+        .filter(combo_id=booking.combo_id, event_date=booking.event_date)
+        .exclude(status='cancelado')
+        .select_related('quotation')
+        .prefetch_related('quotation__payments')
+        .order_by('event_time', 'created_at', 'id')
+    )
+    for sib in siblings:
+        snap = _combo_booking_payment_snapshot(sib)
+        day_total += snap['grand_total']
+        day_paid += snap['amount_paid']
+        day_remaining += snap['remaining_balance']
+        day_events.append({
+            'id': sib.id,
+            'client_name': sib.display_client_name,
+            'event_time': sib.event_time.strftime('%H:%M') if sib.event_time else '',
+            'grand_total': float(snap['grand_total']),
+            'amount_paid': float(snap['amount_paid']),
+            'remaining_balance': float(snap['remaining_balance']),
+            'is_current': sib.id == booking.id,
+        })
+
     return {
         'ok': True,
         'id': booking.id,
@@ -3498,17 +3734,67 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
         'status_display': booking.get_status_display(),
         'notes': booking.notes or '',
         'package_price': float(booking.package_price or 0),
+        'grand_total': float(pay['grand_total']),
+        'amount_paid': float(pay['amount_paid']),
+        'remaining_balance': float(pay['remaining_balance']),
         'quotation_id': quote.id if quote else None,
         'quotation_url': quote_url,
+        'review_url': review_url,
+        'review_submitted': review_submitted,
         'order_status': quote.get_order_status_display() if quote else '',
         'edit_url': edit_url,
         'delete_url': delete_url,
         'notes_url': notes_url,
+        'day_events_count': len(day_events),
+        'day_total': float(day_total),
+        'day_paid': float(day_paid),
+        'day_remaining': float(day_remaining),
+        'day_events': day_events,
+    }
+
+
+def _combo_agenda_week_payload(bookings_qs, today):
+    """Filas esta / próxima semana / futuros (+ anotación de depto)."""
+    week_start = today - timedelta(days=today.weekday())  # lunes
+    this_week_end = week_start + timedelta(days=6)
+    next_week_start = week_start + timedelta(days=7)
+    next_week_end = next_week_start + timedelta(days=6)
+
+    def _group_rows(bookings):
+        by_date = {}
+        for b in bookings:
+            _combo_annotate_booking_dept(b)
+            by_date.setdefault(b.event_date, []).append(b)
+        return [
+            {'date': d, 'bookings': by_date[d]}
+            for d in sorted(by_date.keys())
+        ]
+
+    this_week_rows = _group_rows(
+        list(bookings_qs.filter(event_date__range=(week_start, this_week_end))),
+    )
+    next_week_rows = _group_rows(
+        list(bookings_qs.filter(event_date__range=(next_week_start, next_week_end))),
+    )
+    future_rows = _group_rows(
+        list(bookings_qs.filter(event_date__gt=next_week_end)),
+    )
+    next_week_total = sum(len(r['bookings']) for r in next_week_rows)
+    future_total = sum(len(r['bookings']) for r in future_rows)
+    return {
+        'this_week_rows': this_week_rows,
+        'next_week_rows': next_week_rows,
+        'next_week_has_events': bool(next_week_rows),
+        'next_week_total': next_week_total,
+        'future_rows': future_rows,
+        'future_has_events': bool(future_rows),
+        'future_total': future_total,
     }
 
 
 @staff_member_required
 def inventory_combo_detail(request, combo_id):
+    """Shell rápido del combo: la agenda/calendario se carga por AJAX."""
     combo = get_object_or_404(
         RentalCombo.objects.prefetch_related(
             Prefetch(
@@ -3519,64 +3805,47 @@ def inventory_combo_detail(request, combo_id):
         id=combo_id,
     )
     today = timezone.now().date()
-    week_start = today - timedelta(days=today.weekday())  # lunes
-    this_week_end = week_start + timedelta(days=6)
-    next_week_start = week_start + timedelta(days=7)
-    next_week_end = next_week_start + timedelta(days=6)
-
-    bookings_qs = (
-        ComboBooking.objects
-        .filter(combo=combo)
-        .exclude(status='cancelado')
-        .select_related('quotation')
-        .prefetch_related('quotation__payments')
-        .order_by('event_date', 'event_time', 'created_at')
-    )
-
-    def _group_rows(bookings):
-        by_date = {}
-        for b in bookings:
-            by_date.setdefault(b.event_date, []).append(b)
-        return [
-            {'date': d, 'bookings': by_date[d]}
-            for d in sorted(by_date.keys())
-        ]
-
-    this_week_rows = _group_rows(
-        bookings_qs.filter(event_date__range=(week_start, this_week_end)),
-    )
-    next_week_rows = _group_rows(
-        bookings_qs.filter(event_date__range=(next_week_start, next_week_end)),
-    )
-    # Futuros: después de la próxima semana (ni esta ni la siguiente)
-    future_rows = _group_rows(
-        bookings_qs.filter(event_date__gt=next_week_end),
-    )
-    next_week_has_events = bool(next_week_rows)
-    next_week_total = sum(len(r['bookings']) for r in next_week_rows)
-    future_has_events = bool(future_rows)
-    future_total = sum(len(r['bookings']) for r in future_rows)
-
     cal_year, cal_month = _parse_cal_year_month((request.GET.get('cal') or '').strip(), today)
-    cal_data = _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today)
+    if cal_month == 1:
+        prev_cal = f'{cal_year - 1}-12'
+    else:
+        prev_cal = f'{cal_year}-{cal_month - 1:02d}'
+    if cal_month == 12:
+        next_cal = f'{cal_year + 1}-01'
+    else:
+        next_cal = f'{cal_year}-{cal_month + 1:02d}'
+    month_names = (
+        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    )
 
     return render(request, 'store/inventory/combo_detail.html', {
         'combo': combo,
         'today': today,
-        'this_week_rows': this_week_rows,
-        'next_week_rows': next_week_rows,
-        'next_week_has_events': next_week_has_events,
-        'next_week_total': next_week_total,
-        'future_rows': future_rows,
-        'future_has_events': future_has_events,
-        'future_total': future_total,
-        **cal_data,
+        'lazy_load_agenda': True,
+        'this_week_rows': [],
+        'next_week_rows': [],
+        'next_week_has_events': False,
+        'next_week_total': 0,
+        'future_rows': [],
+        'future_has_events': False,
+        'future_total': 0,
+        'calendar_weeks': [],
+        'cal_month_label': f'{month_names[cal_month]} {cal_year}',
+        'cal_year': cal_year,
+        'cal_month': cal_month,
+        'prev_cal': prev_cal,
+        'next_cal': next_cal,
+        'month_event_rows': [],
+        'month_past_done_rows': [],
+        'month_past_done_count': 0,
+        'dept_legend_items': [],
     })
 
 
 @staff_member_required
 def inventory_combo_calendar_ajax(request, combo_id):
-    """AJAX: HTML del calendario + detalle del mes."""
+    """AJAX: calendario del mes + detalle + columnas de semanas (con overlay)."""
     combo = get_object_or_404(RentalCombo, id=combo_id)
     today = timezone.now().date()
     cal_year, cal_month = _parse_cal_year_month((request.GET.get('cal') or '').strip(), today)
@@ -3589,6 +3858,7 @@ def inventory_combo_calendar_ajax(request, combo_id):
         .order_by('event_date', 'event_time', 'created_at')
     )
     cal_data = _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today)
+    weeks_data = _combo_agenda_week_payload(bookings_qs, today)
     calendar_html = render(
         request,
         'store/inventory/partials/combo_calendar_grid.html',
@@ -3598,6 +3868,16 @@ def inventory_combo_calendar_ajax(request, combo_id):
         request,
         'store/inventory/partials/combo_calendar_detail.html',
         cal_data,
+    ).content.decode('utf-8')
+    weeks_html = render(
+        request,
+        'store/inventory/partials/combo_agenda_weeks.html',
+        {**weeks_data, 'combo': combo, 'today': today},
+    ).content.decode('utf-8')
+    legend_html = render(
+        request,
+        'store/inventory/partials/combo_dept_legend.html',
+        {'dept_legend_items': cal_data.get('dept_legend_items') or []},
     ).content.decode('utf-8')
     return JsonResponse({
         'ok': True,
@@ -3609,8 +3889,13 @@ def inventory_combo_calendar_ajax(request, combo_id):
         'next_cal': cal_data['next_cal'],
         'calendar_html': calendar_html,
         'detail_html': detail_html,
+        'weeks_html': weeks_html,
+        'legend_html': legend_html,
+        'next_week_has_events': weeks_data['next_week_has_events'],
+        'next_week_total': weeks_data['next_week_total'],
+        'future_has_events': weeks_data['future_has_events'],
+        'future_total': weeks_data['future_total'],
     })
-
 
 def _combo_booking_agenda_lines(booking: ComboBooking) -> list:
     """Ítems operativos del evento: cotización, o paquete del combo + extras."""
@@ -3808,7 +4093,9 @@ def inventory_combo_day_summary_pdf(request, combo_id):
 def inventory_combo_booking_detail_ajax(request, booking_id):
     """AJAX: detalle de un evento para el modal."""
     booking = get_object_or_404(
-        ComboBooking.objects.select_related('combo', 'quotation', 'existing_client'),
+        ComboBooking.objects.select_related(
+            'combo', 'quotation', 'quotation__service_review', 'existing_client',
+        ).prefetch_related('quotation__payments'),
         id=booking_id,
     )
     return JsonResponse(_combo_booking_detail_payload(booking))
@@ -5081,15 +5368,10 @@ def quotation_edit_cancel(request, quotation_id):
     return redirect('store:quotation_detail', quotation_id=quotation_id)
 
 
-@staff_member_required
-def quotation_list(request):
-    """
-    Registro de cotizaciones en tablas separadas:
-    - Confirmadas pendientes de pago
-    - Cerradas / pago recibido (con total cancelado)
-    Solo se usa estado del pedido (sin columna de estado de cotización).
-    """
-    from django.db.models import Exists, OuterRef
+def _quotation_list_base_qs(request):
+    """Queryset filtrado + anotaciones ligeras para el registro de cotizaciones."""
+    from django.db.models import Exists, OuterRef, Subquery, Value, DecimalField
+    from django.db.models.functions import Coalesce
 
     quotes = Quotation.objects.select_related('existing_client', 'created_by').order_by('-created_at')
     rental_lines = QuotationItem.objects.filter(
@@ -5097,10 +5379,22 @@ def quotation_list(request):
         product__product_type='rental',
     )
     payment_rows = QuotationPayment.objects.filter(quotation_id=OuterRef('pk'))
+    payments_sum_sq = (
+        QuotationPayment.objects.filter(quotation_id=OuterRef('pk'))
+        .values('quotation_id')
+        .annotate(s=Sum('amount'))
+        .values('s')[:1]
+    )
     quotes = quotes.annotate(
         includes_rental=Exists(rental_lines),
         has_payment_record=Exists(payment_rows),
+        payments_sum=Coalesce(
+            Subquery(payments_sum_sq),
+            Value(Decimal('0.00')),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        ),
     )
+
     client_search = (request.GET.get('cliente') or '').strip()
     if client_search:
         quotes = quotes.filter(
@@ -5118,6 +5412,28 @@ def quotation_list(request):
     if order_filter and order_filter in dict(Quotation.ORDER_STATUS_CHOICES):
         quotes = quotes.filter(order_status=order_filter)
 
+    return quotes, client_search, manager_id, order_filter
+
+
+def _quotation_list_attach_payment_totals(items, *, paid_statuses):
+    """Evita N+1 de amount_paid/remaining_balance usando payments_sum anotado."""
+    paid_set = set(paid_statuses)
+    for q in items:
+        total = Decimal(str(q.total or 0))
+        if q.order_status in paid_set:
+            paid = total
+        else:
+            paid = Decimal(str(getattr(q, 'payments_sum', None) or 0))
+            if paid <= 0 and q.partial_payment_amount is not None:
+                paid = Decimal(str(q.partial_payment_amount))
+        rem = total - paid
+        q.list_amount_paid = paid
+        q.list_remaining_balance = rem if rem > 0 else Decimal('0.00')
+    return items
+
+
+def _quotation_list_build_sections(quotes, *, limit=80):
+    """Arma las 4 secciones del registro (con tope por sección para respuesta rápida)."""
     paid_statuses = list(_fully_paid_statuses())
     pending_statuses = ('aceptado', 'esperando_pago')
     other_statuses = ('sin_respuesta', 'rechazado')
@@ -5128,19 +5444,58 @@ def quotation_list(request):
     other_qs = quotes.filter(order_status__in=other_statuses)
 
     def _section(qs, *, is_partial=False):
-        items = list(qs)
-        total = sum((Decimal(str(q.total or 0)) for q in items), Decimal('0.00'))
+        count = qs.count()
+        # Aggregate totals in DB (no need to materialize all rows)
+        total = qs.aggregate(s=Sum('total'))['s'] or Decimal('0.00')
+        items = list(qs[:limit])
+        _quotation_list_attach_payment_totals(items, paid_statuses=paid_statuses)
         data = {
             'items': items,
-            'total': total,
-            'count': len(items),
+            'total': Decimal(str(total)),
+            'count': count,
+            'truncated': count > limit,
+            'limit': limit,
         }
         if is_partial:
-            paid_sum = sum((q.amount_paid for q in items), Decimal('0.00'))
-            remaining_sum = sum((q.remaining_balance for q in items), Decimal('0.00'))
+            paid_sum = sum((getattr(q, 'list_amount_paid', Decimal('0')) for q in items), Decimal('0.00'))
+            remaining_sum = sum(
+                (getattr(q, 'list_remaining_balance', Decimal('0')) for q in items),
+                Decimal('0.00'),
+            )
+            # If truncated, fall back to DB-friendly estimate from partial_payment_amount
+            if count > limit:
+                agg = qs.aggregate(
+                    paid_agg=Sum('partial_payment_amount'),
+                    total_agg=Sum('total'),
+                )
+                paid_sum = Decimal(str(agg['paid_agg'] or 0))
+                total_all = Decimal(str(agg['total_agg'] or 0))
+                remaining_sum = total_all - paid_sum
+                if remaining_sum < 0:
+                    remaining_sum = Decimal('0.00')
             data['paid_total'] = paid_sum
             data['remaining_total'] = remaining_sum
         return data
+
+    return {
+        'pending': _section(pending_qs),
+        'partial': _section(partial_qs, is_partial=True),
+        'paid': _section(paid_qs),
+        'other': _section(other_qs),
+        'paid_statuses': paid_statuses,
+        'pending_statuses': list(pending_statuses),
+    }
+
+
+@staff_member_required
+def quotation_list(request):
+    """
+    Shell rápido del registro: filtros + skeletons.
+    Las tablas se cargan por AJAX (quotation_ajax_list_sections).
+    """
+    client_search = (request.GET.get('cliente') or '').strip()
+    manager_id = request.GET.get('manager')
+    order_filter = (request.GET.get('pedido') or '').strip()
 
     manager_ids = (
         Quotation.objects.exclude(created_by_id__isnull=True)
@@ -5149,20 +5504,75 @@ def quotation_list(request):
     )
     managers = User.objects.filter(id__in=manager_ids).order_by('username')
 
+    empty = {'items': [], 'total': Decimal('0.00'), 'count': 0, 'truncated': False, 'limit': 80}
+
     return render(request, 'store/quotation_list.html', {
-        'pending': _section(pending_qs),
-        'partial': _section(partial_qs, is_partial=True),
-        'paid': _section(paid_qs),
-        'other': _section(other_qs),
+        'pending': empty,
+        'partial': {**empty, 'paid_total': Decimal('0.00'), 'remaining_total': Decimal('0.00')},
+        'paid': empty,
+        'other': empty,
         'managers': managers,
         'filter_cliente': client_search,
         'filter_manager': manager_id,
         'filter_pedido': order_filter,
         'order_status_choices': Quotation.ORDER_STATUS_CHOICES,
-        'paid_statuses': paid_statuses,
-        'pending_statuses': list(pending_statuses),
+        'paid_statuses': list(_fully_paid_statuses()),
+        'pending_statuses': ['aceptado', 'esperando_pago'],
+        'lazy_load_sections': True,
     })
 
+
+@staff_member_required
+def quotation_ajax_list_sections(request):
+    """Devuelve HTML de las 4 secciones del registro + totales (carga diferida)."""
+    from django.template.loader import render_to_string
+    from store.templatetags.store_tags import pesos_colombianos
+
+    quotes, client_search, manager_id, order_filter = _quotation_list_base_qs(request)
+    built = _quotation_list_build_sections(quotes)
+    ctx_common = {
+        'order_status_choices': Quotation.ORDER_STATUS_CHOICES,
+        'paid_statuses': built['paid_statuses'],
+        'pending_statuses': built['pending_statuses'],
+        'request': request,
+    }
+
+    def _money(value):
+        return pesos_colombianos(value)
+
+    sections_payload = {}
+    for key in ('pending', 'partial', 'paid', 'other'):
+        section = built[key]
+        rows_html = render_to_string(
+            'store/partials/quotation_list_section_rows.html',
+            {
+                **ctx_common,
+                'section_key': key,
+                'section': section,
+                'empty_message': {
+                    'pending': 'No hay cotizaciones confirmadas pendientes de pago.',
+                    'partial': 'No hay cotizaciones con pago parcial.',
+                    'paid': 'No hay cotizaciones con pago recibido.',
+                    'other': 'No hay cotizaciones sin respuesta o rechazadas.',
+                }.get(key, 'Sin registros.'),
+            },
+            request=request,
+        )
+        payload = {
+            'html': rows_html,
+            'count': section['count'],
+            'total': _money(section['total']),
+            'truncated': section.get('truncated', False),
+            'limit': section.get('limit', 80),
+        }
+        if key == 'partial':
+            payload['paid_total'] = _money(section.get('paid_total', 0))
+            payload['remaining_total'] = _money(section.get('remaining_total', 0))
+        if key == 'other':
+            payload['show'] = section['count'] > 0
+        sections_payload[key] = payload
+
+    return JsonResponse({'ok': True, 'sections': sections_payload})
 
 @staff_member_required
 def quotation_wa_share(request, quotation_id):
@@ -5542,6 +5952,7 @@ def quotation_detail(request, quotation_id):
     except ComboBooking.DoesNotExist:
         combo_booking = None
 
+
     # Registrar pago / referencia (solo staff) — transferencia (con foto) o efectivo (sin foto)
     if (
         request.method == 'POST'
@@ -5735,23 +6146,49 @@ def quotation_detail(request, quotation_id):
         total_base += it.base_subtotal
         total_iva += it.iva_subtotal
 
-    rental_requirements = None
-    delivery_acta = None
-    if q.has_rental_items:
-        rental_requirements = RentalContractRequirements.objects.filter(quotation=q).first()
-        delivery_acta = RentalDeliveryActa.objects.filter(quotation=q).first()
+    # Prefetch pagos una sola vez (evita N+1 de amount_paid / has_payment_record)
+    payment_records = list(q.payments.select_related('created_by').all())
+    payments_total = sum((Decimal(str(p.amount or 0)) for p in payment_records), Decimal('0.00'))
+    fully_paid_statuses = _fully_paid_statuses()
+    if q.order_status in fully_paid_statuses:
+        amount_paid = Decimal(str(q.total or 0))
+    elif payments_total > 0:
+        amount_paid = payments_total
+    elif q.partial_payment_amount is not None:
+        amount_paid = Decimal(str(q.partial_payment_amount))
+    else:
+        amount_paid = Decimal('0.00')
+    remaining_balance = Decimal(str(q.total or 0)) - amount_paid
+    if remaining_balance < 0:
+        remaining_balance = Decimal('0.00')
+    has_payment_record = bool(payment_records) or bool(getattr(q, 'payment_proof', None))
 
-    # Completar tipo/depto/ciudad si la cotización se creó sin copiar el perfil
-    q.sync_client_snapshot_from_profile(save=True)
+    # has_rental sin query extra: mirar ítems ya cargados
+    has_rental_items = any(
+        getattr(getattr(it, 'product', None), 'product_type', None) == 'rental'
+        for it in items
+    )
 
-    # Cotizaciones ya con pago total: asegurar cierre (legado)
-    if q.order_status in _fully_paid_statuses() and q.quotation_status != 'cerrada':
+    # Snapshot: solo si faltan datos (evita WRITE en cada GET)
+    needs_snapshot = (
+        q.existing_client_id
+        and (
+            not (q.client_name or '').strip()
+            or not (q.client_email or '').strip()
+            or not (q.client_department or '').strip()
+            or not (q.client_city or '').strip()
+            or q.client_kind in ('', 'existing')
+        )
+    )
+    if needs_snapshot:
+        q.sync_client_snapshot_from_profile(save=True)
+
+    # Cierre legado solo si hace falta
+    if q.order_status in fully_paid_statuses and q.quotation_status != 'cerrada':
         _close_quotation_on_full_payment(q)
         q.save(update_fields=['quotation_status', 'updated_at'])
 
-    from store.dian.models import DianElectronicInvoice
-    dian_invoice = DianElectronicInvoice.objects.filter(quotation=q).first()
-
+    # Secciones secundarias (DIAN / alquiler / reseña) se cargan por AJAX
     return render(
         request,
         'store/quotation_detail.html',
@@ -5761,20 +6198,264 @@ def quotation_detail(request, quotation_id):
             'expires_at': expires_at,
             'total_base': total_base,
             'total_iva': total_iva,
-            'rental_requirements': rental_requirements,
-            'delivery_acta': delivery_acta,
-            'is_fully_paid': _quotation_is_fully_paid(q) or q.order_status in _fully_paid_statuses(),
-            'is_quote_closed': q.quotation_status == 'cerrada' or q.order_status in _fully_paid_statuses(),
+            'rental_requirements': None,
+            'delivery_acta': None,
+            'service_review': None,
+            'redeemed_bonus': None,
+            'has_rental_items': has_rental_items,
+            'is_fully_paid': (q.order_status in fully_paid_statuses and has_payment_record)
+            or q.order_status in fully_paid_statuses,
+            'is_quote_closed': q.quotation_status == 'cerrada' or q.order_status in fully_paid_statuses,
             'can_edit_quote': _quotation_can_edit(q),
             'client_wa': _quotation_client_wa_urls(q, request=request),
-            'payment_records': list(q.payments.select_related('created_by').all()),
-            'amount_paid': q.amount_paid,
-            'remaining_balance': q.remaining_balance,
-            'has_payment_record': _quotation_has_payment_record(q),
+            'payment_records': payment_records,
+            'amount_paid': amount_paid,
+            'remaining_balance': remaining_balance,
+            'has_payment_record': has_payment_record,
             'combo_booking': combo_booking,
-            'dian_invoice': dian_invoice,
+            'dian_invoice': None,
+            'lazy_load_extras': True,
         },
     )
+
+
+def quotation_ajax_detail_extras(request, quotation_id):
+    """HTML diferido: menú DIAN/alquiler + tarjeta de bono + badge reseña."""
+    from django.template.loader import render_to_string
+    from store.dian.models import DianElectronicInvoice
+
+    q = get_object_or_404(
+        Quotation.objects.select_related('existing_client', 'created_by'),
+        id=quotation_id,
+    )
+    items = list(q.items.select_related('product').all())
+    has_rental_items = any(
+        getattr(getattr(it, 'product', None), 'product_type', None) == 'rental'
+        for it in items
+    )
+
+    rental_requirements = None
+    delivery_acta = None
+    if has_rental_items:
+        rental_requirements = RentalContractRequirements.objects.filter(quotation=q).first()
+        delivery_acta = RentalDeliveryActa.objects.filter(quotation=q).first()
+
+    service_review = QuotationServiceReview.objects.filter(quotation=q).first()
+    redeemed_bonus = ServiceBonusCoupon.objects.filter(
+        redeemed_on_quotation=q, status='redeemed',
+    ).first()
+    dian_invoice = DianElectronicInvoice.objects.filter(quotation=q).first()
+
+    fully_paid = q.order_status in _fully_paid_statuses()
+    ctx = {
+        'quote': q,
+        'has_rental_items': has_rental_items,
+        'rental_requirements': rental_requirements,
+        'delivery_acta': delivery_acta,
+        'service_review': service_review,
+        'redeemed_bonus': redeemed_bonus,
+        'dian_invoice': dian_invoice,
+        'is_fully_paid': fully_paid,
+        'can_edit_quote': _quotation_can_edit(q),
+    }
+    actions_html = render_to_string(
+        'store/partials/quotation_detail_extras_actions.html', ctx, request=request,
+    )
+    bonus_html = render_to_string(
+        'store/partials/quotation_detail_extras_bonus.html', ctx, request=request,
+    )
+    review_ok = bool(service_review and getattr(service_review, 'is_submitted', False))
+    dian_label = 'Ver FE DIAN' if dian_invoice else 'Emitir FE DIAN'
+    return JsonResponse({
+        'ok': True,
+        'actions_html': actions_html,
+        'bonus_html': bonus_html,
+        'review_ok': review_ok,
+        'dian_label': dian_label,
+    })
+
+
+@staff_member_required
+def quotation_schedule(request, quotation_id):
+    """Agendar un evento en el calendario a partir de una cotización ya generada."""
+    from datetime import datetime as _dt
+
+    q = get_object_or_404(
+        Quotation.objects.select_related('existing_client', 'created_by'),
+        id=quotation_id,
+    )
+    try:
+        existing = q.combo_booking
+    except ComboBooking.DoesNotExist:
+        existing = None
+    if existing:
+        messages.info(request, f'Esta cotización ya está agendada (#{existing.id}).')
+        return redirect(
+            reverse('store:inventory_combo_booking_edit', kwargs={'booking_id': existing.id})
+            + f'?next={reverse("store:quotation_detail", kwargs={"quotation_id": q.id})}'
+        )
+
+    combos = list(
+        RentalCombo.objects.filter(available=True)
+        .order_by('name')
+    )
+    if not combos:
+        messages.error(request, 'No hay combos disponibles para agendar. Crea uno primero.')
+        return redirect('store:quotation_detail', quotation_id=q.id)
+
+    # Prefill fecha desde notas "Fecha evento: DD/MM/YYYY [HH:MM]"
+    prefill_date = ''
+    prefill_time = ''
+    notes_src = q.notes or ''
+    m = re.search(
+        r'Fecha evento:\s*(\d{1,2}/\d{1,2}/\d{4})(?:\s+(\d{1,2}:\d{2}))?',
+        notes_src,
+        flags=re.IGNORECASE,
+    )
+    if m:
+        try:
+            prefill_date = _dt.strptime(m.group(1), '%d/%m/%Y').date().isoformat()
+        except ValueError:
+            prefill_date = ''
+        if m.group(2):
+            prefill_time = m.group(2)
+
+    form_error = ''
+    selected_combo_id = None
+    if request.method == 'POST':
+        try:
+            combo_id_raw = (request.POST.get('combo_id') or '').strip()
+            try:
+                selected_combo_id = int(combo_id_raw)
+            except (TypeError, ValueError):
+                raise ValidationError('Selecciona el combo al que se agenda este evento.')
+            combo = next((c for c in combos if c.id == selected_combo_id), None)
+            if not combo:
+                raise ValidationError('Combo inválido o no disponible.')
+
+            event_date_raw = (request.POST.get('event_date') or '').strip()
+            if not event_date_raw:
+                raise ValidationError('La fecha del evento es obligatoria.')
+            try:
+                event_date = _dt.strptime(event_date_raw, '%Y-%m-%d').date()
+            except ValueError:
+                raise ValidationError('Fecha del evento inválida.')
+
+            event_time = None
+            event_time_raw = (request.POST.get('event_time') or '').strip()
+            if event_time_raw:
+                try:
+                    event_time = _dt.strptime(event_time_raw, '%H:%M').time()
+                except ValueError:
+                    try:
+                        event_time = _dt.strptime(event_time_raw, '%H:%M:%S').time()
+                    except ValueError:
+                        raise ValidationError('Hora del evento inválida.')
+
+            location_text = (request.POST.get('location_text') or '').strip()
+            maps_url = (request.POST.get('maps_url') or '').strip()
+            notes = (request.POST.get('notes') or '').strip()
+            status = (request.POST.get('status') or 'agendado').strip()
+            valid_statuses = {c[0] for c in ComboBooking.STATUS_CHOICES}
+            if status not in valid_statuses:
+                status = 'agendado'
+
+            client_name = (
+                (q.display_client_name if hasattr(q, 'display_client_name') else '')
+                or (q.client_name or '')
+                or 'Cliente'
+            ).strip()
+            client_phone = (
+                (getattr(q, 'display_client_phone', None) or q.client_phone or '')
+            ).strip()
+            client_email = (q.client_email or '').strip()
+            client_document = (
+                (getattr(q, 'display_client_document', None) or q.client_document or '')
+            ).strip()
+            client_departamento = (
+                (getattr(q, 'display_client_departamento', None) or q.client_departamento or '')
+            ).strip()
+            client_city = (
+                (getattr(q, 'display_client_city', None) or q.client_city or '')
+            ).strip()
+            if not client_departamento:
+                client_departamento = _combo_dept_from_city(client_city)
+            client_kind = (q.client_kind or 'natural').strip() or 'natural'
+
+            booking = ComboBooking(
+                combo=combo,
+                quotation=q,
+                created_by=request.user if request.user.is_authenticated else None,
+                existing_client=q.existing_client,
+                client_kind=client_kind if client_kind in dict(ComboBooking.CLIENT_KIND_CHOICES) else 'natural',
+                client_name=client_name[:200],
+                client_email=client_email,
+                client_phone=client_phone[:64],
+                client_document=client_document[:30],
+                client_departamento=client_departamento[:100],
+                client_city=client_city[:100],
+                event_date=event_date,
+                event_time=event_time,
+                location_text=location_text[:500],
+                maps_url=maps_url[:500],
+                package_price=Decimal(str(q.total or 0)),
+                notes=notes,
+                status=status,
+            )
+            booking.save()
+
+            # Sincronizar línea de fecha en notas de la cotización
+            date_txt = event_date.strftime('%d/%m/%Y')
+            if event_time:
+                date_txt = f'{date_txt} {event_time.strftime("%H:%M")}'
+            new_line = f'Fecha evento: {date_txt}'
+            notes_q = q.notes or ''
+            if re.search(r'^Fecha evento:.*$', notes_q, flags=re.MULTILINE):
+                notes_q = re.sub(r'^Fecha evento:.*$', new_line, notes_q, count=1, flags=re.MULTILINE)
+            else:
+                notes_q = (notes_q.rstrip() + '\n' + new_line).strip() if notes_q.strip() else new_line
+            q.notes = notes_q
+            q.save(update_fields=['notes', 'updated_at'])
+
+            messages.success(
+                request,
+                f'Evento agendado el {event_date.strftime("%d/%m/%Y")}'
+                + (f' a las {event_time.strftime("%H:%M")}' if event_time else '')
+                + f' en «{combo.name}».',
+            )
+            try:
+                wa_ok = bool(_notify_wa_combo_booking(booking, request=request, event='nuevo'))
+                if not wa_ok:
+                    messages.warning(request, 'Quedó agendado, pero no se pudo notificar a WhatsApp.')
+            except Exception:
+                logger.exception('Error notificando WA al agendar desde cotización #%s', q.id)
+                messages.warning(request, 'Quedó agendado, pero no se pudo notificar a WhatsApp.')
+
+            return redirect('store:quotation_detail', quotation_id=q.id)
+        except ValidationError as e:
+            form_error = str(getattr(e, 'message', e))
+            messages.error(request, form_error)
+        except Exception:
+            logger.exception('Error agendando cotización #%s', q.id)
+            form_error = 'No se pudo agendar. Revisa los datos e intenta de nuevo.'
+            messages.error(request, form_error)
+
+    return render(request, 'store/quotation_schedule.html', {
+        'quote': q,
+        'combos': combos,
+        'selected_combo_id': selected_combo_id or (combos[0].id if len(combos) == 1 else None),
+        'prefill_date': request.POST.get('event_date') or prefill_date,
+        'prefill_time': request.POST.get('event_time') or prefill_time,
+        'prefill_location': request.POST.get('location_text') or '',
+        'prefill_maps': request.POST.get('maps_url') or '',
+        'prefill_notes': request.POST.get('notes') or '',
+        'prefill_status': request.POST.get('status') or 'agendado',
+        'status_choices': ComboBooking.STATUS_CHOICES,
+        'form_error': form_error,
+        'client_name': getattr(q, 'display_client_name', None) or q.client_name or 'Cliente',
+        'client_phone': q.client_phone or '',
+    })
+
 
 
 def _infer_quotation_list_unit_price(product, unit_price) -> Decimal:

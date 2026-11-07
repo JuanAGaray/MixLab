@@ -513,6 +513,27 @@
           </li>
           {% endif %}
 
+          {% if request.user.is_staff and not combo_booking %}
+          <li>
+            <a class="qd-action-item" href="{% url 'store:quotation_schedule' quotation_id=quote.id %}">
+              <i class="bi bi-calendar-plus"></i> Agendar evento
+            </a>
+          </li>
+          {% elif request.user.is_staff and combo_booking %}
+          <li>
+            <a class="qd-action-item" href="{% url 'store:inventory_combo_booking_edit' booking_id=combo_booking.id %}?next={{ request.path }}">
+              <i class="bi bi-calendar-event"></i> Ver / editar agenda
+            </a>
+          </li>
+          {% endif %}
+
+          <li>
+            <a class="qd-action-item" href="{% url 'store:quotation_review_manage' quotation_id=quote.id %}" id="qd-review-action">
+              <i class="bi bi-star"></i> Enviar reseña / bono
+              <span class="badge text-bg-success ms-auto" id="qd-review-ok-badge" hidden>OK</span>
+            </a>
+          </li>
+
           {% if client_wa.has_phone %}
           <li>
             <form method="post" action="{% url 'store:quotation_wa_share' quotation_id=quote.id %}" class="m-0">
@@ -568,86 +589,8 @@
               <i class="bi bi-receipt"></i> Descargar comprobante FAC
             </a>
           </li>
-          <li>
-            <a class="qd-action-item{% if dian_invoice and dian_invoice.is_accepted %} qd-action-success{% elif dian_invoice %} qd-action-warn{% endif %}"
-               href="{% url 'store:quotation_dian_invoice' quotation_id=quote.id %}">
-              <i class="bi bi-receipt-cutoff"></i> Factura electrónica DIAN
-              {% if dian_invoice %}
-                {% if dian_invoice.is_accepted %}
-                <span class="badge text-bg-success ms-auto">Aceptada</span>
-                {% else %}
-                <span class="badge text-bg-secondary ms-auto">{{ dian_invoice.get_status_display }}</span>
-                {% endif %}
-              {% endif %}
-            </a>
-          </li>
-          {% if dian_invoice %}
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_dian_invoice_xml' quotation_id=quote.id %}">
-              <i class="bi bi-filetype-xml"></i> XML factura electrónica
-            </a>
-          </li>
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_dian_invoice_pdf' quotation_id=quote.id %}?download=1">
-              <i class="bi bi-file-pdf"></i> PDF factura electrónica
-            </a>
-          </li>
           {% endif %}
-          {% endif %}
-
-          {% if quote.has_rental_items %}
-          <li class="qd-action-divider"></li>
-          <li class="qd-action-group-label">Alquiler</li>
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
-              <i class="bi bi-pen"></i> Contrato de alquiler
-            </a>
-          </li>
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}?download=1">
-              <i class="bi bi-download"></i> Descargar contrato
-            </a>
-          </li>
-          <li>
-            <a class="qd-action-item{% if not rental_requirements or not rental_requirements.is_complete %} qd-action-warn{% endif %}"
-               href="{% url 'store:quotation_rental_requirements' quotation_id=quote.id %}">
-              <i class="bi bi-{% if rental_requirements and rental_requirements.is_complete %}check2-circle{% else %}exclamation-triangle-fill{% endif %}"></i>
-              Requisitos internos
-              {% if rental_requirements and rental_requirements.is_complete %}<span class="badge text-bg-success ms-auto">OK</span>{% endif %}
-            </a>
-          </li>
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_client_onboarding_manage' quotation_id=quote.id %}">
-              <i class="bi bi-phone"></i> Remitir al cliente
-              {% if rental_requirements and rental_requirements.client_onboarding_complete %}
-              <span class="badge text-bg-success ms-auto">OK</span>
-              {% endif %}
-            </a>
-          </li>
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_machine_parts' quotation_id=quote.id %}">
-              <i class="bi bi-tools"></i> Partes y costos de daño
-            </a>
-          </li>
-          {% if delivery_acta and delivery_acta.is_complete %}
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
-              <i class="bi bi-file-earmark-pdf"></i> Ver acta de recepción
-            </a>
-          </li>
-          <li>
-            <a class="qd-action-item" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}?download=1">
-              <i class="bi bi-download"></i> Descargar acta
-            </a>
-          </li>
-          {% else %}
-          <li>
-            <a class="qd-action-item qd-action-warn" href="{% url 'store:quotation_delivery_acta' quotation_id=quote.id %}">
-              <i class="bi bi-exclamation-triangle-fill"></i> Acta de recepción
-            </a>
-          </li>
-          {% endif %}
-          {% endif %}
+          <li id="qd-lazy-action-extras" class="qd-lazy-mount" aria-busy="true"></li>
         </ul>
         </div>
       </div>
@@ -663,9 +606,9 @@
         <div class="qd-help mb-0">Pago recibido. Emite la <strong>factura electrónica DIAN</strong> o descarga el comprobante interno.</div>
       </div>
       <div class="d-flex flex-wrap gap-2">
-        <a class="qd-btn qd-btn-success" href="{% url 'store:quotation_dian_invoice' quotation_id=quote.id %}">
+        <a class="qd-btn qd-btn-success" href="{% url 'store:quotation_dian_invoice' quotation_id=quote.id %}" id="qd-dian-banner-btn">
           <i class="bi bi-receipt-cutoff"></i>
-          {% if dian_invoice %}Ver FE DIAN{% else %}Emitir FE DIAN{% endif %}
+          <span data-role="dian-label">Emitir FE DIAN</span>
         </a>
         <a class="qd-btn qd-btn-outline-success" href="{% url 'store:quotation_invoice_download' quotation_id=quote.id %}?iva=1">
           <i class="bi bi-download"></i> Comprobante FAC
@@ -719,6 +662,18 @@
     </div>
   </div>
 
+  <div class="qd-card mb-3" id="bonus-redeem-section">
+    <div class="qd-card-head">
+      <h5><i class="bi bi-ticket-perforated me-1"></i> Bono reseña</h5>
+    </div>
+    <div class="qd-card-body" id="qd-bonus-body" aria-busy="true">
+      <div class="text-muted small py-1">
+        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+        Cargando bono…
+      </div>
+    </div>
+  </div>
+
   {% if combo_booking %}
   <div class="qd-card mb-3" id="combo-event-section">
     <div class="qd-card-head d-flex align-items-center justify-content-between gap-2 flex-wrap">
@@ -757,6 +712,21 @@
         </div>
         {% endif %}
       </div>
+    </div>
+  </div>
+  {% elif request.user.is_staff %}
+  <div class="qd-card mb-3" id="combo-event-section">
+    <div class="qd-card-head d-flex align-items-center justify-content-between gap-2 flex-wrap">
+      <h5 class="mb-0"><i class="bi bi-calendar-plus me-1"></i> Agenda del evento</h5>
+      <a class="qd-btn qd-btn-soft" href="{% url 'store:quotation_schedule' quotation_id=quote.id %}">
+        <i class="bi bi-calendar-plus"></i> Agendar
+      </a>
+    </div>
+    <div class="qd-card-body">
+      <p class="mb-0 text-muted small">
+        Esta cotización aún no está en el calendario. Agenda fecha, hora y ubicación
+        sin generar otra cotización.
+      </p>
     </div>
   </div>
   {% endif %}
@@ -1079,6 +1049,45 @@
 {% block extra_js %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
+    {% if lazy_load_extras %}
+    fetch("{% url 'store:quotation_ajax_detail_extras' quotation_id=quote.id %}", {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (payload) {
+        if (!payload || !payload.ok) return;
+        var mount = document.getElementById('qd-lazy-action-extras');
+        if (mount && payload.actions_html) {
+          mount.insertAdjacentHTML('afterend', payload.actions_html);
+          mount.remove();
+        } else if (mount) {
+          mount.remove();
+        }
+        var bonus = document.getElementById('qd-bonus-body');
+        if (bonus && payload.bonus_html != null) {
+          bonus.innerHTML = payload.bonus_html;
+          bonus.removeAttribute('aria-busy');
+        }
+        if (payload.review_ok) {
+          var badge = document.getElementById('qd-review-ok-badge');
+          if (badge) badge.hidden = false;
+        }
+        if (payload.dian_label) {
+          var label = document.querySelector('#qd-dian-banner-btn [data-role="dian-label"]');
+          if (label) label.textContent = payload.dian_label;
+        }
+      })
+      .catch(function () {
+        var mount = document.getElementById('qd-lazy-action-extras');
+        if (mount) mount.remove();
+        var bonus = document.getElementById('qd-bonus-body');
+        if (bonus) {
+          bonus.innerHTML = '<div class="qd-help mb-0 text-danger">No se pudo cargar el bono. Recarga la página.</div>';
+          bonus.removeAttribute('aria-busy');
+        }
+      });
+    {% endif %}
+
     if (window.location.hash === '#payment-proof-section') {
       var modalEl = document.getElementById('paymentProofModal');
       if (modalEl && window.bootstrap) {

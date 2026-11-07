@@ -47,8 +47,8 @@
     {{ q.total|pesos_colombianos }}
     {% if section == 'partial' %}
     <div class="partial-meta">
-      <div>Abonado: <span class="paid">{{ q.amount_paid|pesos_colombianos }}</span></div>
-      <div>Saldo: <span class="due">{{ q.remaining_balance|pesos_colombianos }}</span></div>
+      <div>Abonado: <span class="paid">{{ q.list_amount_paid|default_if_none:q.amount_paid|pesos_colombianos }}</span></div>
+      <div>Saldo: <span class="due">{{ q.list_remaining_balance|default_if_none:q.remaining_balance|pesos_colombianos }}</span></div>
     </div>
     {% endif %}
   </td>

@@ -627,6 +627,9 @@ class SiteSettingsForm(forms.ModelForm):
             'instagram_url',
             'tiktok_url',
             'facebook_url',
+            'review_bonus_percent',
+            'review_bonus_days',
+            'review_link_days',
         )
         widgets = {
             'contact_email': forms.EmailInput(attrs={'class': 'form-control'}),
@@ -661,6 +664,9 @@ class SiteSettingsForm(forms.ModelForm):
             'instagram_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://instagram.com/...'}),
             'tiktok_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://tiktok.com/@...'}),
             'facebook_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://facebook.com/...'}),
+            'review_bonus_percent': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 100}),
+            'review_bonus_days': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 365}),
+            'review_link_days': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 90}),
         }
         labels = {
             'contact_email': 'Correo de contacto',
@@ -684,6 +690,9 @@ class SiteSettingsForm(forms.ModelForm):
             'cuenta_cobro_ica_per_mille': 'Retención ICA (‰ sobre base)',
             'jurisdiction_city': 'Ciudad de jurisdicción',
             'instagram_url': 'Instagram',
+            'review_bonus_percent': 'Bono reseña (% descuento)',
+            'review_bonus_days': 'Vigencia del bono (días)',
+            'review_link_days': 'Vigencia del enlace de reseña (días)',
             'tiktok_url': 'TikTok',
             'facebook_url': 'Facebook (opcional)',
         }

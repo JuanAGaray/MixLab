@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Enviar reseña · COT-{{ quote.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:720px">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <a href="{% url 'store:quotation_detail' quotation_id=quote.id %}" class="small text-decoration-none">&larr; Volver a cotización</a>
+      <h1 class="h4 fw-bold mb-0 mt-1">Reseña + bono · COT-{{ quote.id }}</h1>
+      <p class="text-muted small mb-0">{{ quote.display_client_name }} · {{ quote.display_client_phone }}</p>
+    </div>
+  </div>
+
+  {% if review.is_submitted %}
+  <div class="alert alert-success">
+    Reseña recibida el {{ review.submitted_at|date:"d/m/Y H:i" }}.
+    Operario {{ review.score_operator }}/10 · Sabores {{ review.score_flavors }}/10 · Recomendación {{ review.score_recommend }}/10.
+  </div>
+  {% if coupon %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="fw-bold">Cupón generado: {{ coupon.code }}</div>
+      <div class="small text-muted">{{ coupon.discount_percent }}% · hasta {{ coupon.valid_until|date:"d/m/Y" }} · {{ coupon.get_status_display }}</div>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h2 class="h6 fw-bold">1. Generar enlace y código</h2>
+      <p class="small text-muted">
+        Bono por defecto: <strong>{{ settings_obj.review_bonus_percent }}%</strong>
+        por <strong>{{ settings_obj.review_bonus_days }}</strong> días.
+        Enlace de respuesta: {{ settings_obj.review_link_days }} días.
+      </p>
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="generate_link">
+        <div class="col-auto">
+          <label class="form-label small mb-0">Expira (días)</label>
+          <input type="number" name="expire_days" class="form-control form-control-sm" value="{{ settings_obj.review_link_days }}" min="1" max="90">
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary btn-sm">Generar / renovar</button>
+        </div>
+      </form>
+      {% if review.link_is_active %}
+      <form method="post" class="mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="revoke_link">
+        <button class="btn btn-outline-danger btn-sm">Revocar enlace</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if client_link and plain_code %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <h2 class="h6 fw-bold">2. Datos para el cliente</h2>
+      <div class="mb-2">
+        <label class="small fw-semibold">Enlace</label>
+        <input class="form-control form-control-sm" readonly value="{{ client_link }}" onclick="this.select()">
+      </div>
+      <div class="mb-3">
+        <label class="small fw-semibold">Código de verificación (abre el formulario)</label>
+        <input class="form-control form-control-sm fw-bold" readonly value="{{ plain_code }}" onclick="this.select()">
+        <div class="form-text">No confundir con el bono MIX-XXXXXX, que se genera al terminar la reseña y se canjea aquí en cotización.</div>
+      </div>
+      {% if review.link_is_active %}
+      <div class="mb-2">
+        <label class="small fw-semibold">Mensaje</label>
+        <textarea class="form-control form-control-sm" rows="8" readonly onclick="this.select()">{{ share_message }}</textarea>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="send_wa">
+          <button class="btn btn-success btn-sm">Enviar por WhatsApp (n8n)</button>
+        </form>
+        {% if wa_url %}
+        <a class="btn btn-outline-success btn-sm" href="{{ wa_url }}" target="_blank" rel="noopener">Abrir wa.me</a>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="text-muted small">El enlace no está activo. Genera uno nuevo.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

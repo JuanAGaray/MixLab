@@ -1,0 +1,590 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}8 Decisiones · {{ wheel.month_label }} · MixLab{% endblock %}
+{% block body_class %}mgr-body{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mgr-body { background: #eef2f7; }
+  .mgr-wrap { max-width: 1280px; margin: 0 auto; padding: 1rem .85rem 2.5rem; }
+  .mgr-nav-pills { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .85rem; }
+  .mgr-nav-pills a {
+    text-decoration: none; font-weight: 700; font-size: .78rem; padding: .35rem .7rem;
+    border-radius: 999px; background: #fff; color: #0f172a; border: 1px solid #e2e8f0;
+  }
+  .mgr-nav-pills a.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .mgr-top { margin-bottom: 1rem; }
+  .mgr-top h1 {
+    font-size: clamp(1.15rem, 2.4vw, 1.4rem); font-weight: 900; color: #0f172a; margin: 0 0 .2rem;
+  }
+  .mgr-top .sub { margin: 0; color: #64748b; font-size: .9rem; }
+  .mgr-layout { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 1100px) {
+    .mgr-layout { grid-template-columns: minmax(340px, 0.95fr) minmax(420px, 1.25fr); align-items: start; }
+  }
+  .mgr-card {
+    background: #fff; border: 1px solid #e8edf3; border-radius: 1rem;
+    padding: 1rem; box-shadow: 0 4px 18px rgba(15,23,42,.04);
+  }
+  .mgr-card h2 {
+    font-size: .72rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase;
+    color: #94a3b8; margin: 0 0 .75rem;
+  }
+  .dec-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  .dec-table th {
+    font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+    color: #94a3b8; text-align: left; padding: .35rem .4rem .55rem; border-bottom: 1px solid #f1f5f9;
+  }
+  .dec-table td { padding: .65rem .4rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .dec-table tr.done { background: #f0fdf4; }
+  .dec-num {
+    width: 1.55rem; height: 1.55rem; border-radius: .4rem; display: inline-flex;
+    align-items: center; justify-content: center; font-weight: 900; font-size: .72rem; color: #fff;
+  }
+  .dec-name { font-weight: 700; color: #0f172a; margin: 0; line-height: 1.2; }
+  .dec-meta { font-size: .7rem; color: #94a3b8; margin: .1rem 0 0; }
+  .dec-bar { height: 7px; background: #e2e8f0; border-radius: 99px; overflow: hidden; min-width: 70px; }
+  .dec-bar > i { display: block; height: 100%; border-radius: 99px; }
+  .dec-frac { font-size: .72rem; font-weight: 800; color: #64748b; white-space: nowrap; }
+  .dec-status {
+    width: 1.5rem; height: 1.5rem; border-radius: 99px; display: inline-flex;
+    align-items: center; justify-content: center; font-weight: 900; font-size: .75rem;
+  }
+  .dec-status.ok { background: #22c55e; color: #fff; }
+  .dec-status.prog { background: #fff7ed; color: #ea580c; border: 2px solid #fb923c; }
+  .dec-status.pend { background: #f1f5f9; color: #94a3b8; border: 2px solid #cbd5e1; }
+  .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-top: .85rem; }
+  .kpi {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .75rem; padding: .65rem .7rem; text-align: center;
+  }
+  .kpi .v { font-size: 1.05rem; font-weight: 900; color: #0f172a; }
+  .kpi .l { font-size: .65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-top: .15rem; }
+  .wd-bar { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .75rem; }
+  .wd-bar span { font-size: .68rem; font-weight: 800; padding: .28rem .45rem; border-radius: .45rem; }
+  .wd-bar .on { background: #dcfce7; color: #166534; }
+  .wd-bar .off { background: #f1f5f9; color: #94a3b8; }
+  .wheel-nav {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .5rem;
+  }
+  .wheel-nav .nav-btns { display: flex; align-items: center; gap: .35rem; }
+  .wheel-nav a {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; border-radius: .5rem; border: 1px solid #e2e8f0;
+    background: #fff; color: #0f172a; text-decoration: none; font-weight: 900;
+  }
+  .wheel-nav .title { font-weight: 900; font-size: 1rem; color: #0f172a; }
+  .wheel-nav .hint { font-size: .75rem; color: #94a3b8; font-weight: 600; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: .55rem; font-size: .7rem; font-weight: 700; color: #64748b; margin-bottom: .5rem;
+  }
+  .legend i {
+    display: inline-block; width: .65rem; height: .65rem; border-radius: .15rem; margin-right: .25rem;
+    vertical-align: -1px; border: 1px solid transparent;
+  }
+  .legend .done i { background: #22c55e; }
+  .legend .prog i { background: #f97316; }
+  .legend .pend i { background: #fff; border-color: #cbd5e1; }
+  .legend .wk i { background: #64748b; }
+  .wheel-svg-box { width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 1; }
+  .wheel-svg-box svg.mgr-wheel-svg {
+    width: 100%; height: 100%; display: block;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  /* Evitar estilos globales HTML sobre <text> SVG */
+  .mgr-wheel-svg text {
+    background: none !important;
+    box-shadow: none !important;
+    stroke: none;
+  }
+  .mcell { cursor: pointer; stroke: #fff; stroke-width: 1; }
+  .mcell.pending { fill: #f8fafc; stroke: #cbd5e1; }
+  .mcell.progress { fill: #f97316; stroke: #fff; }
+  .mcell.done { fill: #22c55e; stroke: #fff; }
+  .mcell.weekend, .mcell.na { fill: #64748b; stroke: #475569; cursor: not-allowed; }
+  .mcell:not(.weekend):not(.na):hover { filter: brightness(1.08); }
+  .mcell.selected { stroke: #0f172a; stroke-width: 1.85; }
+  .vista-rapida .n { font-size: 1.1rem; font-weight: 900; }
+  .vista-rapida .row { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 700; padding: .25rem 0; }
+  .month-bar { margin-top: .85rem; }
+  .month-bar .track { height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+  .month-bar .track > i { display: block; height: 100%; background: linear-gradient(90deg, #22c55e, #f97316); }
+  .month-bar .meta { display: flex; justify-content: space-between; font-size: .75rem; font-weight: 800; color: #64748b; margin-top: .35rem; }
+  .day-panel { margin-top: .85rem; border-top: 1px solid #f1f5f9; padding-top: .75rem; }
+  .day-panel h3 { font-size: .85rem; font-weight: 900; margin: 0 0 .5rem; }
+  .day-actions { display: flex; flex-direction: column; gap: .4rem; }
+  .day-act {
+    display: flex; align-items: center; gap: .5rem; justify-content: space-between;
+    padding: .45rem .55rem; border: 1px solid #e2e8f0; border-radius: .65rem; background: #f8fafc;
+  }
+  .day-act .nm { font-weight: 700; font-size: .8rem; }
+  .day-act .fr { font-size: .72rem; font-weight: 800; color: #64748b; }
+  .day-act .btns { display: flex; gap: .3rem; }
+  .day-act button {
+    width: 1.7rem; height: 1.7rem; border-radius: .4rem; border: 1px solid #e2e8f0;
+    background: #fff; font-weight: 900; cursor: pointer;
+  }
+  .day-act button.plus { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
+  .toast-mgr {
+    position: fixed; bottom: 1rem; right: 1rem; background: #0f172a; color: #fff;
+    padding: .65rem 1rem; border-radius: .65rem; font-weight: 700; font-size: .85rem;
+    z-index: 50; display: none;
+  }
+  .toast-mgr.err { background: #b91c1c; }
+  .wheel-tip {
+    position: fixed; z-index: 40; background: #0f172a; color: #fff; font-size: .72rem; font-weight: 600;
+    padding: .4rem .55rem; border-radius: .45rem; pointer-events: none; max-width: 260px; display: none;
+  }
+  .hist-row { display: flex; justify-content: space-between; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid #f1f5f9; font-size: .82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-wrap" id="mgr-root"
+     data-year="{{ wheel.year }}"
+     data-month="{{ wheel.month }}"
+     data-day="{{ selected_day }}"
+     data-add-url="{% url 'store:managers_decision_add' %}"
+     data-undo-url="{% url 'store:managers_decision_undo' %}"
+     data-csrf="{{ csrf_token }}">
+
+  <div class="mgr-nav-pills">
+    <a class="active" href="{% url 'store:managers_dashboard' %}?year={{ wheel.year }}&month={{ wheel.month }}">Rueda mensual</a>
+    <a href="{% url 'store:managers_activities' %}">Actividades</a>
+    <a href="{% url 'store:managers_results' %}">Resultados</a>
+    <a href="{% url 'store:managers_admin' %}">Administración</a>
+  </div>
+
+  <div class="mgr-top">
+    <h1>8 DECISIONES CLAVE DE VENTA</h1>
+    <p class="sub">Completa tus acciones diarias de lunes a viernes · {{ profile.get_display_name }}</p>
+  </div>
+
+  <div class="mgr-layout">
+    <div class="mgr-card">
+      <h2>Decisiones del mes</h2>
+      <table class="dec-table" id="dec-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Decisión</th>
+            <th>Meta día</th>
+            <th>Progreso mes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in wheel.decisions %}
+          <tr class="{% if d.is_done %}done{% endif %}" data-decision-id="{{ d.id }}">
+            <td><span class="dec-num" style="background:{{ d.color }};">{{ d.order }}</span></td>
+            <td>
+              <p class="dec-name">{{ d.short }}</p>
+              <p class="dec-meta">{{ d.name }}</p>
+            </td>
+            <td><strong>{{ d.daily_target }}</strong></td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div class="dec-bar flex-grow-1"><i style="width:{{ d.pct }}%;background:{{ d.color }};"></i></div>
+                <span class="dec-frac" data-frac>{{ d.current }}/{{ d.target }}</span>
+              </div>
+            </td>
+            <td>
+              {% if d.is_done %}<span class="dec-status ok">✓</span>
+              {% elif d.status == 'progress' %}<span class="dec-status prog">●</span>
+              {% else %}<span class="dec-status pend">○</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="v"><span data-k="points">{{ wheel.points_earned }}</span>/<span data-k="max">{{ wheel.max_points }}</span></div><div class="l">Puntos</div></div>
+        <div class="kpi"><div class="v" data-k="target">{{ wheel.target_points }}</div><div class="l">Meta mes</div></div>
+        <div class="kpi"><div class="v" data-k="wd">{{ wheel.working_days }}</div><div class="l">Días laborales</div></div>
+      </div>
+      <div class="wd-bar">
+        {% for w in wheel.weekday_bar %}
+        <span class="{% if w.work %}on{% else %}off{% endif %}">{{ w.label }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="mgr-card wheel-panel">
+      <div class="wheel-nav">
+        <div class="nav-btns">
+          <a href="?year={{ wheel.prev.year }}&month={{ wheel.prev.month }}" title="Mes anterior">‹</a>
+          <span class="title">{{ wheel.month_label }}</span>
+          <a href="?year={{ wheel.next.year }}&month={{ wheel.next.month }}" title="Mes siguiente">›</a>
+        </div>
+        <div class="hint">{{ wheel.working_days }} días laborales (Lun–Vie)</div>
+      </div>
+
+      <div class="legend">
+        <span class="done"><i></i>Completado</span>
+        <span class="prog"><i></i>En progreso</span>
+        <span class="pend"><i></i>Pendiente</span>
+        <span class="wk"><i></i>Fin de semana</span>
+      </div>
+
+      <div class="wheel-svg-box" id="wheel-mount"></div>
+      {{ wheel_data|json_script:"mgr-wheel-data" }}
+
+      <div class="side-mini mt-3">
+        <div class="mgr-card vista-rapida" style="margin:0;padding:.75rem;">
+          <h2>Vista rápida</h2>
+          <div class="row"><span>Completadas</span><span class="n text-success" data-s="done">{{ wheel.summary.done }}</span></div>
+          <div class="row"><span>En progreso</span><span class="n text-primary" data-s="progress">{{ wheel.summary.progress }}</span></div>
+          <div class="row"><span>Pendientes</span><span class="n" data-s="pending">{{ wheel.summary.pending }}</span></div>
+        </div>
+        <div class="month-bar">
+          <div class="d-flex justify-content-between"><strong style="font-size:.8rem;">Progreso mensual</strong><strong data-k="pct">{{ wheel.compliance_pct }}%</strong></div>
+          <div class="track"><i style="width:{{ wheel.compliance_pct }}%;" id="month-track"></i></div>
+          <div class="meta"><span>Solo días laborales</span><span data-k="cells">{{ wheel.cells_filled }}/{{ wheel.cell_count }}</span></div>
+        </div>
+      </div>
+
+      <div class="day-panel" id="day-panel">
+        <h3>Día <span id="sel-day">{{ selected_day }}</span> · registrar cumplimiento</h3>
+        <div class="day-actions" id="day-actions">
+          {% for d in wheel.decisions %}
+          {% if not d.is_score_goal %}
+          <div class="day-act" data-decision-id="{{ d.id }}">
+            <div>
+              <div class="nm" style="color:{{ d.color }}">{{ d.order }}. {{ d.short }}</div>
+              <div class="fr" data-day-frac>Meta día: {{ d.daily_target }}</div>
+            </div>
+            <div class="btns">
+              <button type="button" data-undo title="Quitar">−</button>
+              <button type="button" class="plus" data-add title="Sumar">+</button>
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mgr-card" style="margin-top:1rem;">
+    <h2>Historial de meses</h2>
+    {% for h in history %}
+    <a class="hist-row text-decoration-none text-dark" href="?year={{ h.period_start.year }}&month={{ h.period_start.month }}">
+      <div><strong>{{ h.period_key }}</strong> <span class="text-muted">· {{ h.period_start|date:"M Y" }}</span></div>
+      <div class="fw-bold">{{ h.points_earned }}/{{ h.target_points }} pts · {{ h.cells_filled }}/{{ h.cell_count }}</div>
+    </a>
+    {% empty %}
+    <div class="text-muted small">Sin historial aún.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="wheel-tip" id="wheel-tip"></div>
+<div class="toast-mgr" id="mgr-toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(function () {
+  const root = document.getElementById('mgr-root');
+  const mount = document.getElementById('wheel-mount');
+  const dataEl = document.getElementById('mgr-wheel-data');
+  if (!root || !mount || !dataEl || !window.d3) return;
+
+  let year = +root.dataset.year;
+  let month = +root.dataset.month;
+  let day = +root.dataset.day;
+  const addUrl = root.dataset.addUrl;
+  const undoUrl = root.dataset.undoUrl;
+  const csrf = root.dataset.csrf;
+  const toast = document.getElementById('mgr-toast');
+  const tip = document.getElementById('wheel-tip');
+
+  let wheel = JSON.parse(dataEl.textContent);
+  wheel.selected_day = day;
+
+  const SIZE = 420;
+  const CX = SIZE / 2;
+  const CY = SIZE / 2;
+  const OUTER = 178;   // rueda grande (casi llena el lienzo)
+  const INNER = 50;
+  const LABEL_R = 196; // números justo fuera del disco
+
+  function showToast(msg, err) {
+    toast.textContent = msg;
+    toast.classList.toggle('err', !!err);
+    toast.style.display = 'block';
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => { toast.style.display = 'none'; }, 2400);
+  }
+
+  function showTip(text, x, y) {
+    tip.textContent = text || '';
+    tip.style.display = text ? 'block' : 'none';
+    if (!text) return;
+    tip.style.left = Math.min(window.innerWidth - 270, x + 12) + 'px';
+    tip.style.top = Math.max(8, y - 36) + 'px';
+  }
+
+  function ringCount(w) {
+    const rings = new Set((w.cells || []).map(c => c.ring));
+    return Math.max(1, rings.size || (w.decisions || []).length || 8);
+  }
+
+  function dayCount(w) {
+    return Math.max(1, (w.day_labels || []).length || w.total_days || 31);
+  }
+
+  function renderWheel(w) {
+    mount.innerHTML = '';
+    const nDays = dayCount(w);
+    const nRings = ringCount(w);
+    const ringW = (OUTER - INNER) / nRings;
+    const selected = w.selected_day || day;
+
+    const svg = d3.select(mount)
+      .append('svg')
+      .attr('class', 'mgr-wheel-svg')
+      .attr('viewBox', `0 0 ${SIZE} ${SIZE}`)
+      .attr('role', 'img');
+
+    const g = svg.append('g').attr('transform', `translate(${CX},${CY})`);
+
+    const arc = d3.arc().cornerRadius(0.4);
+
+    // Casillas
+    g.selectAll('path.mcell')
+      .data(w.cells || [], d => `${d.decision_id}-${d.day}`)
+      .join('path')
+      .attr('class', d => `mcell ${d.state}${d.day === selected ? ' selected' : ''}`)
+      .attr('d', d => {
+        // d3.arc: 0 = arriba, sentido horario
+        const pad = 0.006;
+        const a0 = (d.sector / nDays) * Math.PI * 2 + pad;
+        const a1 = ((d.sector + 1) / nDays) * Math.PI * 2 - pad;
+        const r0 = OUTER - d.ring * ringW - 0.35;
+        const r1 = Math.max(INNER + 0.5, r0 - ringW + 1.15);
+        return arc({
+          startAngle: a0,
+          endAngle: a1,
+          innerRadius: r1,
+          outerRadius: r0,
+        });
+      })
+      .attr('data-decision', d => d.decision_id)
+      .attr('data-day', d => d.day)
+      .attr('data-state', d => d.state)
+      .attr('data-units', d => d.units)
+      .attr('data-target', d => d.target)
+      .attr('data-label', d => d.label)
+      .attr('data-clickable', d => d.clickable ? '1' : '0')
+      .on('mousemove', (event, d) => {
+        showTip(`Día ${d.day} · ${d.label} · ${d.units}/${d.target}`, event.clientX, event.clientY);
+      })
+      .on('mouseleave', () => showTip('', 0, 0))
+      .on('click', async (event, d) => {
+        setSelectedDay(d.day);
+        if (!d.clickable) {
+          if (d.state === 'weekend' || d.state === 'na') {
+            showToast('Este día no aplica (fin de semana / no laboral)', true);
+          }
+          return;
+        }
+        try {
+          const data = await post(addUrl, {
+            decision_id: String(d.decision_id),
+            units: '1',
+            day: String(d.day),
+            idempotency_key: 'cell-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+          });
+          applyWheel(data.wheel);
+          showToast(`${d.label} · día ${d.day}`);
+        } catch (e) {
+          showToast(e.message || 'Error', true);
+        }
+      });
+
+    // Solo número del día (weekday en tooltip) — font-size en unidades del viewBox
+    const labelG = g.append('g').attr('class', 'day-labels');
+    (w.day_labels || []).forEach((lb, i) => {
+      const mid = -Math.PI / 2 + ((i + 0.5) / nDays) * Math.PI * 2;
+      const x = Math.cos(mid) * LABEL_R;
+      const y = Math.sin(mid) * LABEL_R;
+      const t = labelG.append('text')
+        .attr('x', x).attr('y', y)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', 6.5)
+        .attr('font-weight', 700)
+        .attr('fill', lb.is_weekend ? '#94a3b8' : '#475569')
+        .text(String(lb.day));
+      t.append('title').text(`Día ${lb.day} · ${lb.weekday}`);
+    });
+
+    // Badges de anillo a la izquierda
+    (w.ring_icons || []).forEach((ic) => {
+      const sample = (w.cells || []).find(c => c.decision_id === ic.id);
+      const ring = sample ? sample.ring : Math.max(0, (ic.order || 1) - 1);
+      const rr = OUTER - ring * ringW - ringW / 2;
+      const x = -rr;
+      const y = 0;
+      g.append('circle')
+        .attr('cx', x).attr('cy', y).attr('r', 5.5)
+        .attr('fill', ic.color).attr('stroke', '#fff').attr('stroke-width', 1)
+        .append('title').text(`${ic.order}. ${ic.short}`);
+      g.append('text')
+        .attr('x', x).attr('y', y)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', 6)
+        .attr('font-weight', 800)
+        .attr('fill', '#fff')
+        .text(ic.order);
+    });
+
+    // Hub compacto
+    g.append('circle')
+      .attr('r', INNER - 1)
+      .attr('fill', '#fff')
+      .attr('stroke', '#e2e8f0')
+      .attr('stroke-width', 1.2);
+
+    const name = (w.manager_name || '').trim();
+    const shortName = name.length > 22 ? name.slice(0, 20) + '…' : name;
+
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('y', -8)
+      .attr('font-size', 9)
+      .attr('font-weight', 800)
+      .attr('fill', '#0f172a')
+      .text(w.month_label || '');
+
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('y', 5)
+      .attr('font-size', 6)
+      .attr('font-weight', 600)
+      .attr('fill', '#64748b')
+      .text(shortName);
+
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('y', 14)
+      .attr('font-size', 5.5)
+      .attr('font-weight', 600)
+      .attr('fill', '#94a3b8')
+      .text(w.manager_role || '');
+  }
+
+  function setSelectedDay(d) {
+    day = d;
+    root.dataset.day = d;
+    if (wheel) wheel.selected_day = d;
+    const el = document.getElementById('sel-day');
+    if (el) el.textContent = d;
+    d3.select(mount).selectAll('path.mcell')
+      .classed('selected', function () { return +this.getAttribute('data-day') === d; });
+    document.querySelectorAll('#day-actions .day-act').forEach(row => {
+      const did = +row.dataset.decisionId;
+      const cell = (wheel.cells || []).find(c => c.decision_id === did && c.day === d);
+      const fr = row.querySelector('[data-day-frac]');
+      if (cell && fr) fr.textContent = `${cell.units}/${cell.target} · ${cell.state}`;
+    });
+  }
+
+  function applyWheel(w) {
+    if (!w) return;
+    wheel = w;
+    wheel.selected_day = day;
+    const set = (k, v) => document.querySelectorAll('[data-k="' + k + '"]').forEach(el => { el.textContent = v; });
+    set('points', w.points_earned);
+    set('target', w.target_points);
+    set('max', w.max_points);
+    set('pct', w.compliance_pct + '%');
+    set('cells', w.cells_filled + '/' + w.cell_count);
+    set('wd', w.working_days);
+    const track = document.getElementById('month-track');
+    if (track) track.style.width = w.compliance_pct + '%';
+    if (w.summary) {
+      ['done', 'progress', 'pending'].forEach(k => {
+        const el = document.querySelector('[data-s="' + k + '"]');
+        if (el) el.textContent = w.summary[k];
+      });
+    }
+    const byId = {};
+    (w.decisions || []).forEach(d => { byId[d.id] = d; });
+    document.querySelectorAll('#dec-table tbody tr[data-decision-id]').forEach(row => {
+      const d = byId[+row.dataset.decisionId];
+      if (!d) return;
+      row.classList.toggle('done', !!d.is_done);
+      const frac = row.querySelector('[data-frac]');
+      if (frac) frac.textContent = d.current + '/' + d.target;
+      const bar = row.querySelector('.dec-bar > i');
+      if (bar) bar.style.width = d.pct + '%';
+    });
+    renderWheel(wheel);
+    setSelectedDay(day);
+  }
+
+  async function post(url, fields) {
+    const body = new URLSearchParams(fields);
+    body.set('year', String(year));
+    body.set('month', String(month));
+    body.set('day', String(fields.day || day));
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrf,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: 'Respuesta inválida' }));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Error');
+    return data;
+  }
+
+  document.querySelectorAll('#day-actions [data-add]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('.day-act');
+      btn.disabled = true;
+      try {
+        const data = await post(addUrl, {
+          decision_id: row.dataset.decisionId,
+          units: '1',
+          idempotency_key: 'ui-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        });
+        applyWheel(data.wheel);
+        showToast('Registrado día ' + day);
+      } catch (e) {
+        showToast(e.message || 'Error', true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('#day-actions [data-undo]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('.day-act');
+      btn.disabled = true;
+      try {
+        const data = await post(undoUrl, { decision_id: row.dataset.decisionId });
+        applyWheel(data.wheel);
+        showToast('Deshecho');
+      } catch (e) {
+        showToast(e.message || 'Error', true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  renderWheel(wheel);
+  setSelectedDay(day);
+})();
+</script>
+{% endblock %}

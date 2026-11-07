@@ -1,0 +1,15 @@
+{% load store_tags %}
+{% for q in section.items %}
+{% include "store/partials/quotation_list_row.html" with q=q section=section_key %}
+{% empty %}
+<tr>
+  <td colspan="7" class="text-center text-muted py-4">{{ empty_message }}</td>
+</tr>
+{% endfor %}
+{% if section.truncated %}
+<tr>
+  <td colspan="7" class="text-center text-muted small py-2">
+    Mostrando las {{ section.limit }} más recientes de {{ section.count }}. Usa los filtros para acotar.
+  </td>
+</tr>
+{% endif %}

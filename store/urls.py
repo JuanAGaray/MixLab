@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from . import managers_views
+from . import service_review_views
 from .dian import views as dian_views
 
 app_name = 'store'
@@ -33,7 +35,14 @@ urlpatterns = [
     path('cotizacion/', views.quotation, name='quotation'),
     path('cotizaciones/', views.quotation_list, name='quotation_list'),
     path('cotizaciones/ajax/set-status/', views.quotation_ajax_set_status, name='quotation_ajax_set_status'),
+    path('cotizaciones/ajax/sections/', views.quotation_ajax_list_sections, name='quotation_ajax_list_sections'),
     path('cotizaciones/<int:quotation_id>/', views.quotation_detail, name='quotation_detail'),
+    path(
+        'cotizaciones/<int:quotation_id>/ajax/extras/',
+        views.quotation_ajax_detail_extras,
+        name='quotation_ajax_detail_extras',
+    ),
+    path('cotizaciones/<int:quotation_id>/agendar/', views.quotation_schedule, name='quotation_schedule'),
     path('cotizaciones/<int:quotation_id>/wa/enviar/', views.quotation_wa_share, name='quotation_wa_share'),
     path('cotizaciones/<int:quotation_id>/wa/recordatorio-pago/', views.quotation_wa_payment_reminder, name='quotation_wa_payment_reminder'),
     path('cotizaciones/<int:quotation_id>/editar/', views.quotation_edit, name='quotation_edit'),
@@ -49,6 +58,13 @@ urlpatterns = [
     path('cotizaciones/<int:quotation_id>/contrato-alquiler/', views.quotation_rental_contract, name='quotation_rental_contract'),
     path('cotizaciones/<int:quotation_id>/requisitos-contrato/', views.quotation_rental_requirements, name='quotation_rental_requirements'),
     path('cotizaciones/<int:quotation_id>/remitir-requisitos/', views.quotation_client_onboarding_manage, name='quotation_client_onboarding_manage'),
+    path('cotizaciones/<int:quotation_id>/enviar-resena/', service_review_views.quotation_review_manage, name='quotation_review_manage'),
+    path('cotizaciones/<int:quotation_id>/canjear-bono/', service_review_views.quotation_redeem_bonus, name='quotation_redeem_bonus'),
+
+    # Reseña pública + bono
+    path('resena/<uuid:token>/', service_review_views.service_review_unlock, name='service_review_unlock'),
+    path('resena/<uuid:token>/formulario/', service_review_views.service_review_form, name='service_review_form'),
+    path('resena/<uuid:token>/gracias/', service_review_views.service_review_thanks, name='service_review_thanks'),
     path('cotizaciones/<int:quotation_id>/partes-maquina/', views.quotation_machine_parts, name='quotation_machine_parts'),
     path('requisitos/<uuid:token>/', views.client_rental_requirements_unlock, name='client_rental_requirements_unlock'),
     path('requisitos/<uuid:token>/formulario/', views.client_rental_requirements_form, name='client_rental_requirements_form'),
@@ -67,6 +83,16 @@ urlpatterns = [
     path('cotizacion/ajax/update-qty/', views.quotation_ajax_update_qty, name='quotation_ajax_update_qty'),
     path('cotizacion/ajax/update-discount/', views.quotation_ajax_update_discount, name='quotation_ajax_update_discount'),
     
+    # MixLab Managers — ejecución y productividad
+    path('managers/', managers_views.managers_dashboard, name='managers_dashboard'),
+    path('managers/decision/add/', managers_views.managers_decision_add, name='managers_decision_add'),
+    path('managers/decision/undo/', managers_views.managers_decision_undo, name='managers_decision_undo'),
+    path('managers/actividades/', managers_views.managers_activities, name='managers_activities'),
+    path('managers/actividades/<int:activity_id>/', managers_views.managers_activity_detail, name='managers_activity_detail'),
+    path('managers/actividades/<int:activity_id>/completar/', managers_views.managers_quick_complete, name='managers_quick_complete'),
+    path('managers/resultados/', managers_views.managers_results, name='managers_results'),
+    path('managers/admin/', managers_views.managers_admin, name='managers_admin'),
+
     # Manager - Clientes
     path('manager/clientes/', views.client_list, name='client_list'),
     path('manager/clientes/crear/', views.client_create, name='client_create'),

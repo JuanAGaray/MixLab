@@ -1,10 +1,19 @@
-<div class="fw-semibold mb-2">Detalle por día · {{ cal_month_label }}</div>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+  <div class="fw-semibold mb-0">Detalle por día · {{ cal_month_label }}</div>
+  <div class="small text-muted">Hoy y futuros · pasados solo si deben</div>
+</div>
+
 {% for row in month_event_rows %}
-<div class="day-block" id="dia-{{ row.date|date:'Y-m-d' }}">
+<div class="day-block {% if row.is_past_day and row.has_open_debt %}border-warning{% endif %}" id="dia-{{ row.date|date:'Y-m-d' }}">
   <div class="day-title d-flex flex-wrap align-items-center justify-content-between gap-2">
     <span>
       {{ row.date|date:"l d/m/Y" }}
       <span class="badge text-bg-light text-dark border ms-1">{{ row.bookings|length }}</span>
+      {% if row.is_past_day and row.has_open_debt %}
+      <span class="badge text-bg-danger ms-1">Saldo pendiente</span>
+      {% elif row.date == today %}
+      <span class="badge text-bg-primary ms-1">Hoy</span>
+      {% endif %}
     </span>
     <a class="btn btn-sm btn-outline-primary"
        href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
@@ -14,13 +23,28 @@
       <i class="bi bi-download"></i> Resumen PDF
     </a>
   </div>
-  {% for b in row.bookings %}
+  <div class="small mb-2 px-1">
+    <span class="text-success me-2">Abonado día: ${{ row.day_paid|floatformat:0 }}</span>
+    <span class="text-danger fw-semibold">Deben el día: ${{ row.day_remaining|floatformat:0 }}</span>
+    <span class="text-muted ms-2">Total: ${{ row.day_total|floatformat:0 }}</span>
+  </div>
+  {% for item in row.bookings %}
+  {% with b=item.booking %}
   <div class="event-row">
-    <div class="event-meta">
+    <div class="event-meta" style="color:{{ b.dept_color|default:'#047857' }}">
       {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}—{% endif %}
     </div>
     <div class="flex-grow-1">
-      <div class="fw-semibold">{{ b.display_client_name|default:b.client_name|default:"Cliente" }}</div>
+      <div class="fw-semibold">
+        <span class="combo-dept-dot align-middle me-1" style="background:{{ b.dept_color|default:'#64748b' }}"></span>
+        {{ b.display_client_name|default:b.client_name|default:"Cliente" }}
+        {% if b.dept_name %}
+        <span class="badge border ms-1" style="border-color:{{ b.dept_color|default:'#64748b' }}!important;color:{{ b.dept_color|default:'#64748b' }}">{{ b.dept_name }}</span>
+        {% endif %}
+        {% if item.is_past and item.has_debt %}
+        <span class="badge text-bg-warning ms-1">Pasado · deben</span>
+        {% endif %}
+      </div>
       <div class="small text-muted">
         <i class="bi bi-geo-alt"></i>
         {% if b.location_text %}
@@ -38,13 +62,8 @@
       </div>
       {% endif %}
       <div class="small mt-1">
-        {% if b.quotation %}
-        <span class="text-success me-2">Pagado: ${{ b.quotation.amount_paid|floatformat:0 }}</span>
-        <span class="text-warning-emphasis">Por pagar: ${{ b.quotation.remaining_balance|floatformat:0 }}</span>
-        {% else %}
-        <span class="text-success me-2">Pagado: $0</span>
-        <span class="text-warning-emphasis">Por pagar: ${{ b.grand_total|floatformat:0 }}</span>
-        {% endif %}
+        <span class="text-success me-2">Abonado: ${{ item.pay_paid|floatformat:0 }}</span>
+        <span class="text-danger">Deben: ${{ item.pay_remaining|floatformat:0 }}</span>
       </div>
       <div class="small mt-1">
         <button type="button" class="btn btn-link btn-sm p-0"
@@ -55,8 +74,66 @@
       </div>
     </div>
   </div>
+  {% endwith %}
   {% endfor %}
 </div>
 {% empty %}
-<div class="text-muted small">No hay eventos en este mes.</div>
+<div class="text-muted small mb-3">No hay eventos pendientes en este mes (hoy, futuros o con saldo).</div>
 {% endfor %}
+
+{% if month_past_done_count %}
+<div class="mt-3">
+  <button class="btn btn-sm btn-outline-secondary" type="button"
+          data-bs-toggle="collapse" data-bs-target="#past-done-events"
+          aria-expanded="false" aria-controls="past-done-events">
+    <i class="bi bi-clock-history"></i>
+    Ver eventos ya realizados ({{ month_past_done_count }})
+  </button>
+  <div class="collapse mt-2" id="past-done-events">
+    <div class="small text-muted mb-2">Pasados y ya cobrados. Solo consulta.</div>
+    {% for row in month_past_done_rows %}
+    <div class="day-block opacity-75" id="dia-past-{{ row.date|date:'Y-m-d' }}">
+      <div class="day-title d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span>
+          {{ row.date|date:"l d/m/Y" }}
+          <span class="badge text-bg-secondary ms-1">Realizado</span>
+          <span class="badge text-bg-light text-dark border ms-1">{{ row.bookings|length }}</span>
+        </span>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
+           target="_blank" rel="noopener">
+          <i class="bi bi-download"></i> PDF
+        </a>
+      </div>
+      <div class="small mb-2 px-1">
+        <span class="text-success me-2">Abonado: ${{ row.day_paid|floatformat:0 }}</span>
+        <span class="text-muted">Total: ${{ row.day_total|floatformat:0 }}</span>
+      </div>
+      {% for item in row.bookings %}
+      {% with b=item.booking %}
+      <div class="event-row">
+        <div class="event-meta">
+          {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}—{% endif %}
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ b.display_client_name|default:b.client_name|default:"Cliente" }}</div>
+          <div class="small mt-1">
+            <span class="text-success me-2">Abonado: ${{ item.pay_paid|floatformat:0 }}</span>
+            <span class="text-muted">Deben: $0</span>
+          </div>
+          <div class="small mt-1">
+            <button type="button" class="btn btn-link btn-sm p-0"
+                    data-booking-id="{{ b.id }}">Ver detalle</button>
+            {% if b.quotation_id %}
+            · <a href="{% url 'store:quotation_detail' quotation_id=b.quotation_id %}">COT-{{ b.quotation_id }}</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

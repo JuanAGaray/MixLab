@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Actividades · MixLab Managers{% endblock %}
+{% block body_class %}mgr-body{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mgr-body { background:#f1f5f9; }
+  .mgr-wrap { max-width: 960px; margin: 0 auto; padding: 1rem .85rem 2rem; }
+  .mgr-nav-pills { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:1rem; }
+  .mgr-nav-pills a { text-decoration:none; font-weight:700; font-size:.82rem; padding:.4rem .75rem; border-radius:999px; background:#fff; color:#0f172a; border:1px solid #e2e8f0; }
+  .mgr-nav-pills a.active { background:#0F6FFF; color:#fff; border-color:#0F6FFF; }
+  .mgr-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; }
+  .mgr-filters select, .mgr-filters .form-select { font-size:.9rem; }
+  .mgr-row { display:flex; gap:.75rem; padding:.85rem 0; border-bottom:1px solid #f1f5f9; }
+  .mgr-dot { width:.8rem; height:.8rem; border-radius:999px; margin-top:.35rem; flex:0 0 auto; }
+  .mgr-dot.gray{background:#94a3b8}.mgr-dot.blue{background:#0F6FFF}.mgr-dot.green{background:#059669}.mgr-dot.red{background:#dc2626}.mgr-dot.yellow{background:#d97706}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-wrap">
+  <h1 class="h4 fw-bold">Actividades</h1>
+  <div class="mgr-nav-pills">
+    <a href="{% url 'store:managers_dashboard' %}">Dashboard</a>
+    <a class="active" href="{% url 'store:managers_activities' %}">Actividades</a>
+    <a href="{% url 'store:managers_results' %}">Resultados</a>
+    <a href="{% url 'store:managers_admin' %}">Admin</a>
+  </div>
+
+  <form method="get" class="mgr-card mgr-filters mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Periodo</label>
+        <select name="scope" class="form-select form-select-sm">
+          <option value="today" {% if filter_scope == 'today' %}selected{% endif %}>Hoy</option>
+          <option value="week" {% if filter_scope == 'week' %}selected{% endif %}>Esta semana</option>
+          <option value="all" {% if filter_scope == 'all' %}selected{% endif %}>Todas</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Estado</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pendientes</option>
+          <option value="review" {% if filter_status == 'review' %}selected{% endif %}>En revisión</option>
+          <option value="completed" {% if filter_status == 'completed' %}selected{% endif %}>Completadas</option>
+          <option value="expired" {% if filter_status == 'expired' %}selected{% endif %}>Vencidas</option>
+          <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>Rechazadas</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Categoría</label>
+        <select name="category" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for c in categories %}
+          <option value="{{ c.slug }}" {% if filter_category == c.slug %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button class="btn btn-primary btn-sm w-100">Filtrar</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="mgr-card">
+    {% for a in activities %}
+    <div class="mgr-row">
+      <span class="mgr-dot {{ a.status_color }}"></span>
+      <div class="flex-grow-1">
+        <a href="{% url 'store:managers_activity_detail' a.id %}" class="fw-bold text-dark text-decoration-none">{{ a.title }}</a>
+        <div class="small text-muted">
+          {{ a.template.category.name }} · {{ a.points_possible }} pts · {{ a.get_status_display }}
+          {% if a.due_date %} · {{ a.due_date|date:"d/m/Y" }}{% endif %}
+        </div>
+      </div>
+      <div class="text-end">
+        {% if a.points_awarded %}<div class="fw-bold text-success">+{{ a.points_awarded }}</div>{% endif %}
+        <a class="small" href="{% url 'store:managers_activity_detail' a.id %}">Abrir</a>
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4">No hay actividades con esos filtros.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

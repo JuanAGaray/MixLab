@@ -1,0 +1,254 @@
+{% load static %}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071526">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  :root {
+    --mx-navy: #071526;
+    --mx-blue: #0F6FFF;
+    --mx-blue-dark: #0b57d0;
+    --mx-ok: #15803d;
+    --mx-bg: #eef2f7;
+    --mx-card: #ffffff;
+    --mx-border: #cbd5e1;
+    --mx-muted: #475569;
+    --mx-text: #0f172a;
+  }
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body.mx-review-body {
+    margin: 0;
+    min-height: 100%;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--mx-bg);
+    color: var(--mx-text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .mx-main {
+    flex: 1 0 auto;
+    width: 100%;
+  }
+  .mx-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .7rem 1rem;
+    background: #fff;
+    border-bottom: 1px solid #dbe3ee;
+  }
+  .mx-topbar-logo img {
+    display: block;
+    height: 30px;
+    width: auto;
+  }
+  .mx-topbar-pill {
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #fff;
+    background: var(--mx-blue);
+    border: 0;
+    border-radius: 999px;
+    padding: .32rem .75rem;
+  }
+  .mx-wrap {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 1rem .9rem 1.5rem;
+  }
+  .mx-hero {
+    background: linear-gradient(160deg, #071526 0%, #0c2744 58%, #124a8f 100%);
+    color: #fff;
+    border-radius: 1.15rem;
+    padding: 1.2rem 1.2rem 1.3rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 10px 28px rgba(7, 21, 38, .18);
+    text-align: center;
+  }
+  .mx-hero-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: .85rem;
+    padding: .55rem .9rem;
+    margin-bottom: .85rem;
+  }
+  .mx-hero-logo img {
+    height: 34px;
+    width: auto;
+    display: block;
+  }
+  .mx-hero h1 {
+    font-size: 1.22rem;
+    font-weight: 900;
+    margin: 0 0 .4rem;
+    color: #fff;
+    letter-spacing: -.02em;
+  }
+  .mx-hero p {
+    margin: 0;
+    font-size: .88rem;
+    color: rgba(255,255,255,.92);
+    line-height: 1.45;
+  }
+  .mx-card {
+    background: var(--mx-card);
+    border: 1px solid #d8e0ea;
+    border-radius: 1rem;
+    padding: 1.15rem 1.15rem;
+    margin-bottom: .85rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+  }
+  .mx-card h2 {
+    font-size: .95rem;
+    font-weight: 800;
+    margin: 0 0 .75rem;
+    color: var(--mx-text);
+  }
+  .mx-label {
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #334155;
+    margin-bottom: .4rem;
+  }
+  .mx-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    width: 100%;
+    border: 0;
+    border-radius: .8rem;
+    font-weight: 800;
+    padding: .85rem 1rem;
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .mx-btn-primary {
+    background: var(--mx-blue);
+    color: #fff;
+  }
+  .mx-btn-primary:hover { background: var(--mx-blue-dark); color: #fff; }
+  .mx-btn-navy {
+    background: var(--mx-navy);
+    color: #fff;
+  }
+  .mx-btn-navy:hover { background: #0a2036; color: #fff; }
+  .mx-btn-wa {
+    background: #128c7e;
+    color: #fff;
+  }
+  .mx-btn-wa:hover { background: #0f766e; color: #fff; }
+  .mx-btn-soft {
+    background: var(--mx-blue);
+    color: #fff;
+  }
+  .mx-btn-soft:hover { background: var(--mx-blue-dark); color: #fff; }
+  .mx-btn-ghost {
+    background: #fff;
+    color: var(--mx-navy);
+    border: 1.5px solid #94a3b8;
+  }
+  .mx-btn-ghost:hover { background: #f8fafc; color: var(--mx-navy); border-color: #64748b; }
+  .mx-footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: .95rem .9rem calc(.95rem + env(safe-area-inset-bottom));
+    background: var(--mx-navy);
+    color: rgba(255,255,255,.82);
+    font-size: .78rem;
+  }
+  .mx-footer img {
+    height: 20px;
+    width: auto;
+    opacity: .9;
+    margin-right: .45rem;
+  }
+  .mx-footer a {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 700;
+  }
+  .mx-footer a:hover { color: #bfdbfe; }
+  .mx-center-page {
+    flex: 1 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem .9rem 1.5rem;
+    background:
+      radial-gradient(ellipse at top, rgba(15,111,255,.16), transparent 52%),
+      linear-gradient(165deg, #071526 0%, #0c2744 48%, #1453a8 100%);
+  }
+  .mx-center-card {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 1.25rem;
+    box-shadow: 0 22px 50px rgba(0,0,0,.28);
+    padding: 1.35rem 1.25rem 1.4rem;
+  }
+  .mx-code-box {
+    font-size: 1.55rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    background: #fff;
+    border: 2px solid var(--mx-blue);
+    border-radius: .9rem;
+    padding: .9rem .7rem;
+    text-align: center;
+    color: var(--mx-navy);
+  }
+  .mx-hint {
+    font-size: .86rem;
+    color: var(--mx-muted);
+    line-height: 1.45;
+  }
+  .mx-hint strong { color: var(--mx-text); }
+  .mx-info {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: var(--mx-text);
+    border-radius: .85rem;
+    padding: .75rem .85rem;
+    font-size: .86rem;
+    line-height: 1.45;
+    text-align: left;
+  }
+  .mx-discount {
+    font-size: 2.05rem;
+    font-weight: 900;
+    color: var(--mx-navy);
+    line-height: 1.1;
+  }
+  .mx-actions {
+    display: grid;
+    gap: .55rem;
+  }
+  @media (min-width: 420px) {
+    .mx-actions-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+</style>

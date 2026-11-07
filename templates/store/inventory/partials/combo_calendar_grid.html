@@ -18,13 +18,15 @@
     <button type="button"
             class="combo-event-chip"
             data-booking-id="{{ b.id }}"
-            title="{{ b.display_client_name|default:b.client_name }} · {% if b.location_text %}{{ b.location_text }}{% else %}Sin lugar{% endif %}">
+            style="background:{{ b.dept_color|default:'#64748b' }};"
+            title="{{ b.dept_name|default:'Sin departamento' }} · {{ b.display_client_name|default:b.client_name }} · {% if b.location_text %}{{ b.location_text }}{% else %}Sin lugar{% endif %}">
       <span class="chip-time">
         {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}Sin hora{% endif %}
       </span>
       <span class="chip-place">
         {% if b.location_text %}{{ b.location_text|truncatechars:28 }}{% else %}Sin lugar{% endif %}
       </span>
+      <span class="chip-dept">{{ b.dept_name|default:"Sin depto" }}</span>
     </button>
     {% endfor %}
   </div>

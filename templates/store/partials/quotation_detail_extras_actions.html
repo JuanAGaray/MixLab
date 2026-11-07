@@ -1,0 +1,81 @@
+{% if is_fully_paid %}
+<li>
+  <a class="qd-action-item{% if dian_invoice and dian_invoice.is_accepted %} qd-action-success{% elif dian_invoice %} qd-action-warn{% endif %}"
+     href="{% url 'store:quotation_dian_invoice' quotation_id=quote.id %}">
+    <i class="bi bi-receipt-cutoff"></i> Factura electrónica DIAN
+    {% if dian_invoice %}
+      {% if dian_invoice.is_accepted %}
+      <span class="badge text-bg-success ms-auto">Aceptada</span>
+      {% else %}
+      <span class="badge text-bg-secondary ms-auto">{{ dian_invoice.get_status_display }}</span>
+      {% endif %}
+    {% endif %}
+  </a>
+</li>
+{% if dian_invoice %}
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_dian_invoice_xml' quotation_id=quote.id %}">
+    <i class="bi bi-filetype-xml"></i> XML factura electrónica
+  </a>
+</li>
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_dian_invoice_pdf' quotation_id=quote.id %}?download=1">
+    <i class="bi bi-file-pdf"></i> PDF factura electrónica
+  </a>
+</li>
+{% endif %}
+{% endif %}
+
+{% if has_rental_items %}
+<li class="qd-action-divider"></li>
+<li class="qd-action-group-label">Alquiler</li>
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
+    <i class="bi bi-pen"></i> Contrato de alquiler
+  </a>
+</li>
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_rental_contract' quotation_id=quote.id %}?download=1">
+    <i class="bi bi-download"></i> Descargar contrato
+  </a>
+</li>
+<li>
+  <a class="qd-action-item{% if not rental_requirements or not rental_requirements.is_complete %} qd-action-warn{% endif %}"
+     href="{% url 'store:quotation_rental_requirements' quotation_id=quote.id %}">
+    <i class="bi bi-{% if rental_requirements and rental_requirements.is_complete %}check2-circle{% else %}exclamation-triangle-fill{% endif %}"></i>
+    Requisitos internos
+    {% if rental_requirements and rental_requirements.is_complete %}<span class="badge text-bg-success ms-auto">OK</span>{% endif %}
+  </a>
+</li>
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_client_onboarding_manage' quotation_id=quote.id %}">
+    <i class="bi bi-phone"></i> Remitir al cliente
+    {% if rental_requirements and rental_requirements.client_onboarding_complete %}
+    <span class="badge text-bg-success ms-auto">OK</span>
+    {% endif %}
+  </a>
+</li>
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_machine_parts' quotation_id=quote.id %}">
+    <i class="bi bi-tools"></i> Partes y costos de daño
+  </a>
+</li>
+{% if delivery_acta and delivery_acta.is_complete %}
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}" target="_blank" rel="noopener noreferrer">
+    <i class="bi bi-file-earmark-pdf"></i> Ver acta de recepción
+  </a>
+</li>
+<li>
+  <a class="qd-action-item" href="{% url 'store:quotation_delivery_acta_pdf' quotation_id=quote.id %}?download=1">
+    <i class="bi bi-download"></i> Descargar acta
+  </a>
+</li>
+{% else %}
+<li>
+  <a class="qd-action-item qd-action-warn" href="{% url 'store:quotation_delivery_acta' quotation_id=quote.id %}">
+    <i class="bi bi-exclamation-triangle-fill"></i> Acta de recepción
+  </a>
+</li>
+{% endif %}
+{% endif %}

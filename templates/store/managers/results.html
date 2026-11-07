@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Resultados · MixLab Managers{% endblock %}
+{% block body_class %}mgr-body{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mgr-body { background:#f1f5f9; }
+  .mgr-wrap { max-width: 900px; margin: 0 auto; padding: 1rem .85rem 2rem; }
+  .mgr-nav-pills { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:1rem; }
+  .mgr-nav-pills a { text-decoration:none; font-weight:700; font-size:.82rem; padding:.4rem .75rem; border-radius:999px; background:#fff; color:#0f172a; border:1px solid #e2e8f0; }
+  .mgr-nav-pills a.active { background:#0F6FFF; color:#fff; border-color:#0F6FFF; }
+  .mgr-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.1rem; }
+  .kpi { background:#f8fafc; border-radius:.85rem; padding:.85rem; border:1px solid #e2e8f0; height:100%; }
+  .kpi .lbl { font-size:.7rem; font-weight:800; color:#64748b; text-transform:uppercase; }
+  .kpi .val { font-size:1.4rem; font-weight:900; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-wrap">
+  <h1 class="h4 fw-bold">Resultados comerciales</h1>
+  <div class="mgr-nav-pills">
+    <a href="{% url 'store:managers_dashboard' %}">Dashboard</a>
+    <a href="{% url 'store:managers_activities' %}">Actividades</a>
+    <a class="active" href="{% url 'store:managers_results' %}">Resultados</a>
+    <a href="{% url 'store:managers_admin' %}">Admin</a>
+  </div>
+
+  <form method="get" class="mgr-card mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Periodo</label>
+        <select name="scope" class="form-select form-select-sm">
+          <option value="week" {% if scope == 'week' %}selected{% endif %}>Esta semana</option>
+          <option value="month" {% if scope == 'month' %}selected{% endif %}>Este mes</option>
+        </select>
+      </div>
+      {% if request.user.is_superuser %}
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Manager</label>
+        <select name="manager" class="form-select form-select-sm">
+          <option value="">Yo ({{ request.user.username }})</option>
+          {% for m in managers %}
+          <option value="{{ m.id }}" {% if target_user.id == m.id %}selected{% endif %}>{{ m.get_full_name|default:m.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-md-4"><button class="btn btn-primary btn-sm w-100">Aplicar</button></div>
+    </div>
+    <div class="small text-muted mt-2">{{ start|date:"d/m/Y" }} – {{ end|date:"d/m/Y" }} · Datos reales de cotizaciones</div>
+  </form>
+
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Cotizaciones</div><div class="val">{{ stats.quotations_sent }}</div></div></div>
+    <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Pendientes</div><div class="val">{{ stats.quotations_pending }}</div></div></div>
+    <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Ventas cerradas</div><div class="val text-success">{{ stats.sales_closed }}</div></div></div>
+    <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Conversión</div><div class="val">{{ stats.conversion_pct }}%</div></div></div>
+    <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Ticket promedio</div><div class="val">${{ stats.avg_sale|floatformat:0 }}</div></div></div>
+    <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Ingresos</div><div class="val">${{ stats.revenue|floatformat:0 }}</div></div></div>
+  </div>
+
+  {% if all_stats %}
+  <div class="mgr-card">
+    <h2 class="h6 fw-bold">Equipo completo (mismo periodo)</h2>
+    <div class="row g-2 small">
+      <div class="col-4">Cotizaciones: <strong>{{ all_stats.quotations_sent }}</strong></div>
+      <div class="col-4">Ventas: <strong>{{ all_stats.sales_closed }}</strong></div>
+      <div class="col-4">Ingresos: <strong>${{ all_stats.revenue|floatformat:0 }}</strong></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

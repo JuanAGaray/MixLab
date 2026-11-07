@@ -1,9 +1,11 @@
-from django.db import models
-from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator
-from django.utils.text import slugify
-from django.utils import timezone
+import uuid
 from decimal import Decimal
+
+from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.utils import timezone
+from django.utils.text import slugify
 
 
 class Category(models.Model):
@@ -1794,6 +1796,162 @@ class RentalContractRequirements(models.Model):
         return True
 
 
+class QuotationServiceReview(models.Model):
+    """Reseña pública post-servicio: operario, sabores y recomendación (1–10)."""
+
+    quotation = models.OneToOneField(
+        Quotation,
+        on_delete=models.CASCADE,
+        related_name='service_review',
+        verbose_name='Cotización',
+    )
+    access_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Token de acceso',
+    )
+    access_code = models.CharField(
+        max_length=16,
+        blank=True,
+        default='',
+        verbose_name='Código (plano, solo para staff)',
+        help_text='Se muestra al staff para reenviar; el cliente valida contra el hash.',
+    )
+    access_code_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        verbose_name='Hash del código',
+    )
+    link_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Enlace expira en',
+    )
+    score_operator = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Servicio del operario (1–10)',
+    )
+    score_flavors = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Sabores (1–10)',
+    )
+    score_recommend = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Recomendación (1–10)',
+    )
+    reason = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Motivo de las respuestas',
+    )
+    submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Reseña enviada en',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Reseña de servicio'
+        verbose_name_plural = 'Reseñas de servicio'
+
+    def __str__(self):
+        return f'Reseña COT-{self.quotation_id}'
+
+    @property
+    def is_submitted(self) -> bool:
+        return bool(self.submitted_at)
+
+    @property
+    def link_is_active(self) -> bool:
+        if not self.access_token or not self.access_code_hash:
+            return False
+        if self.link_expires_at and timezone.now() > self.link_expires_at:
+            return False
+        return True
+
+
+class ServiceBonusCoupon(models.Model):
+    """Cupón % generado al completar la reseña: compartible, un solo uso, vigencia limitada."""
+
+    STATUS_CHOICES = [
+        ('active', 'Activo'),
+        ('redeemed', 'Canjeado'),
+        ('expired', 'Expirado'),
+    ]
+
+    code = models.CharField(max_length=24, unique=True, db_index=True, verbose_name='Código')
+    discount_percent = models.PositiveIntegerField(
+        default=15,
+        validators=[MinValueValidator(1), MaxValueValidator(100)],
+        verbose_name='% descuento',
+    )
+    valid_until = models.DateTimeField(verbose_name='Válido hasta')
+    status = models.CharField(
+        max_length=16,
+        choices=STATUS_CHOICES,
+        default='active',
+        db_index=True,
+        verbose_name='Estado',
+    )
+    source_review = models.OneToOneField(
+        QuotationServiceReview,
+        on_delete=models.CASCADE,
+        related_name='bonus_coupon',
+        verbose_name='Reseña origen',
+    )
+    source_quotation = models.ForeignKey(
+        Quotation,
+        on_delete=models.CASCADE,
+        related_name='issued_bonus_coupons',
+        verbose_name='Cotización origen',
+    )
+    created_for_name = models.CharField(max_length=200, blank=True, default='')
+    created_for_phone = models.CharField(max_length=40, blank=True, default='')
+    redeemed_at = models.DateTimeField(null=True, blank=True)
+    redeemed_on_quotation = models.ForeignKey(
+        Quotation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='redeemed_bonus_coupons',
+        verbose_name='Canjeado en cotización',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Cupón bono reseña'
+        verbose_name_plural = 'Cupones bono reseña'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.code} ({self.discount_percent}%)'
+
+    @property
+    def is_redeemable(self) -> bool:
+        if self.status != 'active':
+            return False
+        if self.valid_until and timezone.now() > self.valid_until:
+            return False
+        return True
+
+    def mark_expired_if_needed(self) -> bool:
+        if self.status == 'active' and self.valid_until and timezone.now() > self.valid_until:
+            self.status = 'expired'
+            self.save(update_fields=['status'])
+            return True
+        return False
+
+
 class RentalMachinePart(models.Model):
     """Partes de una máquina de alquiler y costo de reposición por daño o pérdida."""
 
@@ -2183,6 +2341,21 @@ class SiteSettings(models.Model):
         blank=True,
         default='',
         verbose_name='Texto del banner promocional',
+    )
+    review_bonus_percent = models.PositiveIntegerField(
+        default=15,
+        verbose_name='Bono reseña (% descuento)',
+        help_text='Porcentaje de descuento del cupón que se genera al completar la reseña.',
+    )
+    review_bonus_days = models.PositiveIntegerField(
+        default=60,
+        verbose_name='Vigencia del bono (días)',
+        help_text='Días de validez del cupón desde que el cliente envía la reseña.',
+    )
+    review_link_days = models.PositiveIntegerField(
+        default=30,
+        verbose_name='Vigencia del enlace de reseña (días)',
+        help_text='Días para que el cliente pueda abrir el enlace y responder.',
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2674,4 +2847,22 @@ from store.dian.models import (  # noqa: E402, F401
     DianHabilitacionDocument,
     DianInvoiceSequence,
     DianSubmissionLog,
+)
+
+# MixLab Managers — ejecución y productividad
+from store.managers_models import (  # noqa: E402, F401
+    ActivityCategory,
+    ActivityInstance,
+    ActivityTemplate,
+    ManagerDecisionGoal,
+    ManagerProfile,
+    ManagerSettings,
+    ManagerWeekSnapshot,
+    PointLedger,
+    SalesDecisionDef,
+    SalesDecisionLog,
+    SalesDecisionProgress,
+    SalesMonthCell,
+    SalesWheelBoard,
+    SalesWheelCellMark,
 )

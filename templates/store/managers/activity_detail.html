@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ activity.title }} · Managers{% endblock %}
+{% block body_class %}mgr-body{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mgr-body { background:#f1f5f9; }
+  .mgr-wrap { max-width: 680px; margin: 0 auto; padding: 1rem .85rem 2rem; }
+  .mgr-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.1rem; }
+  .mgr-dot { display:inline-block; width:.75rem; height:.75rem; border-radius:999px; }
+  .mgr-dot.gray{background:#94a3b8}.mgr-dot.blue{background:#0F6FFF}.mgr-dot.green{background:#059669}.mgr-dot.red{background:#dc2626}.mgr-dot.yellow{background:#d97706}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-wrap">
+  <a href="{% url 'store:managers_activities' %}" class="small text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Actividades</a>
+  <h1 class="h4 fw-bold mt-2">{{ activity.title }}</h1>
+  <div class="small text-muted mb-3">
+    <span class="mgr-dot {{ activity.status_color }}"></span>
+    {{ activity.get_status_display }} · {{ activity.points_possible }} pts posibles
+    · {{ activity.template.category.name }}
+  </div>
+
+  <div class="mgr-card mb-3">
+    <div class="small text-muted">Descripción</div>
+    <p class="mb-2">{{ activity.description|default:"Sin descripción adicional." }}</p>
+    {% if activity.manager_notes %}
+    <div class="small text-muted">Notas del manager</div>
+    <p class="mb-2">{{ activity.manager_notes }}</p>
+    {% endif %}
+    {% if activity.admin_notes %}
+    <div class="small text-muted">Notas admin</div>
+    <p class="mb-2">{{ activity.admin_notes }}</p>
+    {% endif %}
+    {% if activity.evidence %}
+    <div class="mb-2"><a href="{{ activity.evidence.url }}" target="_blank" rel="noopener">Ver evidencia</a></div>
+    {% endif %}
+    {% if activity.validated_by %}
+    <div class="small text-muted">Validó: {{ activity.validated_by.get_full_name|default:activity.validated_by.username }} · {{ activity.validated_at|date:"d/m/Y H:i" }}</div>
+    {% endif %}
+    {% if activity.points_awarded %}
+    <div class="fw-bold text-success mt-2">+{{ activity.points_awarded }} puntos acreditados</div>
+    {% endif %}
+  </div>
+
+  {% if is_owner and activity.status == 'pending' %}
+  <form method="post" class="mb-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="start">
+    <button class="btn btn-outline-primary btn-sm">Iniciar</button>
+  </form>
+  {% endif %}
+
+  {% if is_owner %}
+    {% if activity.status == 'pending' or activity.status == 'in_progress' or activity.status == 'rejected' %}
+  <div class="mgr-card mb-3">
+    <h2 class="h6 fw-bold">Registrar cumplimiento</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="complete">
+      <div class="mb-2">
+        <label class="form-label small fw-semibold">Descripción / comentario</label>
+        <textarea name="notes" class="form-control" rows="3" placeholder="Qué hiciste…">{{ activity.manager_notes }}</textarea>
+      </div>
+      {% if activity.template.requires_evidence %}
+      <div class="mb-2">
+        <label class="form-label small fw-semibold">Evidencia (requerida)</label>
+        <input type="file" name="evidence" class="form-control" required>
+      </div>
+      {% else %}
+      <div class="mb-2">
+        <label class="form-label small fw-semibold">Evidencia (opcional)</label>
+        <input type="file" name="evidence" class="form-control">
+      </div>
+      {% endif %}
+      <div class="mb-2">
+        <label class="form-label small fw-semibold">COT relacionada (opcional)</label>
+        <input type="number" name="quotation_id" class="form-control" placeholder="ID cotización">
+      </div>
+      <button class="btn btn-primary">
+        {% if activity.template.requires_validation %}Enviar a revisión{% else %}Completar y acreditar{% endif %}
+      </button>
+    </form>
+  </div>
+    {% endif %}
+  {% endif %}
+
+  {% if is_admin and activity.status == 'pending_validation' %}
+  <div class="mgr-card mb-3 border-warning">
+    <h2 class="h6 fw-bold">Validación admin</h2>
+    <form method="post" class="mb-2">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="approve">
+      <textarea name="admin_notes" class="form-control mb-2" rows="2" placeholder="Nota (opcional)"></textarea>
+      <button class="btn btn-success btn-sm">Aprobar y acreditar puntos</button>
+    </form>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="reject">
+      <textarea name="admin_notes" class="form-control mb-2" rows="2" placeholder="Motivo del rechazo"></textarea>
+      <button class="btn btn-outline-danger btn-sm">Rechazar</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if entries %}
+  <div class="mgr-card">
+    <h2 class="h6 fw-bold">Ledger de puntos</h2>
+    {% for e in entries %}
+    <div class="small d-flex justify-content-between border-bottom py-1">
+      <span>{{ e.get_entry_type_display }} · {{ e.created_at|date:"d/m H:i" }}</span>
+      <strong>{% if e.points > 0 %}+{% endif %}{{ e.points }}</strong>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

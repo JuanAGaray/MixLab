@@ -125,22 +125,117 @@
     text-align: left;
     border: 0;
     border-radius: .5rem;
-    background: #047857;
+    background: #64748b;
     color: #fff;
     padding: .28rem .4rem;
     font-size: .68rem;
     line-height: 1.25;
     text-decoration: none;
     cursor: pointer;
+    filter: brightness(1);
   }
   .combo-event-chip:hover {
-    background: #065f46;
     color: #fff;
+    filter: brightness(0.88);
+  }
+  .combo-event-chip .chip-dept {
+    display: block;
+    opacity: .88;
+    font-size: .58rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: .08rem;
+  }
+  .combo-dept-dot {
+    display: inline-block;
+    width: .55rem;
+    height: .55rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .combo-dept-label {
+    font-size: .65rem;
+    color: #64748b;
+    line-height: 1.2;
+  }
+  .combo-dept-legend {
+    margin: 0 0 1rem;
+    padding: .7rem .85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    background: #f8fafc;
+  }
+  .combo-dept-legend-title {
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: .45rem;
+  }
+  .combo-dept-legend-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .7rem;
+  }
+  .combo-dept-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .75rem;
+    font-weight: 600;
+    color: #334155;
+  }
+  .combo-dept-swatch {
+    width: .7rem;
+    height: .7rem;
+    border-radius: .2rem;
+    display: inline-block;
   }
   .combo-cal.is-loading {
     opacity: .55;
     pointer-events: none;
   }
+  .combo-agenda-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(248, 250, 252, 0.72);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: .75rem;
+  }
+  .combo-agenda-overlay[hidden] { display: none !important; }
+  .combo-agenda-overlay-card {
+    background: #fff;
+    border-radius: 1rem;
+    padding: .95rem 1.25rem;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .combo-agenda-skel {
+    display: block;
+    height: .7rem;
+    border-radius: .35rem;
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: comboAgendaSkel 1.1s ease-in-out infinite;
+  }
+  @keyframes comboAgendaSkel {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  #combo-agenda-root { position: relative; min-height: 280px; }
   .combo-event-modal .modal-label {
     font-size: .72rem;
     font-weight: 700;
@@ -215,11 +310,9 @@
           </span>
           {% if combo.for_events %}<span class="badge text-bg-success">Para eventos</span>{% endif %}
           <span class="badge text-bg-light text-dark border">{{ combo.get_period_type_display }}</span>
-          {% if future_has_events %}
-          <span class="badge text-bg-info">
-            <i class="bi bi-calendar2-week me-1"></i>Futuros agendamientos: {{ future_total }}
+          <span class="badge text-bg-info d-none" id="combo-future-header-badge">
+            <i class="bi bi-calendar2-week me-1"></i>Futuros agendamientos: <span data-role="future-total">0</span>
           </span>
-          {% endif %}
         </div>
       </div>
       <div class="combo-actions">
@@ -282,20 +375,24 @@
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
       <span class="fw-bold"><i class="bi bi-calendar3 me-1"></i> Agenda de este combo</span>
-      <div class="d-flex flex-wrap gap-2">
-        {% if next_week_has_events %}
-        <span class="agenda-pill text-bg-success">Próxima semana: {{ next_week_total }}</span>
-        {% endif %}
-        {% if future_has_events %}
-        <span class="agenda-pill text-bg-info">Futuros: {{ future_total }}</span>
-        {% endif %}
+      <div class="d-flex flex-wrap gap-2" id="combo-agenda-header-pills">
+        <span class="agenda-pill text-bg-success d-none" data-role="next-week-pill">Próxima semana: <span data-n>0</span></span>
+        <span class="agenda-pill text-bg-info d-none" data-role="future-pill">Futuros: <span data-n>0</span></span>
       </div>
     </div>
     <div class="card-body" id="combo-agenda-root"
          data-combo-id="{{ combo.id }}"
          data-cal="{{ cal_year }}-{{ cal_month|stringformat:'02d' }}"
+         data-lazy="{{ lazy_load_agenda|yesno:'1,0' }}"
          data-calendar-url="{% url 'store:inventory_combo_calendar_ajax' combo.id %}"
          data-booking-detail-url-template="{% url 'store:inventory_combo_booking_detail_ajax' booking_id=0 %}">
+      <div class="combo-agenda-overlay" id="comboAgendaOverlay">
+        <div class="combo-agenda-overlay-card">
+          <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
+          <span>Cargando eventos…</span>
+        </div>
+      </div>
+
       <div class="combo-cal-nav">
         <button type="button" class="btn btn-sm btn-outline-secondary" id="combo-cal-prev"
                 data-cal="{{ prev_cal }}">
@@ -308,6 +405,8 @@
         </button>
       </div>
 
+      <div id="combo-dept-legend" class="mb-2"></div>
+
       <div class="combo-cal mb-2" id="combo-cal-grid">
         <div class="combo-cal-head">Lun</div>
         <div class="combo-cal-head">Mar</div>
@@ -316,100 +415,45 @@
         <div class="combo-cal-head">Vie</div>
         <div class="combo-cal-head">Sáb</div>
         <div class="combo-cal-head">Dom</div>
-        {% include 'store/inventory/partials/combo_calendar_grid.html' %}
+        {% for i in "123456789012345678901234567890123456" %}
+        <div class="combo-cal-day">
+          <span class="combo-agenda-skel" style="width:1.2rem"></span>
+          <span class="combo-agenda-skel" style="width:90%"></span>
+          <span class="combo-agenda-skel" style="width:70%"></span>
+        </div>
+        {% endfor %}
       </div>
       <div class="small text-muted mb-4">
-        Cada día muestra la <strong>hora</strong> y el <strong>lugar</strong>.
+        Cada día muestra la <strong>hora</strong>, el <strong>lugar</strong> y el <strong>departamento</strong> (color).
         Haz clic en un evento para ver el detalle.
         En el listado puedes <strong>descargar el resumen PDF del día</strong>
         (notas, ubicación, hora de llegada e ítems de agenda).
       </div>
 
       <div class="combo-day-list mb-4" id="combo-cal-detail">
-        {% include 'store/inventory/partials/combo_calendar_detail.html' %}
+        <div class="text-muted small py-2">
+          <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+          Cargando detalle del mes…
+        </div>
       </div>
 
       <hr class="my-3">
 
-      <div class="row g-4">
+      <div class="row g-4" id="combo-weeks-root">
         <div class="col-lg-4">
           <div class="fw-semibold mb-2">Esta semana</div>
-          {% if this_week_rows %}
-            {% for row in this_week_rows %}
-              <div class="small mb-2">
-                <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
-                {% for b in row.bookings %}
-                <div class="text-muted">
-                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
-                          data-booking-id="{{ b.id }}">
-                    {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
-                    {{ b.client_name|default:"Cliente" }}
-                  </button>
-                  {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
-                </div>
-                {% endfor %}
-              </div>
-            {% endfor %}
-          {% else %}
-            <div class="text-muted small">Sin eventos programados.</div>
-          {% endif %}
+          <span class="combo-agenda-skel mb-2" style="width:70%"></span>
+          <span class="combo-agenda-skel" style="width:55%"></span>
         </div>
-
         <div class="col-lg-4">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <div class="fw-semibold">Próxima semana</div>
-            <span class="badge {% if next_week_has_events %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-              {{ next_week_total|default:0 }}
-            </span>
-          </div>
-          {% if next_week_rows %}
-            {% for row in next_week_rows %}
-              <div class="small mb-2">
-                <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
-                {% for b in row.bookings %}
-                <div class="text-muted">
-                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
-                          data-booking-id="{{ b.id }}">
-                    {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
-                    {{ b.client_name|default:"Cliente" }}
-                  </button>
-                  {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
-                </div>
-                {% endfor %}
-              </div>
-            {% endfor %}
-          {% else %}
-            <div class="text-muted small">Sin eventos la siguiente semana.</div>
-          {% endif %}
+          <div class="fw-semibold mb-2">Próxima semana</div>
+          <span class="combo-agenda-skel mb-2" style="width:70%"></span>
+          <span class="combo-agenda-skel" style="width:55%"></span>
         </div>
-
         <div class="col-lg-4">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <div class="fw-semibold">Futuros agendamientos</div>
-            <span class="badge {% if future_has_events %}text-bg-info{% else %}text-bg-secondary{% endif %}">
-              {{ future_total|default:0 }}
-            </span>
-          </div>
-          <div class="small text-muted mb-2">Después de la próxima semana</div>
-          {% if future_rows %}
-            {% for row in future_rows %}
-              <div class="small mb-2">
-                <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
-                {% for b in row.bookings %}
-                <div class="text-muted">
-                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
-                          data-booking-id="{{ b.id }}">
-                    {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
-                    {{ b.client_name|default:"Cliente" }}
-                  </button>
-                  {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
-                </div>
-                {% endfor %}
-              </div>
-            {% endfor %}
-          {% else %}
-            <div class="text-muted small">No hay agendamientos posteriores.</div>
-          {% endif %}
+          <div class="fw-semibold mb-2">Futuros agendamientos</div>
+          <span class="combo-agenda-skel mb-2" style="width:70%"></span>
+          <span class="combo-agenda-skel" style="width:55%"></span>
         </div>
       </div>
     </div>
@@ -461,6 +505,51 @@
                 <div class="modal-label">Pedido</div>
                 <div class="modal-value" id="ev-order-status"></div>
               </div>
+
+              <div class="col-12">
+                <div class="border rounded-3 p-3 bg-light">
+                  <div class="modal-label mb-2">Pagos de este evento</div>
+                  <div class="row g-2">
+                    <div class="col-4">
+                      <div class="small text-muted">Total</div>
+                      <div class="fw-bold" id="ev-total">—</div>
+                    </div>
+                    <div class="col-4">
+                      <div class="small text-muted">Abonado</div>
+                      <div class="fw-bold text-success" id="ev-paid">—</div>
+                    </div>
+                    <div class="col-4">
+                      <div class="small text-muted">Por pagar</div>
+                      <div class="fw-bold text-warning-emphasis" id="ev-remaining">—</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="border rounded-3 p-3" style="background:#fff7ed;border-color:#fed7aa!important;">
+                  <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <div class="modal-label mb-0">Totales del día</div>
+                    <span class="badge text-bg-light text-dark border" id="ev-day-count">0 eventos</span>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-4">
+                      <div class="small text-muted">Total día</div>
+                      <div class="fw-bold" id="ev-day-total">—</div>
+                    </div>
+                    <div class="col-4">
+                      <div class="small text-muted">Abonado día</div>
+                      <div class="fw-bold text-success" id="ev-day-paid">—</div>
+                    </div>
+                    <div class="col-4">
+                      <div class="small text-muted">Deben el día</div>
+                      <div class="fw-bold text-danger" id="ev-day-remaining">—</div>
+                    </div>
+                  </div>
+                  <div id="ev-day-events" class="small"></div>
+                </div>
+              </div>
+
               <div class="col-12">
                 <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
                   <div class="modal-label mb-0">Notas</div>
@@ -482,6 +571,9 @@
           <a href="#" class="btn btn-outline-dark d-none" id="ev-quote-btn" target="_blank" rel="noopener">
             <i class="bi bi-file-earmark-text"></i> Ver COT
           </a>
+          <a href="#" class="btn btn-warning d-none" id="ev-review-btn">
+            <i class="bi bi-star"></i> <span data-role="review-label">Activar reseña</span>
+          </a>
           <a href="#" class="btn btn-outline-primary d-none" id="ev-maps-btn" target="_blank" rel="noopener">
             <i class="bi bi-geo-alt"></i> Abrir Maps
           </a>
@@ -496,64 +588,6 @@
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white fw-bold">Elementos incluidos</div>
-    <div class="table-responsive">
-      <table class="table mb-0 align-middle">
-        <thead class="small text-muted">
-          <tr>
-            <th>Elemento</th>
-            <th>Origen</th>
-            <th>Al agendar</th>
-            <th>Cant.</th>
-            <th>Costo unit.</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in combo.items.all %}
-          <tr>
-            <td>
-              <div class="fw-semibold">{{ item.display_name }}</div>
-              {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
-            </td>
-            <td>
-              {% if item.is_inventory_item %}
-              <span class="badge" style="background:#f3e8ff;color:#7c3aed;">Producto</span>
-              {% if item.product %}
-              <a class="small d-block" href="{% url 'store:inventory_detail' item.product.id %}">Ver producto</a>
-              {% endif %}
-              {% elif item.is_category_item %}
-              <span class="badge" style="background:#e0f2fe;color:#0369a1;">Categoría</span>
-              <div class="small text-muted">Al confirmar: 1 ítem disponible</div>
-              {% else %}
-              <span class="badge" style="background:#ecfdf5;color:#047857;">Extra</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if item.is_modifiable %}
-              <span class="badge text-bg-warning">Modificable</span>
-              {% else %}
-              <span class="badge text-bg-secondary">Obligatorio</span>
-              {% endif %}
-            </td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.unit_cost|pesos_colombianos }}</td>
-            <td class="fw-semibold">{{ item.line_total|pesos_colombianos }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">Sin elementos</td></tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="5" class="text-end fw-semibold">Total elementos</td>
-            <td class="fw-bold">{{ combo.items_subtotal|pesos_colombianos }}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  </div>
 </div>
 {% endblock %}
 
@@ -570,6 +604,9 @@
   const nextBtn = document.getElementById('combo-cal-next');
   const gridEl = document.getElementById('combo-cal-grid');
   const detailEl = document.getElementById('combo-cal-detail');
+  const weeksEl = document.getElementById('combo-weeks-root');
+  const legendEl = document.getElementById('combo-dept-legend');
+  const overlayEl = document.getElementById('comboAgendaOverlay');
   const modalEl = document.getElementById('comboEventDetailModal');
   const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
 
@@ -615,6 +652,33 @@
     if (el) el.textContent = value || '—';
   }
 
+  function money(n) {
+    var v = Math.round(Number(n) || 0);
+    return '$' + v.toLocaleString('es-CO');
+  }
+
+  function renderDayEvents(list) {
+    var wrap = document.getElementById('ev-day-events');
+    if (!wrap) return;
+    if (!list || !list.length) {
+      wrap.innerHTML = '<div class="text-muted">Sin otros eventos este día.</div>';
+      return;
+    }
+    wrap.innerHTML = list.map(function (ev) {
+      var time = ev.event_time || 'Sin hora';
+      var mark = ev.is_current ? ' <span class="badge text-bg-primary">Este</span>' : '';
+      return (
+        '<div class="d-flex justify-content-between gap-2 py-1 border-top">' +
+          '<div><strong>' + time + '</strong> · ' + (ev.client_name || 'Cliente') + mark + '</div>' +
+          '<div class="text-nowrap">' +
+            '<span class="text-success me-2">Abonado ' + money(ev.amount_paid) + '</span>' +
+            '<span class="text-danger">Deben ' + money(ev.remaining_balance) + '</span>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
   function setLink(id, url, visible) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -635,8 +699,34 @@
     }).join('');
   }
 
-  function loadMonth(cal) {
+  function setAgendaPills(data) {
+    var nextPill = document.querySelector('[data-role="next-week-pill"]');
+    var futurePill = document.querySelector('[data-role="future-pill"]');
+    var headerFuture = document.getElementById('combo-future-header-badge');
+    if (nextPill) {
+      var n = data.next_week_total || 0;
+      nextPill.classList.toggle('d-none', !data.next_week_has_events);
+      var nSpan = nextPill.querySelector('[data-n]');
+      if (nSpan) nSpan.textContent = n;
+    }
+    if (futurePill) {
+      var f = data.future_total || 0;
+      futurePill.classList.toggle('d-none', !data.future_has_events);
+      var fSpan = futurePill.querySelector('[data-n]');
+      if (fSpan) fSpan.textContent = f;
+    }
+    if (headerFuture) {
+      headerFuture.classList.toggle('d-none', !data.future_has_events);
+      var ht = headerFuture.querySelector('[data-role="future-total"]');
+      if (ht) ht.textContent = data.future_total || 0;
+    }
+  }
+
+  function loadMonth(cal, opts) {
+    opts = opts || {};
     if (!cal || !calendarUrl) return;
+    var showOverlay = !!opts.overlay;
+    if (showOverlay && overlayEl) overlayEl.hidden = false;
     gridEl.classList.add('is-loading');
     fetch(calendarUrl + '?cal=' + encodeURIComponent(cal), {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -651,6 +741,9 @@
         if (nextBtn) nextBtn.dataset.cal = data.next_cal;
         gridEl.innerHTML = headsHtml() + (data.calendar_html || '');
         if (detailEl) detailEl.innerHTML = data.detail_html || '';
+        if (weeksEl && data.weeks_html != null) weeksEl.innerHTML = data.weeks_html;
+        if (legendEl && data.legend_html != null) legendEl.innerHTML = data.legend_html;
+        setAgendaPills(data);
         if (window.history && window.history.replaceState) {
           const url = new URL(window.location.href);
           url.searchParams.set('cal', data.cal);
@@ -658,10 +751,20 @@
         }
       })
       .catch(function () {
-        alert('No se pudo cambiar de mes. Intenta de nuevo.');
+        if (opts.initial) {
+          if (detailEl) {
+            detailEl.innerHTML = '<div class="text-danger small py-2">No se pudieron cargar los eventos. Recarga la página.</div>';
+          }
+          if (weeksEl) {
+            weeksEl.innerHTML = '<div class="col-12 text-danger small">Error al cargar la agenda.</div>';
+          }
+        } else {
+          alert('No se pudo cambiar de mes. Intenta de nuevo.');
+        }
       })
       .finally(function () {
         gridEl.classList.remove('is-loading');
+        if (overlayEl) overlayEl.hidden = true;
       });
   }
 
@@ -679,6 +782,7 @@
     setLink('ev-edit-btn', '#', false);
     setLink('ev-delete-btn', '#', false);
     setLink('ev-quote-btn', '#', false);
+    setLink('ev-review-btn', '#', false);
     setLink('ev-maps-btn', '#', false);
     modal.show();
 
@@ -699,6 +803,18 @@
         setText('ev-phone', data.client_phone || '—');
         setText('ev-order-status', data.order_status || '—');
         setText('ev-place', data.location_text || 'Sin lugar registrado');
+        setText('ev-total', money(data.grand_total));
+        setText('ev-paid', money(data.amount_paid));
+        setText('ev-remaining', money(data.remaining_balance));
+        setText('ev-day-total', money(data.day_total));
+        setText('ev-day-paid', money(data.day_paid));
+        setText('ev-day-remaining', money(data.day_remaining));
+        var dayCount = document.getElementById('ev-day-count');
+        if (dayCount) {
+          var n = data.day_events_count || 0;
+          dayCount.textContent = n + ' evento' + (n === 1 ? '' : 's');
+        }
+        renderDayEvents(data.day_events || []);
 
         currentNotesUrl = data.notes_url || '';
         notesBaseline = data.notes || '';
@@ -718,6 +834,16 @@
         const deleteUrl = (data.delete_url || '#') + ((data.delete_url || '').indexOf('?') >= 0 ? '&' : '?') + 'next=' + encodeURIComponent(next);
         setLink('ev-delete-btn', deleteUrl, !!data.delete_url);
         setLink('ev-quote-btn', data.quotation_url, !!data.quotation_url);
+        setLink('ev-review-btn', data.review_url, !!data.review_url);
+        var reviewLabel = document.querySelector('#ev-review-btn [data-role="review-label"]');
+        if (reviewLabel) {
+          reviewLabel.textContent = data.review_submitted ? 'Ver / reenviar reseña' : 'Activar reseña';
+        }
+        var reviewBtn = document.getElementById('ev-review-btn');
+        if (reviewBtn) {
+          reviewBtn.classList.toggle('btn-warning', !data.review_submitted);
+          reviewBtn.classList.toggle('btn-outline-warning', !!data.review_submitted);
+        }
         setLink('ev-maps-btn', data.maps_url, !!data.maps_url);
       })
       .catch(function () {
@@ -766,12 +892,12 @@
 
   if (prevBtn) {
     prevBtn.addEventListener('click', function () {
-      loadMonth(prevBtn.dataset.cal);
+      loadMonth(prevBtn.dataset.cal, { overlay: true });
     });
   }
   if (nextBtn) {
     nextBtn.addEventListener('click', function () {
-      loadMonth(nextBtn.dataset.cal);
+      loadMonth(nextBtn.dataset.cal, { overlay: true });
     });
   }
 
@@ -781,6 +907,13 @@
     e.preventDefault();
     openBookingDetail(btn.getAttribute('data-booking-id'));
   });
+
+  // Carga inicial diferida (overlay + AJAX)
+  if (root.dataset.lazy === '1') {
+    loadMonth(root.dataset.cal, { overlay: true, initial: true });
+  } else if (overlayEl) {
+    overlayEl.hidden = true;
+  }
 })();
 </script>
 {% endblock %}

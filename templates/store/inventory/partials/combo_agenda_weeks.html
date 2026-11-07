@@ -1,0 +1,102 @@
+<div class="col-lg-4" data-role="week-col" data-week="this">
+  <div class="fw-semibold mb-2">Esta semana</div>
+  {% if this_week_rows %}
+    {% for row in this_week_rows %}
+      <div class="small mb-2">
+        <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
+        {% for b in row.bookings %}
+        <div class="text-muted d-flex align-items-start gap-1">
+          <span class="combo-dept-dot mt-1" style="background:{{ b.dept_color|default:'#64748b' }}"
+                title="{{ b.dept_name|default:'Sin departamento' }}"></span>
+          <div>
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                    data-booking-id="{{ b.id }}">
+              {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
+              {{ b.client_name|default:"Cliente" }}
+            </button>
+            {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
+            {% if b.dept_name %}
+            <div class="combo-dept-label">{{ b.dept_name }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="text-muted small">Sin eventos programados.</div>
+  {% endif %}
+</div>
+
+<div class="col-lg-4" data-role="week-col" data-week="next">
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+    <div class="fw-semibold">Próxima semana</div>
+    <span class="badge {% if next_week_has_events %}text-bg-success{% else %}text-bg-secondary{% endif %}"
+          data-role="next-week-badge">
+      {{ next_week_total|default:0 }}
+    </span>
+  </div>
+  {% if next_week_rows %}
+    {% for row in next_week_rows %}
+      <div class="small mb-2">
+        <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
+        {% for b in row.bookings %}
+        <div class="text-muted d-flex align-items-start gap-1">
+          <span class="combo-dept-dot mt-1" style="background:{{ b.dept_color|default:'#64748b' }}"
+                title="{{ b.dept_name|default:'Sin departamento' }}"></span>
+          <div>
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                    data-booking-id="{{ b.id }}">
+              {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
+              {{ b.client_name|default:"Cliente" }}
+            </button>
+            {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
+            {% if b.dept_name %}
+            <div class="combo-dept-label">{{ b.dept_name }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="text-muted small">Sin eventos la siguiente semana.</div>
+  {% endif %}
+</div>
+
+<div class="col-lg-4" data-role="week-col" data-week="future">
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+    <div class="fw-semibold">Futuros agendamientos</div>
+    <span class="badge {% if future_has_events %}text-bg-info{% else %}text-bg-secondary{% endif %}"
+          data-role="future-badge">
+      {{ future_total|default:0 }}
+    </span>
+  </div>
+  <div class="small text-muted mb-2">Después de la próxima semana</div>
+  {% if future_rows %}
+    {% for row in future_rows %}
+      <div class="small mb-2">
+        <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
+        {% for b in row.bookings %}
+        <div class="text-muted d-flex align-items-start gap-1">
+          <span class="combo-dept-dot mt-1" style="background:{{ b.dept_color|default:'#64748b' }}"
+                title="{{ b.dept_name|default:'Sin departamento' }}"></span>
+          <div>
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                    data-booking-id="{{ b.id }}">
+              {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
+              {{ b.client_name|default:"Cliente" }}
+            </button>
+            {% if b.location_text %} · {{ b.location_text|truncatechars:36 }}{% endif %}
+            {% if b.dept_name %}
+            <div class="combo-dept-label">{{ b.dept_name }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="text-muted small">No hay agendamientos posteriores.</div>
+  {% endif %}
+</div>

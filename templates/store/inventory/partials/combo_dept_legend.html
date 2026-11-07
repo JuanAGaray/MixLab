@@ -1,0 +1,13 @@
+{% if dept_legend_items %}
+<div class="combo-dept-legend">
+  <div class="combo-dept-legend-title">Color por departamento</div>
+  <div class="combo-dept-legend-list">
+    {% for item in dept_legend_items %}
+    <span class="combo-dept-legend-item" title="{{ item.name }}">
+      <span class="combo-dept-swatch" style="background:{{ item.color }}"></span>
+      {{ item.name }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

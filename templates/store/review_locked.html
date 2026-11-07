@@ -1,0 +1,40 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  {% include "store/partials/review_brand_head.html" %}
+  <title>Enlace no disponible · MixLab</title>
+</head>
+<body class="mx-review-body">
+  <header class="mx-topbar">
+    <a href="{% url 'store:home' %}" class="mx-topbar-logo" aria-label="MixLab">
+      <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab">
+    </a>
+    <span class="mx-topbar-pill">Reseña</span>
+  </header>
+
+  <main class="mx-main mx-center-page">
+    <div class="mx-center-card text-center">
+      <div class="mx-hero-logo mx-auto mb-3" style="background:#eff6ff;border-color:#bfdbfe;">
+        <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" style="height:36px;">
+      </div>
+      <h1 class="h5 fw-bold mb-2" style="color:#071526;">Enlace no disponible</h1>
+      <p class="mx-hint mb-0">
+        {% if reason == 'expired' %}
+        Este enlace expiró o fue deshabilitado. Pide a MixLab que te envíe uno nuevo.
+        {% else %}
+        No pudimos abrir esta reseña. Contacta a tu asesor MixLab.
+        {% endif %}
+      </p>
+    </div>
+  </main>
+
+  <footer class="mx-footer">
+    <div class="d-flex align-items-center">
+      <img src="{% static 'img/IsoLogo.png' %}" alt="">
+      <span>© {% now "Y" %} MixLab</span>
+    </div>
+    <a href="{% url 'store:home' %}">Ir a la tienda</a>
+  </footer>
+</body>
+</html>

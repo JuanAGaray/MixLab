@@ -1,0 +1,63 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  {% include "store/partials/review_brand_head.html" %}
+  <title>Abrir reseña · MixLab</title>
+</head>
+<body class="mx-review-body">
+  <header class="mx-topbar">
+    <a href="{% url 'store:home' %}" class="mx-topbar-logo" aria-label="MixLab">
+      <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab">
+    </a>
+    <span class="mx-topbar-pill">Reseña</span>
+  </header>
+
+  <main class="mx-main mx-center-page">
+    <div class="mx-center-card">
+      <div class="text-center mb-3">
+        <div class="mx-hero-logo mx-auto" style="background:#eff6ff;border-color:#bfdbfe;">
+          <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" style="height:36px;">
+        </div>
+        <h1 class="h5 fw-bold mb-1 mt-2" style="color:#071526;">Califica tu experiencia</h1>
+        <div class="mx-hint mb-0">COT-{{ quote.id }} · Verificación para abrir el formulario</div>
+      </div>
+
+      {% if error %}
+      <div class="alert alert-danger py-2 small">{{ error }}</div>
+      {% endif %}
+
+      <p class="mx-hint mb-3">
+        Ingresa el <strong>código de verificación</strong> que te enviamos por WhatsApp
+        para abrir el formulario de reseña.
+        <span class="d-block mt-1">
+          (El bono <strong>MIX-XXXXXX</strong> se genera al terminar y se canjea
+          después con tu asesor.)
+        </span>
+      </p>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <div class="mx-label">Código de verificación</div>
+          <input type="text" class="form-control form-control-lg text-center text-uppercase fw-bold"
+                 id="code" name="code" inputmode="text" autocomplete="one-time-code"
+                 placeholder="ABCD1234" required autofocus maxlength="16"
+                 style="border-radius:.8rem;border-color:#bfdbfe;">
+        </div>
+        <button type="submit" class="mx-btn mx-btn-primary">
+          <i class="bi bi-unlock"></i> Abrir formulario
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="mx-footer">
+    <div class="d-flex align-items-center">
+      <img src="{% static 'img/IsoLogo.png' %}" alt="">
+      <span>© {% now "Y" %} MixLab</span>
+    </div>
+    <a href="{% url 'store:home' %}">Ir a la tienda</a>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<div class="card section-card" id="{{ section_id }}" data-section-key="{{ section_key }}" {% if initially_hidden %}hidden{% endif %}>
+  <div class="section-head">
+    <div>
+      <p class="section-kicker">{{ kicker }}</p>
+      <h2 class="section-title">
+        {{ title }}
+        <span class="badge {{ badge_class }} align-middle ms-1" data-role="count">…</span>
+      </h2>
+    </div>
+    {% if is_partial %}
+    <div class="section-totals-grid">
+      <div class="section-total is-partial">
+        <span class="label">Abonado</span>
+        <div class="value" data-role="paid-total">…</div>
+      </div>
+      <div class="section-total is-pending">
+        <span class="label">Saldo pendiente</span>
+        <div class="value" data-role="remaining-total">…</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="section-total {{ total_class }}">
+      <span class="label">{{ total_label }}</span>
+      <div class="value" data-role="total">…</div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle quotes-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th>Hecha por</th>
+          <th>Estado del pedido</th>
+          <th class="text-end col-total">Total</th>
+          <th class="col-actions"></th>
+        </tr>
+      </thead>
+      <tbody data-role="rows">
+        {% for i in "123" %}
+        <tr class="skel-row">
+          <td><span class="skel" style="width:3.2rem"></span></td>
+          <td><span class="skel" style="width:4.5rem"></span></td>
+          <td><span class="skel" style="width:8rem"></span></td>
+          <td><span class="skel" style="width:4rem"></span></td>
+          <td><span class="skel" style="width:6rem"></span></td>
+          <td class="text-end"><span class="skel" style="width:4rem;margin-left:auto"></span></td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot data-role="foot" hidden>
+        <tr>
+          <td colspan="6" class="text-end">
+            {% if is_partial %}
+            <span class="total-label me-2">Abonado</span>
+            <span class="total-value is-partial me-3" data-role="foot-paid">…</span>
+            <span class="total-label me-2">Saldo pendiente</span>
+            <span class="total-value is-pending" data-role="foot-remaining">…</span>
+            {% else %}
+            <span class="total-label me-2">{{ total_label }}</span>
+            <span class="total-value {{ total_class }}" data-role="foot-total">…</span>
+            {% endif %}
+          </td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

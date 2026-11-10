@@ -9502,6 +9502,90 @@ def site_settings_edit(request):
     })
 
 
+@staff_member_required
+def portfolio_manage(request):
+    """Staff: subir / actualizar el PDF del portafolio de productos."""
+    settings_obj = SiteSettings.load()
+    error = ''
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or 'upload').strip()
+        if action == 'remove':
+            if settings_obj.portfolio_pdf:
+                settings_obj.portfolio_pdf.delete(save=False)
+                settings_obj.portfolio_pdf = None
+                settings_obj.portfolio_updated_at = None
+                settings_obj.save(update_fields=['portfolio_pdf', 'portfolio_updated_at', 'updated_at'])
+                messages.success(request, 'Portafolio eliminado.')
+            else:
+                messages.info(request, 'No había un PDF cargado.')
+            return redirect('store:portfolio_manage')
+
+        title = (request.POST.get('portfolio_title') or '').strip() or 'Portafolio de productos MixLab'
+        pdf = request.FILES.get('portfolio_pdf')
+        settings_obj.portfolio_title = title[:200]
+
+        if pdf:
+            name = (pdf.name or '').lower()
+            content_type = (getattr(pdf, 'content_type', '') or '').lower()
+            if not name.endswith('.pdf') and 'pdf' not in content_type:
+                error = 'Solo se permiten archivos PDF.'
+            elif pdf.size and pdf.size > 40 * 1024 * 1024:
+                error = 'El PDF no puede superar 40 MB.'
+            else:
+                if settings_obj.portfolio_pdf:
+                    settings_obj.portfolio_pdf.delete(save=False)
+                settings_obj.portfolio_pdf = pdf
+                settings_obj.portfolio_updated_at = timezone.now()
+                settings_obj.save(update_fields=[
+                    'portfolio_title', 'portfolio_pdf', 'portfolio_updated_at', 'updated_at',
+                ])
+                messages.success(request, 'Portafolio PDF actualizado. Ya pueden verlo los clientes.')
+                return redirect('store:portfolio_manage')
+        else:
+            settings_obj.save(update_fields=['portfolio_title', 'updated_at'])
+            if not error:
+                messages.success(request, 'Título del portafolio actualizado.')
+                return redirect('store:portfolio_manage')
+
+        if error:
+            messages.error(request, error)
+
+    public_url = ''
+    try:
+        public_url = request.build_absolute_uri(reverse('store:portfolio_public'))
+    except Exception:
+        public_url = '/portafolio/'
+
+    return render(request, 'store/portfolio_manage.html', {
+        'settings_obj': settings_obj,
+        'public_url': public_url,
+        'has_pdf': bool(settings_obj.portfolio_pdf),
+    })
+
+
+def portfolio_public(request):
+    """Página pública: clientes revisan el portafolio PDF en la web."""
+    settings_obj = SiteSettings.load()
+    has_pdf = bool(settings_obj.portfolio_pdf)
+    share_url = request.build_absolute_uri(reverse('store:portfolio_public'))
+    wa_share = ''
+    if has_pdf:
+        from urllib.parse import quote
+        msg = (
+            f'Revisa el portafolio de productos MixLab:\n{share_url}'
+        )
+        wa_share = 'https://wa.me/?text=' + quote(msg)
+
+    return render(request, 'store/portfolio_public.html', {
+        'settings_obj': settings_obj,
+        'has_pdf': has_pdf,
+        'share_url': share_url,
+        'wa_share': wa_share,
+        'title': (settings_obj.portfolio_title or 'Portafolio MixLab').strip(),
+    })
+
+
 def _drinzz_contract_additional_paragraphs(contract: DrinzzContractConfig):
     raw = (contract.additional_clauses or '').strip()
     if not raw:

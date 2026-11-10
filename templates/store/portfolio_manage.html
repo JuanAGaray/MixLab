@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Portafolio PDF · MixLab{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:720px">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <a href="{% url 'store:inventory_dashboard' %}" class="small text-decoration-none">&larr; Inventario</a>
+      <h1 class="h4 fw-bold mb-1 mt-1">Portafolio de productos (PDF)</h1>
+      <p class="text-muted small mb-0">
+        Sube el PDF para que los clientes lo revisen en
+        <a href="{% url 'store:portfolio_public' %}" target="_blank" rel="noopener">/portafolio/</a>.
+      </p>
+    </div>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'store:portfolio_public' %}" target="_blank" rel="noopener">
+      <i class="bi bi-eye"></i> Ver página pública
+    </a>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <h2 class="h6 fw-bold">Estado actual</h2>
+      {% if has_pdf %}
+      <div class="alert alert-success py-2 small mb-2">
+        PDF cargado
+        {% if settings_obj.portfolio_updated_at %}
+        · actualizado {{ settings_obj.portfolio_updated_at|date:"d/m/Y H:i" }}
+        {% endif %}
+      </div>
+      <div class="small mb-2">
+        Archivo:
+        <a href="{{ settings_obj.portfolio_pdf.url }}" target="_blank" rel="noopener">
+          {{ settings_obj.portfolio_pdf.name }}
+        </a>
+      </div>
+      {% else %}
+      <div class="alert alert-warning py-2 small mb-2">Aún no hay un PDF publicado.</div>
+      {% endif %}
+
+      <label class="form-label small fw-semibold mb-1">Enlace para compartir</label>
+      <div class="input-group input-group-sm mb-0">
+        <input type="text" class="form-control" id="portfolioShareUrl" readonly value="{{ public_url }}" onclick="this.select()">
+        <button type="button" class="btn btn-outline-secondary" id="btnCopyPortfolioUrl">Copiar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3">Subir / actualizar PDF</h2>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="portfolio_title">Título público</label>
+          <input type="text" class="form-control" id="portfolio_title" name="portfolio_title"
+                 value="{{ settings_obj.portfolio_title }}" maxlength="200"
+                 placeholder="Portafolio de productos MixLab">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="portfolio_pdf">Archivo PDF</label>
+          <input type="file" class="form-control" id="portfolio_pdf" name="portfolio_pdf"
+                 accept="application/pdf,.pdf">
+          <div class="form-text">Máx. 40 MB. Si no eliges archivo, solo se guarda el título.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-cloud-upload"></i> Guardar portafolio
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% if has_pdf %}
+  <form method="post" onsubmit="return confirm('¿Eliminar el PDF del portafolio?');">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="remove">
+    <button type="submit" class="btn btn-outline-danger btn-sm">
+      <i class="bi bi-trash"></i> Eliminar PDF
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var btn = document.getElementById('btnCopyPortfolioUrl');
+  var input = document.getElementById('portfolioShareUrl');
+  if (!btn || !input) return;
+  btn.addEventListener('click', function () {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(input.value).then(function () {
+        btn.textContent = 'Copiado';
+        setTimeout(function () { btn.textContent = 'Copiar'; }, 1400);
+      });
+    } else {
+      input.select();
+      document.execCommand('copy');
+    }
+  });
+})();
+</script>
+{% endblock %}

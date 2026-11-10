@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} · MixLab{% endblock %}
+{% block meta_description %}Consulta el portafolio de productos MixLab en PDF. Revisa catálogo y opciones para tu negocio o evento.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pf-page { max-width: 1100px; }
+  .pf-hero {
+    background: linear-gradient(145deg, #071526 0%, #0c2744 55%, #0F6FFF 120%);
+    color: #fff;
+    border-radius: 1.1rem;
+    padding: 1.25rem 1.35rem;
+    box-shadow: 0 12px 32px rgba(7, 21, 38, .18);
+  }
+  .pf-hero h1 {
+    font-size: 1.35rem;
+    font-weight: 900;
+    margin: 0 0 .35rem;
+    color: #fff;
+  }
+  .pf-hero p { margin: 0; color: rgba(255,255,255,.9); font-size: .92rem; }
+  .pf-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    align-items: center;
+  }
+  .pf-action {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .38rem .7rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.28);
+    background: rgba(255,255,255,.08);
+    color: rgba(255,255,255,.92);
+    font-size: .78rem;
+    font-weight: 600;
+    text-decoration: none;
+    line-height: 1.2;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .pf-action:hover {
+    background: rgba(255,255,255,.16);
+    border-color: rgba(255,255,255,.45);
+    color: #fff;
+  }
+  .pf-action i { font-size: .9rem; opacity: .95; }
+  .pf-action.is-wa:hover {
+    background: rgba(37, 211, 102, .18);
+    border-color: rgba(37, 211, 102, .55);
+  }
+  .pf-viewer {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    min-height: 70vh;
+  }
+  .pf-viewer iframe,
+  .pf-viewer embed {
+    width: 100%;
+    height: 75vh;
+    min-height: 520px;
+    border: 0;
+    display: block;
+    background: #f1f5f9;
+  }
+  .pf-empty {
+    border: 1px dashed #cbd5e1;
+    border-radius: 1rem;
+    padding: 2.5rem 1.25rem;
+    text-align: center;
+    background: #f8fafc;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 pf-page">
+  <div class="pf-hero mb-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h1>{{ title }}</h1>
+        <p>
+          Revisa el catálogo MixLab desde tu celular o computador.
+          {% if has_pdf and settings_obj.portfolio_updated_at %}
+          Actualizado {{ settings_obj.portfolio_updated_at|date:"d/m/Y" }}.
+          {% endif %}
+        </p>
+      </div>
+      {% if has_pdf %}
+      <div class="pf-actions">
+        <a class="pf-action" href="{{ settings_obj.portfolio_pdf.url }}" target="_blank" rel="noopener" title="Abrir PDF">
+          <i class="bi bi-box-arrow-up-right"></i> Abrir
+        </a>
+        <a class="pf-action" href="{{ settings_obj.portfolio_pdf.url }}" download title="Descargar PDF">
+          <i class="bi bi-download"></i> Descargar
+        </a>
+        {% if wa_share %}
+        <a class="pf-action is-wa" href="{{ wa_share }}" target="_blank" rel="noopener" title="Compartir por WhatsApp">
+          <i class="bi bi-whatsapp"></i> Compartir
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if has_pdf %}
+  <div class="pf-viewer mb-3">
+    <iframe
+      title="{{ title }}"
+      src="{{ settings_obj.portfolio_pdf.url }}#toolbar=1&navpanes=0"
+      loading="lazy"></iframe>
+  </div>
+  <p class="small text-muted mb-0">
+    Si no se visualiza en tu navegador,
+    <a href="{{ settings_obj.portfolio_pdf.url }}" target="_blank" rel="noopener">ábrelo aquí</a>
+    o descárgalo.
+  </p>
+  {% else %}
+  <div class="pf-empty">
+    <img src="{% static 'img/TotalLogo.png' %}" alt="MixLab" height="36" class="mb-3">
+    <h2 class="h5 fw-bold">Portafolio próximamente</h2>
+    <p class="text-muted mb-3">Aún no hay un PDF publicado. Vuelve pronto o escríbenos por WhatsApp.</p>
+    <a href="{% url 'store:product_list' %}" class="btn btn-primary btn-sm">Ver productos en la tienda</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

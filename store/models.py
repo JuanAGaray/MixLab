@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -2356,6 +2356,25 @@ class SiteSettings(models.Model):
         default=30,
         verbose_name='Vigencia del enlace de reseña (días)',
         help_text='Días para que el cliente pueda abrir el enlace y responder.',
+    )
+    portfolio_title = models.CharField(
+        max_length=200,
+        blank=True,
+        default='Portafolio de productos MixLab',
+        verbose_name='Título del portafolio',
+    )
+    portfolio_pdf = models.FileField(
+        upload_to='portfolio/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+        verbose_name='Portafolio PDF',
+        help_text='PDF para compartir con clientes en la web.',
+    )
+    portfolio_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Portafolio actualizado en',
     )
     updated_at = models.DateTimeField(auto_now=True)
 

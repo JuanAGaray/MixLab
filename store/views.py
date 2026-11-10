@@ -9521,11 +9521,37 @@ def portfolio_manage(request):
                 messages.info(request, 'No había un PDF cargado.')
             return redirect('store:portfolio_manage')
 
+        if action == 'remove_cover':
+            if settings_obj.portfolio_cover:
+                settings_obj.portfolio_cover.delete(save=False)
+                settings_obj.portfolio_cover = None
+                settings_obj.save(update_fields=['portfolio_cover', 'updated_at'])
+                messages.success(request, 'Miniatura de compartir eliminada.')
+            else:
+                messages.info(request, 'No había miniatura cargada.')
+            return redirect('store:portfolio_manage')
+
         title = (request.POST.get('portfolio_title') or '').strip() or 'Portafolio de productos MixLab'
         pdf = request.FILES.get('portfolio_pdf')
+        cover = request.FILES.get('portfolio_cover')
         settings_obj.portfolio_title = title[:200]
+        update_fields = ['portfolio_title', 'updated_at']
+        changed_msg = []
 
-        if pdf:
+        if cover:
+            cname = (cover.name or '').lower()
+            if not cname.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                error = 'La miniatura debe ser JPG, PNG o WEBP.'
+            elif cover.size and cover.size > 8 * 1024 * 1024:
+                error = 'La miniatura no puede superar 8 MB.'
+            else:
+                if settings_obj.portfolio_cover:
+                    settings_obj.portfolio_cover.delete(save=False)
+                settings_obj.portfolio_cover = cover
+                update_fields.append('portfolio_cover')
+                changed_msg.append('miniatura')
+
+        if not error and pdf:
             name = (pdf.name or '').lower()
             content_type = (getattr(pdf, 'content_type', '') or '').lower()
             if not name.endswith('.pdf') and 'pdf' not in content_type:
@@ -9537,19 +9563,21 @@ def portfolio_manage(request):
                     settings_obj.portfolio_pdf.delete(save=False)
                 settings_obj.portfolio_pdf = pdf
                 settings_obj.portfolio_updated_at = timezone.now()
-                settings_obj.save(update_fields=[
-                    'portfolio_title', 'portfolio_pdf', 'portfolio_updated_at', 'updated_at',
-                ])
-                messages.success(request, 'Portafolio PDF actualizado. Ya pueden verlo los clientes.')
-                return redirect('store:portfolio_manage')
-        else:
-            settings_obj.save(update_fields=['portfolio_title', 'updated_at'])
-            if not error:
-                messages.success(request, 'Título del portafolio actualizado.')
-                return redirect('store:portfolio_manage')
+                update_fields.extend(['portfolio_pdf', 'portfolio_updated_at'])
+                changed_msg.append('PDF')
 
         if error:
             messages.error(request, error)
+        else:
+            settings_obj.save(update_fields=list(dict.fromkeys(update_fields)))
+            if changed_msg:
+                messages.success(
+                    request,
+                    'Portafolio actualizado (' + ' y '.join(changed_msg) + ').',
+                )
+            else:
+                messages.success(request, 'Título del portafolio actualizado.')
+            return redirect('store:portfolio_manage')
 
     public_url = ''
     try:
@@ -9557,10 +9585,19 @@ def portfolio_manage(request):
     except Exception:
         public_url = '/portafolio/'
 
+    cover_url = ''
+    if settings_obj.portfolio_cover:
+        try:
+            cover_url = request.build_absolute_uri(settings_obj.portfolio_cover.url)
+        except Exception:
+            cover_url = settings_obj.portfolio_cover.url
+
     return render(request, 'store/portfolio_manage.html', {
         'settings_obj': settings_obj,
         'public_url': public_url,
+        'cover_url': cover_url,
         'has_pdf': bool(settings_obj.portfolio_pdf),
+        'has_cover': bool(settings_obj.portfolio_cover),
     })
 
 
@@ -9569,6 +9606,12 @@ def portfolio_public(request):
     settings_obj = SiteSettings.load()
     has_pdf = bool(settings_obj.portfolio_pdf)
     share_url = request.build_absolute_uri(reverse('store:portfolio_public'))
+    og_image_url = ''
+    if settings_obj.portfolio_cover:
+        try:
+            og_image_url = request.build_absolute_uri(settings_obj.portfolio_cover.url)
+        except Exception:
+            og_image_url = settings_obj.portfolio_cover.url
     wa_share = ''
     if has_pdf:
         from urllib.parse import quote
@@ -9581,6 +9624,7 @@ def portfolio_public(request):
         'settings_obj': settings_obj,
         'has_pdf': has_pdf,
         'share_url': share_url,
+        'og_image_url': og_image_url,
         'wa_share': wa_share,
         'title': (settings_obj.portfolio_title or 'Portafolio MixLab').strip(),
     })

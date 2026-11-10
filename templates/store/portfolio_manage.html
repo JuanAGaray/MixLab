@@ -9,7 +9,7 @@
       <a href="{% url 'store:inventory_dashboard' %}" class="small text-decoration-none">&larr; Inventario</a>
       <h1 class="h4 fw-bold mb-1 mt-1">Portafolio de productos (PDF)</h1>
       <p class="text-muted small mb-0">
-        Sube el PDF para que los clientes lo revisen en
+        Sube el PDF y una miniatura para WhatsApp/redes. Clientes:
         <a href="{% url 'store:portfolio_public' %}" target="_blank" rel="noopener">/portafolio/</a>.
       </p>
     </div>
@@ -38,6 +38,24 @@
       <div class="alert alert-warning py-2 small mb-2">Aún no hay un PDF publicado.</div>
       {% endif %}
 
+      <div class="mb-3">
+        <div class="small fw-semibold mb-1">Miniatura al compartir</div>
+        {% if has_cover %}
+        <div class="d-flex align-items-start gap-3 flex-wrap">
+          <img src="{{ settings_obj.portfolio_cover.url }}" alt="Miniatura portafolio"
+               style="width:220px;max-width:100%;height:auto;border-radius:.75rem;border:1px solid #e2e8f0;object-fit:cover;">
+          <div class="small text-muted">
+            Esta imagen aparece en la vista previa de WhatsApp y redes al compartir
+            <code>/portafolio/</code>.
+          </div>
+        </div>
+        {% else %}
+        <div class="alert alert-secondary py-2 small mb-0">
+          Sin miniatura: al compartir se usará el logo MixLab por defecto.
+        </div>
+        {% endif %}
+      </div>
+
       <label class="form-label small fw-semibold mb-1">Enlace para compartir</label>
       <div class="input-group input-group-sm mb-0">
         <input type="text" class="form-control" id="portfolioShareUrl" readonly value="{{ public_url }}" onclick="this.select()">
@@ -48,7 +66,7 @@
 
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <h2 class="h6 fw-bold mb-3">Subir / actualizar PDF</h2>
+      <h2 class="h6 fw-bold mb-3">Subir / actualizar</h2>
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="action" value="upload">
@@ -62,7 +80,13 @@
           <label class="form-label small fw-semibold" for="portfolio_pdf">Archivo PDF</label>
           <input type="file" class="form-control" id="portfolio_pdf" name="portfolio_pdf"
                  accept="application/pdf,.pdf">
-          <div class="form-text">Máx. 40 MB. Si no eliges archivo, solo se guarda el título.</div>
+          <div class="form-text">Máx. 40 MB. Opcional si solo cambias título o miniatura.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="portfolio_cover">Miniatura al compartir</label>
+          <input type="file" class="form-control" id="portfolio_cover" name="portfolio_cover"
+                 accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+          <div class="form-text">Ideal <strong>1200×630 px</strong> (JPG/PNG/WEBP). Es lo que se ve en WhatsApp.</div>
         </div>
         <button type="submit" class="btn btn-primary">
           <i class="bi bi-cloud-upload"></i> Guardar portafolio
@@ -71,15 +95,26 @@
     </div>
   </div>
 
-  {% if has_pdf %}
-  <form method="post" onsubmit="return confirm('¿Eliminar el PDF del portafolio?');">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="remove">
-    <button type="submit" class="btn btn-outline-danger btn-sm">
-      <i class="bi bi-trash"></i> Eliminar PDF
-    </button>
-  </form>
-  {% endif %}
+  <div class="d-flex flex-wrap gap-2">
+    {% if has_cover %}
+    <form method="post" onsubmit="return confirm('¿Eliminar la miniatura de compartir?');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="remove_cover">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-image"></i> Quitar miniatura
+      </button>
+    </form>
+    {% endif %}
+    {% if has_pdf %}
+    <form method="post" onsubmit="return confirm('¿Eliminar el PDF del portafolio?');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="remove">
+      <button type="submit" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-trash"></i> Eliminar PDF
+      </button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
 

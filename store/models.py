@@ -2371,6 +2371,13 @@ class SiteSettings(models.Model):
         verbose_name='Portafolio PDF',
         help_text='PDF para compartir con clientes en la web.',
     )
+    portfolio_cover = models.ImageField(
+        upload_to='portfolio/covers/',
+        blank=True,
+        null=True,
+        verbose_name='Miniatura al compartir',
+        help_text='Imagen de vista previa (WhatsApp, redes). Ideal 1200×630 px, JPG o PNG.',
+    )
     portfolio_updated_at = models.DateTimeField(
         null=True,
         blank=True,

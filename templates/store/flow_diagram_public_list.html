@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Flujos · MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .flow-public { max-width: 960px; }
+  .flow-public .flow-card {
+    border: 0;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    transition: transform .15s ease, box-shadow .15s ease;
+    height: 100%;
+  }
+  .flow-public .flow-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, .1);
+  }
+  .flow-public .cat-pill {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .15rem .45rem;
+    border-radius: .4rem;
+    background: #eff6ff;
+    color: #0F6FFF;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 flow-public">
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-4">
+    <div>
+      <h1 class="h3 mb-1 fw-bold" style="color:#071526;">Diagramas de flujo</h1>
+      <p class="text-muted mb-0">Solo managers · procesos y conversaciones del equipo.</p>
+    </div>
+    <a href="{% url 'store:flow_diagram_list' %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-pencil-square"></i> Administrar
+    </a>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{% url 'store:flow_diagram_public_list' %}" class="btn btn-sm {% if not category and not status %}btn-dark{% else %}btn-outline-secondary{% endif %}">Todos</a>
+    <a href="?status=published{% if category %}&category={{ category|urlencode }}{% endif %}" class="btn btn-sm {% if status == 'published' %}btn-dark{% else %}btn-outline-secondary{% endif %}">Publicados</a>
+    <a href="?status=draft{% if category %}&category={{ category|urlencode }}{% endif %}" class="btn btn-sm {% if status == 'draft' %}btn-dark{% else %}btn-outline-secondary{% endif %}">Borradores</a>
+    {% for c in categories %}
+    <a href="?category={{ c|urlencode }}{% if status %}&status={{ status }}{% endif %}" class="btn btn-sm {% if category == c %}btn-dark{% else %}btn-outline-secondary{% endif %}">{{ c }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3">
+    {% for d in diagrams %}
+    <div class="col-md-6">
+      <a href="{% url 'store:flow_diagram_public_detail' d.slug %}" class="text-decoration-none text-dark">
+        <div class="card flow-card">
+          <div class="card-body">
+            <div class="d-flex flex-wrap gap-1 mb-2">
+              {% if d.category %}<span class="cat-pill">{{ d.category }}</span>{% endif %}
+              {% if d.is_published %}
+              <span class="cat-pill" style="background:#dcfce7;color:#166534;">Publicado</span>
+              {% else %}
+              <span class="cat-pill" style="background:#f1f5f9;color:#475569;">Borrador</span>
+              {% endif %}
+            </div>
+            <h2 class="h5 fw-bold mb-2" style="color:#071526;">{{ d.title }}</h2>
+            {% if d.description %}
+            <p class="text-muted small mb-0">{{ d.description|truncatechars:160 }}</p>
+            {% else %}
+            <p class="text-muted small mb-0">Ver diagrama →</p>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+    </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="alert alert-light border text-center text-muted py-4 mb-0">
+        No hay diagramas. Crea uno desde Administrar.
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

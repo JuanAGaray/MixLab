@@ -2866,6 +2866,85 @@ class DrinzzContractConfig(models.Model):
         return obj
 
 
+class FlowDiagram(models.Model):
+    """Diagrama de flujo (Mermaid) editable y publicable."""
+
+    STATUS_DRAFT = 'draft'
+    STATUS_PUBLISHED = 'published'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Borrador'),
+        (STATUS_PUBLISHED, 'Publicado'),
+    ]
+
+    title = models.CharField(max_length=200, verbose_name='Título')
+    slug = models.SlugField(max_length=220, unique=True, verbose_name='Slug')
+    description = models.TextField(blank=True, default='', verbose_name='Descripción')
+    category = models.CharField(
+        max_length=80,
+        blank=True,
+        default='general',
+        verbose_name='Categoría',
+        help_text='Ej: conversacion, operaciones, ventas.',
+    )
+    mermaid_source = models.TextField(
+        verbose_name='Código Mermaid',
+        help_text='Diagrama en sintaxis Mermaid (flowchart, sequence, etc.).',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT,
+        db_index=True,
+        verbose_name='Estado',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='flow_diagrams_created',
+        verbose_name='Creado por',
+    )
+    published_at = models.DateTimeField(null=True, blank=True, verbose_name='Publicado en')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Diagrama de flujo'
+        verbose_name_plural = 'Diagramas de flujo'
+        ordering = ['sort_order', 'title']
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def is_published(self) -> bool:
+        return self.status == self.STATUS_PUBLISHED
+
+    def publish(self, *, save: bool = True):
+        self.status = self.STATUS_PUBLISHED
+        self.published_at = timezone.now()
+        if save:
+            self.save(update_fields=['status', 'published_at', 'updated_at'])
+
+    def unpublish(self, *, save: bool = True):
+        self.status = self.STATUS_DRAFT
+        if save:
+            self.save(update_fields=['status', 'updated_at'])
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.title) or 'diagrama'
+            slug = base
+            n = 2
+            while FlowDiagram.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f'{base}-{n}'
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+
 # Facturación electrónica DIAN (modelos en subpaquete store.dian)
 from store.dian.models import (  # noqa: E402, F401
     DianElectronicInvoice,

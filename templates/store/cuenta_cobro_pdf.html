@@ -5,181 +5,294 @@
   <meta charset="utf-8">
   <title>{{ document_number }} - Cuenta de cobro</title>
   <style>
-    @page { size: A4; margin: 12mm 11mm 16mm 11mm; }
+    @page { size: A4; margin: 10mm 10mm 14mm 10mm; }
     * { box-sizing: border-box; }
     body {
       font-family: Helvetica, Arial, sans-serif;
-      font-size: 9.5px;
-      line-height: 1.38;
+      font-size: 8.5px;
+      line-height: 1.28;
       color: #0f172a;
       margin: 0;
       padding: 0;
     }
     .page { position: relative; }
-    .page-break { page-break-before: always; padding-top: 4px; }
+    .page-break { page-break-before: always; padding-top: 2px; }
     .page-num {
       position: absolute;
       bottom: 0;
       right: 0;
       left: 0;
       text-align: center;
-      font-size: 8px;
+      font-size: 7.5px;
       color: #64748b;
       border-top: 1px solid #e2e8f0;
-      padding-top: 4px;
+      padding-top: 3px;
     }
-    .header {
+
+    /* —— Encabezado compacto —— */
+    .letterhead {
+      width: 100%;
+      border-collapse: collapse;
       border-bottom: 2px solid #0f172a;
-      padding-bottom: 8px;
-      margin-bottom: 8px;
+      padding-bottom: 0;
+      margin-bottom: 6px;
     }
-    .header table { width: 100%; border: none; }
-    .header td { border: none; vertical-align: top; padding: 0; }
-    .logo { max-height: 46px; max-width: 160px; }
+    .letterhead td {
+      border: none;
+      vertical-align: middle;
+      padding: 0 0 6px;
+    }
+    .logo {
+      width: 64px;
+      height: auto;
+      display: block;
+    }
+    .brand-name {
+      margin: 2px 0 0;
+      font-size: 10px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.1;
+    }
+    .brand-sub {
+      margin: 1px 0 0;
+      font-size: 7.5px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .doc-block { text-align: right; }
+    .doc-kicker {
+      margin: 0;
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #64748b;
+      font-weight: 700;
+    }
     .doc-title {
+      margin: 1px 0 3px;
       font-size: 15px;
       font-weight: 900;
-      text-align: right;
-      margin: 0 0 2px;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.02em;
+      color: #0f172a;
+      line-height: 1.1;
     }
-    .doc-meta {
-      text-align: right;
-      font-size: 9px;
+    .doc-chip {
+      display: inline-block;
+      background: #0f172a;
+      color: #fff;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 2px 7px;
+      margin: 0 0 3px;
+    }
+    .doc-meta-line {
+      margin: 0;
+      font-size: 8px;
       color: #334155;
-      margin: 1px 0;
+      line-height: 1.35;
     }
-    .doc-meta strong { color: #0f172a; }
-    .section-hr {
-      border: none;
-      border-top: 1px solid #cbd5e1;
-      margin: 10px 0;
+    .doc-meta-line strong { color: #0f172a; }
+
+    /* Meta strip */
+    .meta-strip {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 6px;
+      background: #f1f5f9;
     }
+    .meta-strip td {
+      border: 1px solid #cbd5e1;
+      padding: 4px 6px;
+      vertical-align: top;
+      width: 25%;
+    }
+    .meta-strip .lbl {
+      display: block;
+      font-size: 6.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      margin-bottom: 1px;
+    }
+    .meta-strip .val {
+      font-size: 8px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
     .block-title {
-      font-size: 8.5px;
+      font-size: 7.5px;
       font-weight: 900;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       color: #0f172a;
-      margin: 0 0 5px;
-      padding-bottom: 3px;
+      margin: 0 0 3px;
+      padding-bottom: 2px;
       border-bottom: 1px solid #e2e8f0;
     }
+
+    /* Partes: filas densas, sin cajas altas */
     .party-grid {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
-    .party-grid td {
+    .party-grid > tbody > tr > td {
       width: 50%;
       vertical-align: top;
-      padding: 0 8px 0 0;
+      padding: 0;
+      border: none;
     }
-    .party-grid td:last-child { padding-right: 0; padding-left: 8px; }
+    .party-grid > tbody > tr > td:first-child { padding-right: 4px; }
+    .party-grid > tbody > tr > td:last-child { padding-left: 4px; }
     .party-box {
       border: 1px solid #94a3b8;
-      padding: 7px 9px;
+      padding: 5px 7px;
       background: #f8fafc;
-      min-height: 108px;
     }
-    .party-box p { margin: 2px 0; font-size: 9px; }
-    .party-box .lbl { color: #64748b; font-weight: 700; font-size: 8px; text-transform: uppercase; }
+    .party-box .who {
+      margin: 0 0 3px;
+      font-size: 9px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.15;
+    }
+    table.kv {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.kv td {
+      border: none;
+      padding: 1px 0;
+      vertical-align: top;
+      font-size: 8px;
+      line-height: 1.25;
+    }
+    table.kv td.k {
+      width: 32%;
+      color: #64748b;
+      font-weight: 700;
+      font-size: 7px;
+      text-transform: uppercase;
+      padding-right: 4px;
+    }
+    table.kv td.v {
+      width: 68%;
+      color: #0f172a;
+      font-weight: 600;
+    }
+
     .subject {
       background: #eff6ff;
       border-left: 3px solid #0f6fff;
-      padding: 7px 10px;
-      margin: 8px 0;
-      font-size: 9px;
+      padding: 5px 8px;
+      margin: 5px 0 6px;
+      font-size: 8px;
       text-align: justify;
+      line-height: 1.3;
     }
+
     table.data {
       width: 100%;
       border-collapse: collapse;
-      margin: 6px 0;
-      font-size: 8.5px;
+      margin: 0 0 5px;
+      font-size: 7.5px;
     }
     table.data th, table.data td {
       border: 1px solid #94a3b8;
-      padding: 4px 5px;
+      padding: 3px 4px;
     }
     table.data th {
       background: #0f172a;
       color: #fff;
-      font-size: 7.5px;
+      font-size: 6.5px;
       font-weight: 800;
       text-transform: uppercase;
     }
     table.data td.num { text-align: right; white-space: nowrap; }
     table.data tr.discount td { background: #fff7ed; font-style: italic; }
-    .totals-wrap { width: 100%; margin-top: 6px; }
-    .totals-wrap td { vertical-align: top; }
+
+    .totals-wrap { width: 100%; margin-top: 2px; border-collapse: collapse; }
+    .totals-wrap > tbody > tr > td { vertical-align: top; border: none; padding: 0; }
+    .letters {
+      border: 1.5px solid #0f172a;
+      padding: 5px 7px;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 7.5px;
+      background: #fffbeb;
+      line-height: 1.3;
+    }
+    .letters .cap {
+      font-size: 6.5px;
+      color: #64748b;
+      display: block;
+      margin-bottom: 2px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
     table.totals {
       width: 100%;
       border-collapse: collapse;
-      font-size: 9px;
+      font-size: 8px;
     }
     table.totals td {
       border: 1px solid #cbd5e1;
-      padding: 4px 7px;
+      padding: 3px 6px;
     }
     table.totals .lbl { text-align: right; font-weight: 600; width: 68%; }
-    table.totals .val { text-align: right; font-weight: 700; width: 32%; }
+    table.totals .val { text-align: right; font-weight: 700; width: 32%; white-space: nowrap; }
     table.totals .sub { background: #f1f5f9; }
     table.totals .grand td {
       background: #0f172a;
       color: #fff;
-      font-size: 10px;
-      font-weight: 900;
-      padding: 6px 7px;
-    }
-    table.totals .net td {
-      background: #14532d;
-      color: #fff;
-      font-size: 10px;
-      font-weight: 900;
-    }
-    .letters {
-      border: 2px solid #0f172a;
-      padding: 8px 10px;
-      margin: 8px 0;
-      font-weight: 800;
-      text-transform: uppercase;
       font-size: 9px;
-      background: #fffbeb;
+      font-weight: 900;
+      padding: 5px 6px;
+    }
+
+    .section-hr {
+      border: none;
+      border-top: 1px solid #cbd5e1;
+      margin: 7px 0;
     }
     .ret-box {
       border: 1px solid #0f172a;
-      padding: 8px 10px;
-      margin: 8px 0;
+      padding: 6px 8px;
+      margin: 4px 0 6px;
     }
     .ret-box h4 {
-      margin: 0 0 6px;
-      font-size: 9px;
+      margin: 0 0 4px;
+      font-size: 8px;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
     }
-    .ret-box table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+    .ret-box table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
     .ret-box th, .ret-box td {
       border: 1px solid #cbd5e1;
-      padding: 4px 6px;
+      padding: 3px 5px;
     }
     .ret-box th { background: #f1f5f9; text-align: left; }
     .ret-box .r { text-align: right; font-weight: 700; white-space: nowrap; }
     .ret-note {
-      font-size: 8px;
+      font-size: 7px;
       color: #92400e;
-      margin-top: 5px;
+      margin: 4px 0 0;
       font-weight: 600;
+      line-height: 1.3;
     }
     .pay-box {
       border: 1px solid #0f172a;
-      padding: 8px 10px;
-      margin: 8px 0;
+      padding: 6px 8px;
+      margin: 4px 0 6px;
       background: #f8fafc;
     }
-    .pay-box p { margin: 3px 0; font-size: 9px; }
+    .pay-box p { margin: 2px 0; font-size: 8px; }
     .accept-row {
-      margin-top: 14px;
+      margin-top: 10px;
       display: table;
       width: 100%;
     }
@@ -187,48 +300,57 @@
       display: table-cell;
       width: 50%;
       vertical-align: bottom;
-      padding: 0 10px;
+      padding: 0 8px;
       text-align: center;
-      font-size: 8.5px;
+      font-size: 7.5px;
     }
     .sign-line {
       border-top: 1px solid #0f172a;
-      margin-top: 36px;
-      padding-top: 4px;
+      margin-top: 28px;
+      padding-top: 3px;
       font-weight: 700;
     }
     .stamp-box {
       border: 1px dashed #94a3b8;
-      height: 52px;
-      margin: 8px auto 0;
-      max-width: 120px;
-      font-size: 7px;
+      height: 40px;
+      margin: 6px auto 0;
+      max-width: 100px;
+      font-size: 6.5px;
       color: #94a3b8;
       text-align: center;
-      padding-top: 18px;
+      padding-top: 14px;
     }
     .legal {
-      font-size: 7.8px;
+      font-size: 7px;
       color: #334155;
       text-align: justify;
-      line-height: 1.4;
-      margin: 6px 0;
+      line-height: 1.35;
+      margin: 4px 0;
     }
     .obs-box {
       border: 1px solid #e2e8f0;
-      padding: 7px 9px;
-      margin: 8px 0;
+      padding: 5px 7px;
+      margin: 4px 0 6px;
       background: #fff;
     }
-    .obs-box p { margin: 3px 0; font-size: 9px; }
+    .obs-box p { margin: 2px 0; font-size: 8px; }
     .footer-closing {
-      margin-top: 10px;
-      padding: 8px;
+      margin-top: 6px;
+      padding: 6px;
       background: #0f172a;
       color: #fff;
       text-align: center;
-      font-size: 8px;
+      font-size: 7px;
       font-weight: 700;
+      line-height: 1.35;
+    }
+    .info-banner {
+      margin: 0 0 5px;
+      background: #eff6ff;
+      padding: 4px 7px;
+      border-left: 3px solid #0f6fff;
+      font-size: 7.5px;
+      line-height: 1.3;
     }
   </style>
 </head>
@@ -236,77 +358,104 @@
 
 <!-- ===================== PÁGINA 1 ===================== -->
 <div class="page">
-  <div class="header">
-    <table>
-      <tr>
-        <td style="width:42%;">
-          <img class="logo" src="{% static 'img/TotalLogo.png' %}" alt="MixLab">
-        </td>
-        <td style="width:58%;">
-          <p class="doc-title">CUENTA DE COBRO</p>
-          <p class="doc-meta"><strong>No.</strong> {{ document_number }}</p>
-          <p class="doc-meta"><strong>Ref.</strong> Cotización COT-{{ quote.id }}</p>
-          <p class="doc-meta"><strong>Fecha de emisión:</strong> {{ settings.address_city|default:"Cartagena" }}, {{ issue_date_text }}</p>
-          <p class="doc-meta"><strong>Régimen acreedor:</strong> {{ company_tax_regime }}</p>
-          <p class="doc-meta"><strong>Categoría tributaria:</strong> {{ taxpayer_category_label }}</p>
-          <p class="doc-meta"><strong>Resolución DIAN:</strong> {{ dian_resolution }}</p>
-        </td>
-      </tr>
-    </table>
-  </div>
+  <table class="letterhead">
+    <tr>
+      <td style="width:38%;">
+        <img class="logo" src="{% static 'img/TotalLogo.png' %}" alt="MixLab" width="64">
+        <p class="brand-name">{{ settings.company_legal_name|default:"MIXLAB SAS" }}</p>
+        <p class="brand-sub">NIT {{ settings.company_nit|default:"—" }} · {{ settings.address_city|default:"Cartagena" }}</p>
+      </td>
+      <td style="width:62%;" class="doc-block">
+        <p class="doc-kicker">Documento de cobro</p>
+        <p class="doc-title">CUENTA DE COBRO</p>
+        <div class="doc-chip">{{ document_number }}</div>
+        <p class="doc-meta-line"><strong>Ref.</strong> Cotización COT-{{ quote.id }} · {{ issue_date_text }}</p>
+      </td>
+    </tr>
+  </table>
+
+  <table class="meta-strip">
+    <tr>
+      <td>
+        <span class="lbl">Régimen acreedor</span>
+        <span class="val">{{ company_tax_regime }}</span>
+      </td>
+      <td>
+        <span class="lbl">Categoría tributaria</span>
+        <span class="val">{{ taxpayer_category_label }}</span>
+      </td>
+      <td>
+        <span class="lbl">Resolución DIAN</span>
+        <span class="val">{{ dian_resolution }}</span>
+      </td>
+      <td>
+        <span class="lbl">Emisión</span>
+        <span class="val">{{ settings.address_city|default:"Cartagena" }}, {{ issue_date|date:"d/m/Y" }}</span>
+      </td>
+    </tr>
+  </table>
 
   <table class="party-grid">
     <tr>
       <td>
         <div class="block-title">I. Deudor (cliente)</div>
         <div class="party-box">
-          <p><span class="lbl">Señor(es)</span><br><strong>{{ quote.display_client_name|default:"—" }}</strong></p>
-          <p><span class="lbl">C.C. / NIT</span><br>{{ quote.display_client_document|default:"—" }}</p>
-          <p><span class="lbl">Tipo de persona</span><br>{{ quote.display_client_kind }}</p>
-          <p><span class="lbl">Régimen del cliente</span><br>{{ client_vat_regime }}</p>
-          <p><span class="lbl">Dirección</span><br>{{ quote.display_client_address|default:"—" }}</p>
-          <p><span class="lbl">Ciudad</span><br>
-            {% if quote.display_client_departamento or quote.display_client_city %}
-              {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %}, {% endif %}{{ quote.display_client_city|default:"" }}
-            {% else %}—{% endif %}
-          </p>
-          <p><span class="lbl">Teléfono / Correo</span><br>{{ quote.display_client_phone|default:"—" }} · {{ quote.display_client_email|default:"—" }}</p>
+          <p class="who">{{ quote.display_client_name|default:"—" }}</p>
+          <table class="kv">
+            <tr><td class="k">C.C. / NIT</td><td class="v">{{ quote.display_client_document|default:"—" }}</td></tr>
+            <tr><td class="k">Tipo</td><td class="v">{{ quote.display_client_kind }} · {{ client_vat_regime }}</td></tr>
+            <tr>
+              <td class="k">Dirección</td>
+              <td class="v">
+                {{ quote.display_client_address|default:"—" }}{% if quote.display_client_departamento or quote.display_client_city %}
+                · {{ quote.display_client_departamento|default:"" }}{% if quote.display_client_departamento and quote.display_client_city %}, {% endif %}{{ quote.display_client_city|default:"" }}
+                {% endif %}
+              </td>
+            </tr>
+            <tr><td class="k">Contacto</td><td class="v">{{ quote.display_client_phone|default:"—" }} · {{ quote.display_client_email|default:"—" }}</td></tr>
+          </table>
         </div>
       </td>
       <td>
         <div class="block-title">II. Acreedor (beneficiario)</div>
         <div class="party-box">
-          <p><strong>{{ settings.company_legal_name|default:"MIXLAB SAS" }}</strong></p>
-          <p><span class="lbl">NIT</span><br>{{ settings.company_nit|default:"—" }}</p>
-          <p><span class="lbl">Matrícula mercantil</span><br>No. {{ settings.company_matricula|default:"—" }}</p>
-          <p><span class="lbl">Dirección</span><br>{{ settings.company_address|default:"—" }}</p>
-          <p><span class="lbl">Ciudad / Depto.</span><br>{{ settings.address_city|default:"Cartagena" }}{% if settings.company_department %}, {{ settings.company_department }}{% endif %}</p>
-          <p><span class="lbl">Tel / Correo</span><br>{{ settings.contact_phone|default:"—" }} · {{ settings.contact_email|default:"—" }}</p>
-          {% if settings.company_rep_name %}
-          <p><span class="lbl">Representante legal</span><br>{{ settings.company_rep_name }}</p>
-          {% endif %}
-          <p><span class="lbl">Categoría DIAN</span><br><strong>{{ taxpayer_category_label }}</strong></p>
+          <p class="who">{{ settings.company_legal_name|default:"MIXLAB SAS" }}</p>
+          <table class="kv">
+            <tr><td class="k">NIT</td><td class="v">{{ settings.company_nit|default:"—" }}{% if settings.company_matricula %} · Mat. {{ settings.company_matricula }}{% endif %}</td></tr>
+            <tr>
+              <td class="k">Dirección</td>
+              <td class="v">
+                {{ settings.company_address|default:"—" }}
+                · {{ settings.address_city|default:"Cartagena" }}{% if settings.company_department %}, {{ settings.company_department }}{% endif %}
+              </td>
+            </tr>
+            <tr><td class="k">Contacto</td><td class="v">{{ settings.contact_phone|default:"—" }} · {{ settings.contact_email|default:"—" }}</td></tr>
+            <tr>
+              <td class="k">Rep. legal</td>
+              <td class="v">{{ settings.company_rep_name|default:"—" }} · {{ taxpayer_category_label }}</td>
+            </tr>
+          </table>
         </div>
       </td>
     </tr>
   </table>
 
   <div class="subject">
-    <strong>ASUNTO:</strong> Solicitud de pago por la prestación de bienes y/o servicios detallados a continuación,
-    de conformidad con la cotización <strong>COT-{{ quote.id }}</strong> del {{ quote.created_at|date:"d/m/Y" }}.
+    <strong>ASUNTO:</strong> Solicitud de pago por bienes y/o servicios de la cotización
+    <strong>COT-{{ quote.id }}</strong> ({{ quote.created_at|date:"d/m/Y" }}).
   </div>
 
   <div class="block-title">III. Detalle de conceptos</div>
   <table class="data">
     <thead>
       <tr>
-        <th style="width:30%;">Concepto</th>
-        <th style="width:11%;">Tipo operación</th>
+        <th style="width:32%;">Concepto</th>
+        <th style="width:12%;">Tipo</th>
         <th style="width:7%;" class="num">Cant.</th>
-        <th style="width:11%;" class="num">Vr. unitario</th>
-        <th style="width:8%;" class="num">IVA</th>
-        <th style="width:11%;" class="num">Base gravada</th>
-        <th style="width:11%;" class="num">Subtotal</th>
+        <th style="width:12%;" class="num">Vr. unitario</th>
+        <th style="width:7%;" class="num">IVA</th>
+        <th style="width:15%;" class="num">Base</th>
+        <th style="width:15%;" class="num">Subtotal</th>
       </tr>
     </thead>
     <tbody>
@@ -323,7 +472,7 @@
       {% endfor %}
       {% if total_discount and total_discount > 0 %}
       <tr class="discount">
-        <td colspan="6"><strong>(-) DESCUENTOS COMERCIALES APLICADOS EN LÍNEA</strong></td>
+        <td colspan="6"><strong>(-) Descuentos comerciales en línea</strong></td>
         <td class="num"><strong>-{{ total_discount|pesos_colombianos }}</strong></td>
       </tr>
       {% endif %}
@@ -332,25 +481,24 @@
 
   <table class="totals-wrap">
     <tr>
-      <td style="width:48%; vertical-align:top;">
+      <td style="width:48%;">
         <div class="letters">
-          <span style="font-size:8px;color:#64748b;display:block;margin-bottom:3px;">VALOR EN LETRAS</span>
+          <span class="cap">Valor en letras</span>
           Son: {{ amount_in_words }}
         </div>
       </td>
-      <td style="width:4%;"></td>
-      <td style="width:48%;">
+      <td style="width:3%;"></td>
+      <td style="width:49%;">
         <table class="totals">
           <tr class="sub"><td class="lbl">Subtotal gravado (base)</td><td class="val">{{ charge_base|pesos_colombianos }}</td></tr>
           {% if freight_subtotal and freight_subtotal > 0 %}
-          <tr><td class="lbl">Flete / transporte (incluido)</td><td class="val">{{ freight_subtotal|pesos_colombianos }}</td></tr>
+          <tr><td class="lbl">Flete / transporte</td><td class="val">{{ freight_subtotal|pesos_colombianos }}</td></tr>
           {% endif %}
           {% if other_costs_subtotal and other_costs_subtotal > 0 %}
           <tr><td class="lbl">Otros costos / servicios</td><td class="val">{{ other_costs_subtotal|pesos_colombianos }}</td></tr>
           {% endif %}
-          <tr class="sub"><td class="lbl">Base gravable total</td><td class="val">{{ charge_base|pesos_colombianos }}</td></tr>
           <tr><td class="lbl">IVA total (19%)</td><td class="val">{{ charge_iva|pesos_colombianos }}</td></tr>
-          <tr><td class="lbl">Total bruto de la operación</td><td class="val">{{ gross_total|pesos_colombianos }}</td></tr>
+          <tr><td class="lbl">Total bruto</td><td class="val">{{ gross_total|pesos_colombianos }}</td></tr>
           {% if charge_discount and charge_discount > 0 %}
           <tr><td class="lbl">(-) Descuentos</td><td class="val">-{{ charge_discount|pesos_colombianos }}</td></tr>
           {% endif %}
@@ -370,20 +518,20 @@
 <div class="page page-break">
   <div class="block-title">IV. Retenciones aplicables (referencia — practica el deudor si es agente retenedor)</div>
   {% if not is_grand_contributor %}
-  <p class="legal" style="margin-bottom:6px;background:#eff6ff;padding:6px 8px;border-left:3px solid #0f6fff;">
+  <p class="info-banner">
     <strong>{{ settings.company_legal_name|default:"MIXLAB SAS" }} declara NO ser Gran Contribuyente.</strong>
-    Las retenciones en la fuente y de ICA pueden aplicar según el concepto y el régimen del deudor.
-    La <strong>retención de IVA (15%)</strong> solo la practica el deudor cuando es <strong>Gran Contribuyente</strong>
+    Retenciones e ICA según concepto y régimen del deudor.
+    La <strong>reteIVA (15%)</strong> solo la practica el deudor si es <strong>Gran Contribuyente</strong>
     y el acreedor no lo es (Art. 437-1 E.T.).
   </p>
   {% endif %}
   <div class="ret-box">
-    <h4>Cálculo sugerido de retenciones — Art. 383 y ss. / Art. 437-1 E.T.</h4>
+    <h4>Cálculo sugerido — Art. 383 y ss. / Art. 437-1 E.T.</h4>
     <table>
       <thead>
         <tr>
           <th>Concepto de retención</th>
-          <th style="width:14%;">Tarifa</th>
+          <th style="width:12%;">Tarifa</th>
           <th style="width:18%;" class="r">Base</th>
           <th style="width:18%;" class="r">Valor</th>
         </tr>
@@ -396,8 +544,8 @@
           <td class="r">{{ retefuente|pesos_colombianos }}</td>
         </tr>
         <tr>
-          <td>Retención de IVA — régimen común (sobre el IVA facturado)
-            {% if not is_grand_contributor %}<br><span style="font-size:7.5px;color:#92400e;">Solo si el deudor es Gran Contribuyente</span>{% endif %}
+          <td>Retención de IVA — régimen común
+            {% if not is_grand_contributor %}<br><span style="font-size:6.5px;color:#92400e;">Solo si el deudor es Gran Contribuyente</span>{% endif %}
           </td>
           <td>{{ reteiva_rate_pct }}%</td>
           <td class="r">{{ charge_iva|pesos_colombianos }}</td>
@@ -428,45 +576,49 @@
       </tbody>
     </table>
     <p class="ret-note">
-      Si el cliente es agente retenedor o Gran Contribuyente, debe practicar las retenciones que correspondan,
-      consignar el neto y expedir certificado. MIXLAB SAS {% if is_grand_contributor %}es{% else %}<strong>no es</strong>{% endif %}
+      Si el cliente es agente retenedor o Gran Contribuyente, debe practicar las retenciones, consignar el neto
+      y expedir certificado. MIXLAB SAS {% if is_grand_contributor %}es{% else %}<strong>no es</strong>{% endif %}
       Gran Contribuyente.
     </p>
   </div>
 
-  <hr class="section-hr">
-
   <div class="block-title">V. Forma y plazo de pago</div>
   <div class="pay-box">
-    <p><strong>Plazo:</strong> {{ payment_term_label }}</p>
-    <p><strong>Fecha máxima de pago:</strong> {{ payment_due_date_text }}</p>
-    <p><strong>Valor a consignar (sin retenciones):</strong> {{ charge_amount|pesos_colombianos }}</p>
+    <p><strong>Plazo:</strong> {{ payment_term_label }}
+      · <strong>Fecha máxima:</strong> {{ payment_due_date_text }}
+      · <strong>Valor (sin retenciones):</strong> {{ charge_amount|pesos_colombianos }}</p>
     {% if payment_methods %}
-    <p style="margin-top:6px;"><strong>Consignar a:</strong></p>
+    <p style="margin-top:4px;"><strong>Consignar a:</strong></p>
     {% for pm in payment_methods %}
     <p>
       · <strong>{{ pm.bank_name|default:pm.get_account_type_display }}</strong>
-      — Cuenta {{ pm.get_account_type_display }} No. <strong>{{ pm.account_number }}</strong>
-      — A nombre de: {{ pm.holder_name }} ({{ pm.document_display }})
+      — {{ pm.get_account_type_display }} No. <strong>{{ pm.account_number }}</strong>
+      — {{ pm.holder_name }} ({{ pm.document_display }})
       {% if pm.breb_key %} — Llave: {{ pm.breb_key }}{% endif %}
     </p>
     {% endfor %}
     {% endif %}
   </div>
 
-  <div class="accept-row">
-    <div class="accept-col">
-      <div class="sign-line">Acepto: _________________________________</div>
-      <div>Firma del cliente / representante legal</div>
-      <div style="margin-top:4px;">C.C. / NIT: _________________________</div>
-    </div>
-    <div class="accept-col">
-      <div class="sign-line">{{ settings.company_rep_name|default:"Representante legal" }}</div>
-      <div>{{ settings.company_legal_name|default:"MIXLAB SAS" }}</div>
-      <div>NIT {{ settings.company_nit|default:"—" }}</div>
-      <div class="stamp-box">Sello / firma digital</div>
-    </div>
-  </div>
+  <table class="party-grid" style="margin-top:8px;">
+    <tr>
+      <td>
+        <div class="accept-col" style="display:block;width:100%;padding:0 6px;">
+          <div class="sign-line">Acepto: _________________________________</div>
+          <div>Firma del cliente / representante legal</div>
+          <div style="margin-top:3px;">C.C. / NIT: _________________________</div>
+        </div>
+      </td>
+      <td>
+        <div class="accept-col" style="display:block;width:100%;padding:0 6px;">
+          <div class="sign-line">{{ settings.company_rep_name|default:"Representante legal" }}</div>
+          <div>{{ settings.company_legal_name|default:"MIXLAB SAS" }}</div>
+          <div>NIT {{ settings.company_nit|default:"—" }}</div>
+          <div class="stamp-box">Sello / firma</div>
+        </div>
+      </td>
+    </tr>
+  </table>
 
   <hr class="section-hr">
 
@@ -480,24 +632,23 @@
   <p class="legal">
     <strong>Facturación electrónica.</strong> {{ settings.company_legal_name|default:"MIXLAB SAS" }} es persona jurídica
     {% if is_grand_contributor %}y Gran Contribuyente{% else %}<strong>no Gran Contribuyente</strong>{% endif %},
-    obligada a facturar electrónicamente cuando la operación lo exija. La presente cuenta de cobro es una
-    <strong>solicitud formal de pago</strong> y <strong>no reemplaza la factura electrónica de venta</strong>.
-    Una vez recibido y acreditado el pago, se emitirá la factura electrónica conforme a la Resolución DIAN No. {{ dian_resolution }}.
+    obligada a facturar electrónicamente cuando la operación lo exija. Esta cuenta de cobro es
+    <strong>solicitud formal de pago</strong> y <strong>no reemplaza la factura electrónica</strong>.
+    Tras acreditar el pago se emitirá la factura conforme a la Resolución DIAN No. {{ dian_resolution }}.
   </p>
 
   <div class="block-title">VII. Observaciones</div>
   <div class="obs-box">
-    <p><strong>Tiempo de servicio:</strong> {{ service_days }} día(s)</p>
-    <p><strong>Lugar de prestación:</strong> {{ service_location }}</p>
-    <p><strong>Observaciones adicionales:</strong> {{ quote.notes|default:"Ninguna." }}</p>
+    <p><strong>Servicio:</strong> {{ service_days }} día(s)
+      · <strong>Lugar:</strong> {{ service_location }}
+      · <strong>Notas:</strong> {{ quote.notes|default:"Ninguna." }}</p>
   </div>
 
   <div class="footer-closing">
-    Este documento es una solicitud de pago formal. La factura electrónica será emitida según lo dispuesto en la
-    Resolución DIAN No. {{ dian_resolution }}.
+    Solicitud de pago formal · Factura electrónica según Resolución DIAN No. {{ dian_resolution }}
     <br>
     {{ settings.company_legal_name|default:"MIXLAB SAS" }} · NIT {{ settings.company_nit|default:"—" }}
-    · Generado electrónicamente {{ issue_date|date:"d/m/Y H:i" }}
+    · {{ issue_date|date:"d/m/Y H:i" }}
   </div>
 
   <div class="page-num">Página 2 de 2</div>

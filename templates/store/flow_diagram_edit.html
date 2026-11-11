@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} · MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .flow-edit { max-width: 1200px; }
+  .flow-edit .editor-card,
+  .flow-edit .preview-card {
+    border: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  .flow-edit textarea.mermaid-source {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .82rem;
+    min-height: 420px;
+    line-height: 1.45;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    resize: vertical;
+  }
+  .flow-edit #mermaid-preview {
+    min-height: 420px;
+    overflow: auto;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    padding: 1rem;
+  }
+  .flow-edit #mermaid-preview .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+  .flow-edit #mermaid-error {
+    display: none;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+    border-radius: .5rem;
+    padding: .65rem .85rem;
+    font-size: .85rem;
+    margin-bottom: .75rem;
+  }
+  .flow-edit .meta-hint {
+    font-size: .78rem;
+    color: #64748b;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 flow-edit">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <a href="{% url 'store:flow_diagram_list' %}" class="small text-decoration-none text-muted">
+        <i class="bi bi-arrow-left"></i> Volver al panel
+      </a>
+      <h1 class="h3 mb-0 fw-bold" style="color:#071526;">{{ page_title }}</h1>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if diagram and diagram.is_published %}
+      <a href="{% url 'store:flow_diagram_public_detail' diagram.slug %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
+        <i class="bi bi-eye"></i> Ver público
+      </a>
+      {% endif %}
+      {% if diagram %}
+      <form method="post" action="{% url 'store:flow_diagram_publish' diagram.pk %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'store:flow_diagram_edit' diagram.pk %}">
+        {% if diagram.is_published %}
+        <input type="hidden" name="action" value="unpublish">
+        <button type="submit" class="btn btn-outline-warning btn-sm"><i class="bi bi-eye-slash"></i> Despublicar</button>
+        {% else %}
+        <input type="hidden" name="action" value="publish">
+        <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-cloud-upload"></i> Publicar</button>
+        {% endif %}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if errors %}
+  <div class="alert alert-danger">
+    <ul class="mb-0 ps-3">
+      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form method="post" id="flow-form">
+    {% csrf_token %}
+    <div class="card editor-card mb-3">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Título</label>
+            <input type="text" name="title" class="form-control" value="{{ form.title }}" required maxlength="200">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold small">Slug</label>
+            <input type="text" name="slug" class="form-control" value="{{ form.slug }}" placeholder="auto">
+            <div class="meta-hint mt-1">Déjalo vacío para generarlo del título.</div>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label fw-bold small">Categoría</label>
+            <input type="text" name="category" class="form-control" value="{{ form.category }}" list="cat-suggestions">
+            <datalist id="cat-suggestions">
+              <option value="conversacion">
+              <option value="operaciones">
+              <option value="ventas">
+              <option value="general">
+            </datalist>
+          </div>
+          <div class="col-md-1">
+            <label class="form-label fw-bold small">Orden</label>
+            <input type="number" name="sort_order" class="form-control" value="{{ form.sort_order }}" min="0">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-bold small">Descripción</label>
+            <textarea name="description" class="form-control" rows="2">{{ form.description }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card editor-card h-100">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold small">Código Mermaid</span>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-preview">
+              <i class="bi bi-play-fill"></i> Actualizar vista
+            </button>
+          </div>
+          <div class="card-body">
+            <textarea name="mermaid_source" id="mermaid_source" class="form-control mermaid-source" spellcheck="false" required>{{ form.mermaid_source }}</textarea>
+            <div class="meta-hint mt-2">Soporta <code>flowchart</code>, <code>sequenceDiagram</code>, etc. Usa el botón o escribe para previsualizar.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card preview-card h-100">
+          <div class="card-header bg-white">
+            <span class="fw-bold small">Vista previa</span>
+          </div>
+          <div class="card-body">
+            <div id="mermaid-error"></div>
+            <div id="mermaid-preview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-lg"></i> {% if is_create %}Crear diagrama{% else %}Guardar cambios{% endif %}
+      </button>
+      <a href="{% url 'store:flow_diagram_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  const sourceEl = document.getElementById('mermaid_source');
+  const previewEl = document.getElementById('mermaid-preview');
+  const errorEl = document.getElementById('mermaid-error');
+  const btn = document.getElementById('btn-preview');
+  let timer = null;
+  let renderId = 0;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'neutral',
+    securityLevel: 'loose',
+    flowchart: { curve: 'basis', htmlLabels: true },
+  });
+
+  async function renderPreview() {
+    const code = (sourceEl.value || '').trim();
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+    previewEl.innerHTML = '';
+    if (!code) {
+      previewEl.innerHTML = '<p class="text-muted small mb-0">Escribe código Mermaid para ver la vista previa.</p>';
+      return;
+    }
+    const id = 'flow-preview-' + (++renderId);
+    try {
+      const { svg } = await mermaid.render(id, code);
+      previewEl.innerHTML = svg;
+    } catch (err) {
+      errorEl.style.display = 'block';
+      errorEl.textContent = (err && err.message) ? err.message : 'Error al renderizar el diagrama.';
+      const stale = document.getElementById(id);
+      if (stale) stale.remove();
+    }
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(renderPreview, 450);
+  }
+
+  btn.addEventListener('click', renderPreview);
+  sourceEl.addEventListener('input', schedule);
+  renderPreview();
+})();
+</script>
+{% endblock %}

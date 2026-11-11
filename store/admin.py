@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import EventLandingLead, QuotationServiceReview, ServiceBonusCoupon
+from .models import EventLandingLead, FlowDiagram, QuotationServiceReview, ServiceBonusCoupon
 from .managers_models import (
     ActivityCategory,
     ActivityInstance,
@@ -16,6 +16,15 @@ from .managers_models import (
     SalesWheelCellMark,
 )
 from .dian.models import DianElectronicInvoice, DianHabilitacionBatch, DianHabilitacionDocument, DianInvoiceSequence, DianSubmissionLog
+
+
+@admin.register(FlowDiagram)
+class FlowDiagramAdmin(admin.ModelAdmin):
+    list_display = ('title', 'slug', 'category', 'status', 'sort_order', 'updated_at')
+    list_filter = ('status', 'category')
+    search_fields = ('title', 'slug', 'description')
+    prepopulated_fields = {'slug': ('title',)}
+    readonly_fields = ('created_at', 'updated_at', 'published_at')
 
 
 @admin.register(ManagerProfile)

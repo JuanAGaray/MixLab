@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}{{ diagram.title }} · Flujos MixLab{% endblock %}
+
+{% block extra_css %}
+<style>
+  .flow-detail { max-width: 1100px; }
+  .flow-detail .diagram-shell {
+    background: #fff;
+    border: 0;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    padding: 1.25rem;
+    overflow: auto;
+    min-height: 320px;
+  }
+  .flow-detail .diagram-shell .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+  .flow-detail .cat-pill {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .15rem .45rem;
+    border-radius: .4rem;
+    background: #eff6ff;
+    color: #0F6FFF;
+  }
+  .flow-detail #mermaid-error {
+    display: none;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+    border-radius: .5rem;
+    padding: .65rem .85rem;
+    font-size: .85rem;
+    margin-bottom: .75rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 flow-detail">
+  <div class="mb-3">
+    <a href="{% url 'store:flow_diagram_public_list' %}" class="small text-decoration-none text-muted">
+      <i class="bi bi-arrow-left"></i> Todos los flujos
+    </a>
+  </div>
+
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+    <div>
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        {% if diagram.category %}<span class="cat-pill">{{ diagram.category }}</span>{% endif %}
+        {% if diagram.is_published %}
+        <span class="cat-pill" style="background:#dcfce7;color:#166534;">Publicado</span>
+        {% else %}
+        <span class="cat-pill" style="background:#f1f5f9;color:#475569;">Borrador</span>
+        {% endif %}
+      </div>
+      <h1 class="h3 fw-bold mb-1" style="color:#071526;">{{ diagram.title }}</h1>
+      {% if diagram.description %}
+      <p class="text-muted mb-0">{{ diagram.description }}</p>
+      {% endif %}
+    </div>
+    {% if user.is_staff %}
+    <a href="{% url 'store:flow_diagram_edit' diagram.pk %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    {% endif %}
+  </div>
+
+  <div id="mermaid-error"></div>
+  <div class="diagram-shell">
+    <pre class="mermaid" id="public-mermaid">{{ diagram.mermaid_source }}</pre>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'neutral',
+    securityLevel: 'loose',
+    flowchart: { curve: 'basis', htmlLabels: true },
+  });
+  const el = document.getElementById('public-mermaid');
+  const err = document.getElementById('mermaid-error');
+  const code = el.textContent.trim();
+  mermaid.render('public-flow-svg', code).then(function (res) {
+    el.outerHTML = res.svg;
+  }).catch(function (e) {
+    err.style.display = 'block';
+    err.textContent = (e && e.message) ? e.message : 'No se pudo renderizar el diagrama.';
+  });
+})();
+</script>
+{% endblock %}

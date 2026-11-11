@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from . import managers_views
 from . import service_review_views
+from . import flow_diagram_views
 from .dian import views as dian_views
 
 app_name = 'store'
@@ -23,6 +24,15 @@ urlpatterns = [
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
     path('portafolio/', views.portfolio_public, name='portfolio_public'),
     path('inventory/portafolio/', views.portfolio_manage, name='portfolio_manage'),
+
+    # Diagramas de flujo (Mermaid)
+    path('flujos/', flow_diagram_views.flow_diagram_public_list, name='flow_diagram_public_list'),
+    path('flujos/<slug:slug>/', flow_diagram_views.flow_diagram_public_detail, name='flow_diagram_public_detail'),
+    path('manager/flujos/', flow_diagram_views.flow_diagram_list, name='flow_diagram_list'),
+    path('manager/flujos/nuevo/', flow_diagram_views.flow_diagram_create, name='flow_diagram_create'),
+    path('manager/flujos/<int:pk>/editar/', flow_diagram_views.flow_diagram_edit, name='flow_diagram_edit'),
+    path('manager/flujos/<int:pk>/publicar/', flow_diagram_views.flow_diagram_publish, name='flow_diagram_publish'),
+    path('manager/flujos/<int:pk>/eliminar/', flow_diagram_views.flow_diagram_delete, name='flow_diagram_delete'),
     path('calculadora/', views.water_calculator, name='water_calculator'),
     path('cart/', views.cart, name='cart'),
     path('cart/add/<int:product_id>/', views.add_to_cart, name='add_to_cart'),

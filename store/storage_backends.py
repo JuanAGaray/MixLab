@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import re
+import unicodedata
 import uuid
 from urllib.parse import quote
 
@@ -13,6 +15,16 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage, Storage
 from django.utils.deconstruct import deconstructible
+
+
+def _safe_storage_key_part(value: str) -> str:
+    """ASCII-only filename segment (Supabase InvalidKey con acentos/ñ/espacios)."""
+    text = unicodedata.normalize('NFKD', value or '')
+    text = text.encode('ascii', 'ignore').decode('ascii')
+    text = text.replace(' ', '_')
+    text = re.sub(r'[^A-Za-z0-9._-]+', '_', text)
+    text = re.sub(r'_+', '_', text).strip('._-')
+    return text or 'file'
 
 
 def _supabase_configured() -> bool:
@@ -145,6 +157,13 @@ class SupabaseMediaStorage(Storage):
     def get_available_name(self, name: str, max_length: int | None = None) -> str:
         directory, filename = os.path.split(self._normalize_name(name))
         base, ext = os.path.splitext(filename)
+        base = _safe_storage_key_part(base)
+        ext = ('.' + _safe_storage_key_part(ext.lstrip('.'))) if ext else ''
+        # Directorios también sin caracteres inválidos (por si el upload_to aporta rarezas)
+        if directory:
+            directory = '/'.join(
+                _safe_storage_key_part(part) for part in directory.split('/') if part
+            )
         unique_name = f'{base}-{uuid.uuid4().hex[:10]}{ext}'
         candidate = f'{directory}/{unique_name}' if directory else unique_name
         if max_length and len(candidate) > max_length:

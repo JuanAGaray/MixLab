@@ -2360,7 +2360,7 @@ class SiteSettings(models.Model):
     portfolio_title = models.CharField(
         max_length=200,
         blank=True,
-        default='Portafolio de productos MixLab',
+        default='Portafolio MixLab Eventos',
         verbose_name='Título del portafolio',
     )
     portfolio_pdf = models.FileField(
@@ -2368,8 +2368,8 @@ class SiteSettings(models.Model):
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
-        verbose_name='Portafolio PDF',
-        help_text='PDF para compartir con clientes en la web.',
+        verbose_name='Portafolio PDF (archivo interno)',
+        help_text='Archivo opcional solo para administración; no se muestra en la web pública.',
     )
     portfolio_cover = models.ImageField(
         upload_to='portfolio/covers/',
@@ -2377,6 +2377,73 @@ class SiteSettings(models.Model):
         null=True,
         verbose_name='Miniatura al compartir',
         help_text='Imagen de vista previa (WhatsApp, redes). Ideal 1200×630 px, JPG o PNG.',
+    )
+    portfolio_hero_image = models.ImageField(
+        upload_to='portfolio/hero/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen hero',
+        help_text='Poster / fallback si no hay video o en móviles con ahorro de datos.',
+    )
+    portfolio_hero_video = models.FileField(
+        upload_to='portfolio/hero/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['mp4', 'webm', 'mov'])],
+        verbose_name='Video hero (fondo)',
+        help_text='MP4/WEBM corto y liviano. Se reproduce muteado en loop.',
+    )
+    portfolio_hero_kicker = models.CharField(
+        max_length=120,
+        blank=True,
+        default='MixLab Events',
+        verbose_name='Kicker del hero',
+    )
+    portfolio_hero_title = models.CharField(
+        max_length=220,
+        blank=True,
+        default='Experiencias de granizado y mixología para tu evento',
+        verbose_name='Título del hero',
+    )
+    portfolio_hero_subtitle = models.TextField(
+        blank=True,
+        default=(
+            'Diseñamos estaciones elegantes con máquina, insumos, operario y presentación '
+            'para bodas, corporativos y celebraciones en Cartagena.'
+        ),
+        verbose_name='Subtítulo del hero',
+    )
+    portfolio_about_image = models.ImageField(
+        upload_to='portfolio/about/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen experiencia',
+    )
+    portfolio_about_title = models.CharField(
+        max_length=200,
+        blank=True,
+        default='La experiencia MixLab',
+        verbose_name='Título experiencia',
+    )
+    portfolio_about_text = models.TextField(
+        blank=True,
+        default=(
+            'Llevamos sabor, servicio y presencia visual a tu celebración. '
+            'Cada detalle —desde la puesta en escena hasta el despacho— está pensado '
+            'para que tus invitados vivan un momento memorable.'
+        ),
+        verbose_name='Texto experiencia',
+    )
+    portfolio_cta_label = models.CharField(
+        max_length=80,
+        blank=True,
+        default='Ver paquetes',
+        verbose_name='Texto del botón principal',
+    )
+    portfolio_cta_message = models.TextField(
+        blank=True,
+        default='Hola MixLab, quiero cotizar un servicio para mi evento.',
+        verbose_name='Mensaje WhatsApp (prefill)',
     )
     portfolio_updated_at = models.DateTimeField(
         null=True,
@@ -2864,6 +2931,109 @@ class DrinzzContractConfig(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class PortfolioPackage(models.Model):
+    """Paquete destacado en el portafolio web de eventos."""
+
+    title = models.CharField(max_length=160, verbose_name='Título')
+    description = models.TextField(blank=True, default='', verbose_name='Descripción')
+    price_label = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        verbose_name='Etiqueta de precio',
+        help_text='Ej: Desde $390.000',
+    )
+    image = models.ImageField(
+        upload_to='portfolio/packages/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen',
+    )
+    link_url = models.CharField(
+        max_length=300,
+        blank=True,
+        default='',
+        verbose_name='URL opcional',
+        help_text='Ej: /eventos/ o enlace externo.',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Paquete de portafolio'
+        verbose_name_plural = 'Paquetes de portafolio'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.title
+
+
+class PortfolioGalleryImage(models.Model):
+    """Foto de la galería del portafolio web."""
+
+    image = models.ImageField(upload_to='portfolio/gallery/', verbose_name='Imagen')
+    caption = models.CharField(max_length=200, blank=True, default='', verbose_name='Pie')
+    location = models.CharField(
+        max_length=160,
+        blank=True,
+        default='',
+        verbose_name='Ubicación',
+        help_text='Ej: Cartagena, Hotel Santa Clara.',
+    )
+    event_date = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name='Fecha del evento',
+        help_text='Se usa para ordenar la galería (más recientes primero).',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name='Activa')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Foto de galería'
+        verbose_name_plural = 'Fotos de galería'
+        ordering = ['-event_date', '-created_at', 'id']
+
+    def __str__(self):
+        return self.caption or self.location or f'Galería #{self.pk}'
+
+
+class PortfolioAddon(models.Model):
+    """Servicios adicionales del portafolio (stickers, alcohol, personalización, etc.)."""
+
+    title = models.CharField(max_length=160, verbose_name='Título')
+    description = models.TextField(blank=True, default='', verbose_name='Descripción')
+    price_label = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        verbose_name='Etiqueta de precio',
+        help_text='Ej: Desde $50.000 · Consultar',
+    )
+    image = models.ImageField(
+        upload_to='portfolio/addons/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Adicional de portafolio'
+        verbose_name_plural = 'Adicionales de portafolio'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.title
 
 
 class FlowDiagram(models.Model):

@@ -35,6 +35,9 @@ from .models import (
     FinanceRecord,
     DrinzzContractConfig,
     EventLandingLead,
+    PortfolioPackage,
+    PortfolioGalleryImage,
+    PortfolioAddon,
 )
 from .forms import (
     ProductForm,
@@ -9502,23 +9505,33 @@ def site_settings_edit(request):
     })
 
 
+def _portfolio_valid_image(file_obj, *, max_mb: int = 8) -> str:
+    """Devuelve mensaje de error o '' si la imagen es válida."""
+    if not file_obj:
+        return ''
+    name = (file_obj.name or '').lower()
+    if not name.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        return 'La imagen debe ser JPG, PNG o WEBP.'
+    if file_obj.size and file_obj.size > max_mb * 1024 * 1024:
+        return f'La imagen no puede superar {max_mb} MB.'
+    return ''
+
+
 @staff_member_required
 def portfolio_manage(request):
-    """Staff: subir / actualizar el PDF del portafolio de productos."""
+    """Staff: editar landing web de portafolio (hero, paquetes, galería). PDF solo interno."""
     settings_obj = SiteSettings.load()
-    error = ''
 
     if request.method == 'POST':
-        action = (request.POST.get('action') or 'upload').strip()
-        if action == 'remove':
+        action = (request.POST.get('action') or 'save_content').strip()
+
+        if action == 'remove_pdf':
             if settings_obj.portfolio_pdf:
                 settings_obj.portfolio_pdf.delete(save=False)
                 settings_obj.portfolio_pdf = None
                 settings_obj.portfolio_updated_at = None
                 settings_obj.save(update_fields=['portfolio_pdf', 'portfolio_updated_at', 'updated_at'])
-                messages.success(request, 'Portafolio eliminado.')
-            else:
-                messages.info(request, 'No había un PDF cargado.')
+                messages.success(request, 'PDF interno eliminado.')
             return redirect('store:portfolio_manage')
 
         if action == 'remove_cover':
@@ -9526,31 +9539,287 @@ def portfolio_manage(request):
                 settings_obj.portfolio_cover.delete(save=False)
                 settings_obj.portfolio_cover = None
                 settings_obj.save(update_fields=['portfolio_cover', 'updated_at'])
-                messages.success(request, 'Miniatura de compartir eliminada.')
-            else:
-                messages.info(request, 'No había miniatura cargada.')
+                messages.success(request, 'Miniatura OG eliminada.')
             return redirect('store:portfolio_manage')
 
-        title = (request.POST.get('portfolio_title') or '').strip() or 'Portafolio de productos MixLab'
-        pdf = request.FILES.get('portfolio_pdf')
-        cover = request.FILES.get('portfolio_cover')
-        settings_obj.portfolio_title = title[:200]
-        update_fields = ['portfolio_title', 'updated_at']
-        changed_msg = []
+        if action == 'remove_hero':
+            if settings_obj.portfolio_hero_image:
+                settings_obj.portfolio_hero_image.delete(save=False)
+                settings_obj.portfolio_hero_image = None
+                settings_obj.save(update_fields=['portfolio_hero_image', 'updated_at'])
+                messages.success(request, 'Imagen hero eliminada.')
+            return redirect('store:portfolio_manage')
 
-        if cover:
-            cname = (cover.name or '').lower()
-            if not cname.endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                error = 'La miniatura debe ser JPG, PNG o WEBP.'
-            elif cover.size and cover.size > 8 * 1024 * 1024:
-                error = 'La miniatura no puede superar 8 MB.'
+        if action == 'remove_hero_video':
+            if settings_obj.portfolio_hero_video:
+                settings_obj.portfolio_hero_video.delete(save=False)
+                settings_obj.portfolio_hero_video = None
+                settings_obj.save(update_fields=['portfolio_hero_video', 'updated_at'])
+                messages.success(request, 'Video hero eliminado.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'remove_about':
+            if settings_obj.portfolio_about_image:
+                settings_obj.portfolio_about_image.delete(save=False)
+                settings_obj.portfolio_about_image = None
+                settings_obj.save(update_fields=['portfolio_about_image', 'updated_at'])
+                messages.success(request, 'Imagen de experiencia eliminada.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'add_package':
+            title = (request.POST.get('pkg_title') or '').strip()
+            if not title:
+                messages.error(request, 'El título del paquete es obligatorio.')
+                return redirect('store:portfolio_manage')
+            img = request.FILES.get('pkg_image')
+            err = _portfolio_valid_image(img)
+            if err:
+                messages.error(request, err)
+                return redirect('store:portfolio_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('pkg_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = 0
+            pkg = PortfolioPackage(
+                title=title[:160],
+                description=(request.POST.get('pkg_description') or '').strip(),
+                price_label=(request.POST.get('pkg_price_label') or '').strip()[:80],
+                link_url=(request.POST.get('pkg_link_url') or '').strip()[:300],
+                sort_order=sort_order,
+                is_active=bool(request.POST.get('pkg_is_active')),
+            )
+            if img:
+                pkg.image = img
+            pkg.save()
+            messages.success(request, f'Paquete “{pkg.title}” creado.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'update_package':
+            pkg = get_object_or_404(PortfolioPackage, pk=request.POST.get('pkg_id'))
+            title = (request.POST.get('pkg_title') or '').strip()
+            if not title:
+                messages.error(request, 'El título del paquete es obligatorio.')
+                return redirect('store:portfolio_manage')
+            img = request.FILES.get('pkg_image')
+            err = _portfolio_valid_image(img)
+            if err:
+                messages.error(request, err)
+                return redirect('store:portfolio_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('pkg_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = pkg.sort_order
+            pkg.title = title[:160]
+            pkg.description = (request.POST.get('pkg_description') or '').strip()
+            pkg.price_label = (request.POST.get('pkg_price_label') or '').strip()[:80]
+            pkg.link_url = (request.POST.get('pkg_link_url') or '').strip()[:300]
+            pkg.sort_order = sort_order
+            pkg.is_active = bool(request.POST.get('pkg_is_active'))
+            if img:
+                if pkg.image:
+                    pkg.image.delete(save=False)
+                pkg.image = img
+            pkg.save()
+            messages.success(request, f'Paquete “{pkg.title}” actualizado.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'delete_package':
+            pkg = get_object_or_404(PortfolioPackage, pk=request.POST.get('pkg_id'))
+            title = pkg.title
+            if pkg.image:
+                pkg.image.delete(save=False)
+            pkg.delete()
+            messages.warning(request, f'Paquete “{title}” eliminado.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'add_gallery':
+            img = request.FILES.get('gallery_image')
+            if not img:
+                messages.error(request, 'Selecciona una imagen para la galería.')
+                return redirect('store:portfolio_manage')
+            err = _portfolio_valid_image(img, max_mb=10)
+            if err:
+                messages.error(request, err)
+                return redirect('store:portfolio_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('gallery_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = 0
+            event_date = None
+            raw_date = (request.POST.get('gallery_event_date') or '').strip()
+            if raw_date:
+                try:
+                    from datetime import date as _date
+                    event_date = _date.fromisoformat(raw_date)
+                except ValueError:
+                    messages.error(request, 'Fecha de galería inválida.')
+                    return redirect('store:portfolio_manage')
+            PortfolioGalleryImage.objects.create(
+                image=img,
+                caption=(request.POST.get('gallery_caption') or '').strip()[:200],
+                location=(request.POST.get('gallery_location') or '').strip()[:160],
+                event_date=event_date or timezone.now().date(),
+                sort_order=sort_order,
+                is_active=True,
+            )
+            messages.success(request, 'Foto agregada a la galería.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'update_gallery':
+            item = get_object_or_404(PortfolioGalleryImage, pk=request.POST.get('gallery_id'))
+            try:
+                sort_order = max(0, int(request.POST.get('gallery_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = item.sort_order
+            item.caption = (request.POST.get('gallery_caption') or '').strip()[:200]
+            item.location = (request.POST.get('gallery_location') or '').strip()[:160]
+            raw_date = (request.POST.get('gallery_event_date') or '').strip()
+            if raw_date:
+                try:
+                    from datetime import date as _date
+                    item.event_date = _date.fromisoformat(raw_date)
+                except ValueError:
+                    messages.error(request, 'Fecha de galería inválida.')
+                    return redirect('store:portfolio_manage')
+            item.sort_order = sort_order
+            item.is_active = bool(request.POST.get('gallery_is_active'))
+            item.save(update_fields=['caption', 'location', 'event_date', 'sort_order', 'is_active'])
+            messages.success(request, 'Foto de galería actualizada.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'delete_gallery':
+            item = get_object_or_404(PortfolioGalleryImage, pk=request.POST.get('gallery_id'))
+            if item.image:
+                item.image.delete(save=False)
+            item.delete()
+            messages.warning(request, 'Foto de galería eliminada.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'add_addon':
+            title = (request.POST.get('addon_title') or '').strip()
+            if not title:
+                messages.error(request, 'El título del adicional es obligatorio.')
+                return redirect('store:portfolio_manage')
+            img = request.FILES.get('addon_image')
+            err = _portfolio_valid_image(img)
+            if err:
+                messages.error(request, err)
+                return redirect('store:portfolio_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('addon_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = 0
+            addon = PortfolioAddon(
+                title=title[:160],
+                description=(request.POST.get('addon_description') or '').strip(),
+                price_label=(request.POST.get('addon_price_label') or '').strip()[:80],
+                sort_order=sort_order,
+                is_active=bool(request.POST.get('addon_is_active')),
+            )
+            if img:
+                addon.image = img
+            addon.save()
+            messages.success(request, f'Adicional “{addon.title}” creado.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'update_addon':
+            addon = get_object_or_404(PortfolioAddon, pk=request.POST.get('addon_id'))
+            title = (request.POST.get('addon_title') or '').strip()
+            if not title:
+                messages.error(request, 'El título del adicional es obligatorio.')
+                return redirect('store:portfolio_manage')
+            img = request.FILES.get('addon_image')
+            err = _portfolio_valid_image(img)
+            if err:
+                messages.error(request, err)
+                return redirect('store:portfolio_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('addon_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = addon.sort_order
+            addon.title = title[:160]
+            addon.description = (request.POST.get('addon_description') or '').strip()
+            addon.price_label = (request.POST.get('addon_price_label') or '').strip()[:80]
+            addon.sort_order = sort_order
+            addon.is_active = bool(request.POST.get('addon_is_active'))
+            if img:
+                if addon.image:
+                    addon.image.delete(save=False)
+                addon.image = img
+            addon.save()
+            messages.success(request, f'Adicional “{addon.title}” actualizado.')
+            return redirect('store:portfolio_manage')
+
+        if action == 'delete_addon':
+            addon = get_object_or_404(PortfolioAddon, pk=request.POST.get('addon_id'))
+            title = addon.title
+            if addon.image:
+                addon.image.delete(save=False)
+            addon.delete()
+            messages.warning(request, f'Adicional “{title}” eliminado.')
+            return redirect('store:portfolio_manage')
+
+        # save_content (default)
+        error = ''
+        settings_obj.portfolio_title = (
+            (request.POST.get('portfolio_title') or '').strip() or 'Portafolio MixLab Eventos'
+        )[:200]
+        settings_obj.portfolio_hero_kicker = (request.POST.get('portfolio_hero_kicker') or '').strip()[:120]
+        settings_obj.portfolio_hero_title = (request.POST.get('portfolio_hero_title') or '').strip()[:220]
+        settings_obj.portfolio_hero_subtitle = (request.POST.get('portfolio_hero_subtitle') or '').strip()
+        settings_obj.portfolio_about_title = (request.POST.get('portfolio_about_title') or '').strip()[:200]
+        settings_obj.portfolio_about_text = (request.POST.get('portfolio_about_text') or '').strip()
+        settings_obj.portfolio_cta_label = (
+            (request.POST.get('portfolio_cta_label') or '').strip() or 'Ver paquetes'
+        )[:80]
+        settings_obj.portfolio_cta_message = (request.POST.get('portfolio_cta_message') or '').strip()
+
+        update_fields = [
+            'portfolio_title',
+            'portfolio_hero_kicker',
+            'portfolio_hero_title',
+            'portfolio_hero_subtitle',
+            'portfolio_about_title',
+            'portfolio_about_text',
+            'portfolio_cta_label',
+            'portfolio_cta_message',
+            'portfolio_updated_at',
+            'updated_at',
+        ]
+        settings_obj.portfolio_updated_at = timezone.now()
+
+        for field_name, file_key in (
+            ('portfolio_hero_image', 'portfolio_hero_image'),
+            ('portfolio_about_image', 'portfolio_about_image'),
+            ('portfolio_cover', 'portfolio_cover'),
+        ):
+            f = request.FILES.get(file_key)
+            if not f:
+                continue
+            err = _portfolio_valid_image(f)
+            if err:
+                error = err
+                break
+            current = getattr(settings_obj, field_name)
+            if current:
+                current.delete(save=False)
+            setattr(settings_obj, field_name, f)
+            update_fields.append(field_name)
+
+        video = request.FILES.get('portfolio_hero_video')
+        if not error and video:
+            vname = (video.name or '').lower()
+            if not vname.endswith(('.mp4', '.webm', '.mov')):
+                error = 'El video hero debe ser MP4, WEBM o MOV.'
+            elif video.size and video.size > 40 * 1024 * 1024:
+                error = 'El video hero no puede superar 40 MB.'
             else:
-                if settings_obj.portfolio_cover:
-                    settings_obj.portfolio_cover.delete(save=False)
-                settings_obj.portfolio_cover = cover
-                update_fields.append('portfolio_cover')
-                changed_msg.append('miniatura')
+                if settings_obj.portfolio_hero_video:
+                    settings_obj.portfolio_hero_video.delete(save=False)
+                settings_obj.portfolio_hero_video = video
+                update_fields.append('portfolio_hero_video')
 
+        pdf = request.FILES.get('portfolio_pdf')
         if not error and pdf:
             name = (pdf.name or '').lower()
             content_type = (getattr(pdf, 'content_type', '') or '').lower()
@@ -9562,22 +9831,14 @@ def portfolio_manage(request):
                 if settings_obj.portfolio_pdf:
                     settings_obj.portfolio_pdf.delete(save=False)
                 settings_obj.portfolio_pdf = pdf
-                settings_obj.portfolio_updated_at = timezone.now()
                 update_fields.extend(['portfolio_pdf', 'portfolio_updated_at'])
-                changed_msg.append('PDF')
 
         if error:
             messages.error(request, error)
         else:
             settings_obj.save(update_fields=list(dict.fromkeys(update_fields)))
-            if changed_msg:
-                messages.success(
-                    request,
-                    'Portafolio actualizado (' + ' y '.join(changed_msg) + ').',
-                )
-            else:
-                messages.success(request, 'Título del portafolio actualizado.')
-            return redirect('store:portfolio_manage')
+            messages.success(request, 'Contenido del portafolio guardado.')
+        return redirect('store:portfolio_manage')
 
     public_url = ''
     try:
@@ -9585,48 +9846,70 @@ def portfolio_manage(request):
     except Exception:
         public_url = '/portafolio/'
 
-    cover_url = ''
-    if settings_obj.portfolio_cover:
-        try:
-            cover_url = request.build_absolute_uri(settings_obj.portfolio_cover.url)
-        except Exception:
-            cover_url = settings_obj.portfolio_cover.url
-
     return render(request, 'store/portfolio_manage.html', {
         'settings_obj': settings_obj,
         'public_url': public_url,
-        'cover_url': cover_url,
         'has_pdf': bool(settings_obj.portfolio_pdf),
         'has_cover': bool(settings_obj.portfolio_cover),
+        'packages': PortfolioPackage.objects.all(),
+        'gallery': PortfolioGalleryImage.objects.all().order_by('-event_date', '-created_at', 'id'),
+        'addons': PortfolioAddon.objects.all(),
     })
 
 
 def portfolio_public(request):
-    """Página pública: clientes revisan el portafolio PDF en la web."""
+    """Landing pública de portafolio de eventos (sin PDF)."""
     settings_obj = SiteSettings.load()
-    has_pdf = bool(settings_obj.portfolio_pdf)
     share_url = request.build_absolute_uri(reverse('store:portfolio_public'))
+    title = (settings_obj.portfolio_title or 'Portafolio MixLab Eventos').strip()
+
     og_image_url = ''
-    if settings_obj.portfolio_cover:
+    for img_field in (
+        settings_obj.portfolio_cover,
+        settings_obj.portfolio_hero_image,
+        settings_obj.portfolio_about_image,
+    ):
+        if img_field:
+            try:
+                og_image_url = request.build_absolute_uri(img_field.url)
+            except Exception:
+                og_image_url = img_field.url
+            break
+
+    cta_message = (settings_obj.portfolio_cta_message or '').strip() or (
+        'Hola MixLab, quiero cotizar un servicio para mi evento.'
+    )
+    wa_cta = _wa_me_url(settings_obj.whatsapp_number or '', cta_message)
+
+    from urllib.parse import quote
+    wa_share = 'https://wa.me/?text=' + quote(f'Revisa el portafolio MixLab Eventos:\n{share_url}')
+
+    packages = PortfolioPackage.objects.filter(is_active=True)
+    gallery = PortfolioGalleryImage.objects.filter(is_active=True).order_by(
+        '-event_date', '-created_at', 'id'
+    )
+    addons = PortfolioAddon.objects.filter(is_active=True)
+
+    from django.templatetags.static import static as static_url
+    hero_video_static = ''
+    if not settings_obj.portfolio_hero_video:
         try:
-            og_image_url = request.build_absolute_uri(settings_obj.portfolio_cover.url)
+            hero_video_static = static_url('img/portfolio-hero.mp4')
         except Exception:
-            og_image_url = settings_obj.portfolio_cover.url
-    wa_share = ''
-    if has_pdf:
-        from urllib.parse import quote
-        msg = (
-            f'Revisa el portafolio de productos MixLab:\n{share_url}'
-        )
-        wa_share = 'https://wa.me/?text=' + quote(msg)
+            hero_video_static = ''
 
     return render(request, 'store/portfolio_public.html', {
         'settings_obj': settings_obj,
-        'has_pdf': has_pdf,
+        'packages': packages,
+        'gallery': gallery,
+        'addons': addons,
         'share_url': share_url,
         'og_image_url': og_image_url,
+        'wa_cta': wa_cta,
         'wa_share': wa_share,
-        'title': (settings_obj.portfolio_title or 'Portafolio MixLab').strip(),
+        'title': title,
+        'cta_label': (settings_obj.portfolio_cta_label or 'Ver paquetes').strip(),
+        'hero_video_static': hero_video_static,
     })
 
 

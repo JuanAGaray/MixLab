@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import EventLandingLead, FlowDiagram, QuotationServiceReview, ServiceBonusCoupon
+from .models import (
+    EventLandingLead,
+    FlowDiagram,
+    PortfolioAddon,
+    PortfolioGalleryImage,
+    PortfolioPackage,
+    QuotationServiceReview,
+    ServiceBonusCoupon,
+)
 from .managers_models import (
     ActivityCategory,
     ActivityInstance,
@@ -16,6 +24,31 @@ from .managers_models import (
     SalesWheelCellMark,
 )
 from .dian.models import DianElectronicInvoice, DianHabilitacionBatch, DianHabilitacionDocument, DianInvoiceSequence, DianSubmissionLog
+
+
+@admin.register(PortfolioPackage)
+class PortfolioPackageAdmin(admin.ModelAdmin):
+    list_display = ('title', 'price_label', 'sort_order', 'is_active', 'updated_at')
+    list_filter = ('is_active',)
+    search_fields = ('title', 'description')
+    list_editable = ('sort_order', 'is_active')
+
+
+@admin.register(PortfolioGalleryImage)
+class PortfolioGalleryImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'caption', 'location', 'event_date', 'sort_order', 'is_active', 'created_at')
+    list_filter = ('is_active', 'event_date')
+    list_editable = ('sort_order', 'is_active', 'caption', 'location', 'event_date')
+    search_fields = ('caption', 'location')
+    ordering = ('-event_date', '-created_at')
+
+
+@admin.register(PortfolioAddon)
+class PortfolioAddonAdmin(admin.ModelAdmin):
+    list_display = ('title', 'price_label', 'sort_order', 'is_active', 'updated_at')
+    list_filter = ('is_active',)
+    search_fields = ('title', 'description')
+    list_editable = ('sort_order', 'is_active')
 
 
 @admin.register(FlowDiagram)

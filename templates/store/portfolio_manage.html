@@ -1,119 +1,444 @@
 {% extends "base.html" %}
 
-{% block title %}Portafolio PDF · MixLab{% endblock %}
+{% block title %}Portafolio · MixLab{% endblock %}
 
 {% block content %}
-<div class="container py-4" style="max-width:720px">
+<div class="container py-4" style="max-width:980px">
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
     <div>
-      <a href="{% url 'store:inventory_dashboard' %}" class="small text-decoration-none">&larr; Inventario</a>
-      <h1 class="h4 fw-bold mb-1 mt-1">Portafolio de productos (PDF)</h1>
+      <h1 class="h4 fw-bold mb-1">Portafolio web (eventos)</h1>
       <p class="text-muted small mb-0">
-        Sube el PDF y una miniatura para WhatsApp/redes. Clientes:
+        Edita textos e imágenes de la landing pública
         <a href="{% url 'store:portfolio_public' %}" target="_blank" rel="noopener">/portafolio/</a>.
+        El PDF es solo archivo interno (no se muestra en la web).
       </p>
     </div>
     <a class="btn btn-outline-primary btn-sm" href="{% url 'store:portfolio_public' %}" target="_blank" rel="noopener">
-      <i class="bi bi-eye"></i> Ver página pública
+      <i class="bi bi-eye"></i> Ver landing
     </a>
   </div>
 
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <h2 class="h6 fw-bold">Estado actual</h2>
-      {% if has_pdf %}
-      <div class="alert alert-success py-2 small mb-2">
-        PDF cargado
-        {% if settings_obj.portfolio_updated_at %}
-        · actualizado {{ settings_obj.portfolio_updated_at|date:"d/m/Y H:i" }}
-        {% endif %}
-      </div>
-      <div class="small mb-2">
-        Archivo:
-        <a href="{{ settings_obj.portfolio_pdf.url }}" target="_blank" rel="noopener">
-          {{ settings_obj.portfolio_pdf.name }}
-        </a>
-      </div>
-      {% else %}
-      <div class="alert alert-warning py-2 small mb-2">Aún no hay un PDF publicado.</div>
-      {% endif %}
-
-      <div class="mb-3">
-        <div class="small fw-semibold mb-1">Miniatura al compartir</div>
-        {% if has_cover %}
-        <div class="d-flex align-items-start gap-3 flex-wrap">
-          <img src="{{ settings_obj.portfolio_cover.url }}" alt="Miniatura portafolio"
-               style="width:220px;max-width:100%;height:auto;border-radius:.75rem;border:1px solid #e2e8f0;object-fit:cover;">
-          <div class="small text-muted">
-            Esta imagen aparece en la vista previa de WhatsApp y redes al compartir
-            <code>/portafolio/</code>.
-          </div>
-        </div>
-        {% else %}
-        <div class="alert alert-secondary py-2 small mb-0">
-          Sin miniatura: al compartir se usará el logo MixLab por defecto.
-        </div>
-        {% endif %}
-      </div>
-
       <label class="form-label small fw-semibold mb-1">Enlace para compartir</label>
-      <div class="input-group input-group-sm mb-0">
+      <div class="input-group input-group-sm">
         <input type="text" class="form-control" id="portfolioShareUrl" readonly value="{{ public_url }}" onclick="this.select()">
         <button type="button" class="btn btn-outline-secondary" id="btnCopyPortfolioUrl">Copiar</button>
       </div>
+      {% if settings_obj.portfolio_updated_at %}
+      <div class="form-text">Última actualización: {{ settings_obj.portfolio_updated_at|date:"d/m/Y H:i" }}</div>
+      {% endif %}
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-3">
+  {# —— Contenido principal —— #}
+  <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-      <h2 class="h6 fw-bold mb-3">Subir / actualizar</h2>
+      <h2 class="h6 fw-bold mb-3">Contenido de la landing</h2>
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <input type="hidden" name="action" value="upload">
+        <input type="hidden" name="action" value="save_content">
+
         <div class="mb-3">
-          <label class="form-label small fw-semibold" for="portfolio_title">Título público</label>
+          <label class="form-label small fw-semibold" for="portfolio_title">Título SEO / página</label>
           <input type="text" class="form-control" id="portfolio_title" name="portfolio_title"
-                 value="{{ settings_obj.portfolio_title }}" maxlength="200"
-                 placeholder="Portafolio de productos MixLab">
+                 value="{{ settings_obj.portfolio_title }}" maxlength="200">
         </div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="portfolio_pdf">Archivo PDF</label>
-          <input type="file" class="form-control" id="portfolio_pdf" name="portfolio_pdf"
-                 accept="application/pdf,.pdf">
-          <div class="form-text">Máx. 40 MB. Opcional si solo cambias título o miniatura.</div>
+
+        <hr class="my-3">
+        <h3 class="h6 fw-bold text-muted">Hero</h3>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold" for="portfolio_hero_kicker">Kicker</label>
+            <input type="text" class="form-control" id="portfolio_hero_kicker" name="portfolio_hero_kicker"
+                   value="{{ settings_obj.portfolio_hero_kicker }}" maxlength="120">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold" for="portfolio_hero_title">Título</label>
+            <input type="text" class="form-control" id="portfolio_hero_title" name="portfolio_hero_title"
+                   value="{{ settings_obj.portfolio_hero_title }}" maxlength="220">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold" for="portfolio_hero_subtitle">Subtítulo</label>
+            <textarea class="form-control" id="portfolio_hero_subtitle" name="portfolio_hero_subtitle" rows="3">{{ settings_obj.portfolio_hero_subtitle }}</textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="portfolio_hero_video">Video de fondo (MP4)</label>
+            <input type="file" class="form-control" id="portfolio_hero_video" name="portfolio_hero_video"
+                   accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+            <div class="form-text">Muteado + loop. Ideal &lt; 10 MB, horizontal.</div>
+            {% if settings_obj.portfolio_hero_video %}
+            <div class="small mt-1">
+              Actual:
+              <a href="{{ settings_obj.portfolio_hero_video.url }}" target="_blank" rel="noopener">{{ settings_obj.portfolio_hero_video.name }}</a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="portfolio_hero_image">Imagen poster / fallback</label>
+            <input type="file" class="form-control" id="portfolio_hero_image" name="portfolio_hero_image"
+                   accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            {% if settings_obj.portfolio_hero_image %}
+            <img src="{{ settings_obj.portfolio_hero_image.url }}" alt="Hero" class="img-fluid rounded border mt-2" style="max-height:90px;object-fit:cover;">
+            {% endif %}
+          </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="portfolio_cover">Miniatura al compartir</label>
-          <input type="file" class="form-control" id="portfolio_cover" name="portfolio_cover"
-                 accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
-          <div class="form-text">Ideal <strong>1200×630 px</strong> (JPG/PNG/WEBP). Es lo que se ve en WhatsApp.</div>
+
+        <hr class="my-3">
+        <h3 class="h6 fw-bold text-muted">Experiencia</h3>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="portfolio_about_title">Título</label>
+            <input type="text" class="form-control" id="portfolio_about_title" name="portfolio_about_title"
+                   value="{{ settings_obj.portfolio_about_title }}" maxlength="200">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="portfolio_about_image">Imagen lateral</label>
+            <input type="file" class="form-control" id="portfolio_about_image" name="portfolio_about_image"
+                   accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            {% if settings_obj.portfolio_about_image %}
+            <img src="{{ settings_obj.portfolio_about_image.url }}" alt="Experiencia" class="img-fluid rounded border mt-2" style="max-height:90px;object-fit:cover;">
+            {% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold" for="portfolio_about_text">Texto</label>
+            <textarea class="form-control" id="portfolio_about_text" name="portfolio_about_text" rows="4">{{ settings_obj.portfolio_about_text }}</textarea>
+          </div>
         </div>
+
+        <hr class="my-3">
+        <h3 class="h6 fw-bold text-muted">CTA / WhatsApp / OG</h3>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold" for="portfolio_cta_label">Texto botón</label>
+            <input type="text" class="form-control" id="portfolio_cta_label" name="portfolio_cta_label"
+                   value="{{ settings_obj.portfolio_cta_label }}" maxlength="80">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold" for="portfolio_cta_message">Mensaje prefill WhatsApp</label>
+            <input type="text" class="form-control" id="portfolio_cta_message" name="portfolio_cta_message"
+                   value="{{ settings_obj.portfolio_cta_message }}">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold" for="portfolio_cover">Miniatura OG (1200×630)</label>
+            <input type="file" class="form-control" id="portfolio_cover" name="portfolio_cover"
+                   accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            <div class="form-text">Vista previa al compartir en WhatsApp/redes.</div>
+          </div>
+          <div class="col-md-4">
+            {% if has_cover %}
+            <img src="{{ settings_obj.portfolio_cover.url }}" alt="OG" class="img-fluid rounded border" style="max-height:90px;object-fit:cover;">
+            {% endif %}
+          </div>
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold" for="portfolio_pdf">PDF interno (opcional)</label>
+            <input type="file" class="form-control" id="portfolio_pdf" name="portfolio_pdf" accept="application/pdf,.pdf">
+            <div class="form-text text-warning">No se muestra en la web pública.</div>
+            {% if has_pdf %}
+            <div class="small mt-1">
+              Actual:
+              <a href="{{ settings_obj.portfolio_pdf.url }}" target="_blank" rel="noopener">{{ settings_obj.portfolio_pdf.name }}</a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
         <button type="submit" class="btn btn-primary">
-          <i class="bi bi-cloud-upload"></i> Guardar portafolio
+          <i class="bi bi-check-lg"></i> Guardar contenido
         </button>
       </form>
+
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        {% if settings_obj.portfolio_hero_video %}
+        <form method="post" onsubmit="return confirm('¿Quitar video hero?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_hero_video">
+          <button class="btn btn-outline-secondary btn-sm">Quitar video</button>
+        </form>
+        {% endif %}
+        {% if settings_obj.portfolio_hero_image %}
+        <form method="post" onsubmit="return confirm('¿Quitar imagen hero?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_hero">
+          <button class="btn btn-outline-secondary btn-sm">Quitar poster</button>
+        </form>
+        {% endif %}
+        {% if settings_obj.portfolio_about_image %}
+        <form method="post" onsubmit="return confirm('¿Quitar imagen experiencia?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_about">
+          <button class="btn btn-outline-secondary btn-sm">Quitar experiencia</button>
+        </form>
+        {% endif %}
+        {% if has_cover %}
+        <form method="post" onsubmit="return confirm('¿Quitar miniatura OG?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_cover">
+          <button class="btn btn-outline-secondary btn-sm">Quitar OG</button>
+        </form>
+        {% endif %}
+        {% if has_pdf %}
+        <form method="post" onsubmit="return confirm('¿Eliminar PDF interno?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_pdf">
+          <button class="btn btn-outline-danger btn-sm">Eliminar PDF</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
   </div>
 
-  <div class="d-flex flex-wrap gap-2">
-    {% if has_cover %}
-    <form method="post" onsubmit="return confirm('¿Eliminar la miniatura de compartir?');">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="remove_cover">
-      <button type="submit" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-image"></i> Quitar miniatura
-      </button>
-    </form>
-    {% endif %}
-    {% if has_pdf %}
-    <form method="post" onsubmit="return confirm('¿Eliminar el PDF del portafolio?');">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="remove">
-      <button type="submit" class="btn btn-outline-danger btn-sm">
-        <i class="bi bi-trash"></i> Eliminar PDF
-      </button>
-    </form>
-    {% endif %}
+  {# —— Paquetes —— #}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3">Paquetes</h2>
+
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-3 bg-light">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_package">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <input type="text" name="pkg_title" class="form-control form-control-sm" placeholder="Título *" required>
+          </div>
+          <div class="col-md-3">
+            <input type="text" name="pkg_price_label" class="form-control form-control-sm" placeholder="Desde $390.000">
+          </div>
+          <div class="col-md-3">
+            <input type="text" name="pkg_link_url" class="form-control form-control-sm" placeholder="/eventos/">
+          </div>
+          <div class="col-md-2">
+            <input type="number" name="pkg_sort_order" class="form-control form-control-sm" value="0" min="0" placeholder="Orden">
+          </div>
+          <div class="col-12">
+            <textarea name="pkg_description" class="form-control form-control-sm" rows="2" placeholder="Descripción corta"></textarea>
+          </div>
+          <div class="col-md-6">
+            <input type="file" name="pkg_image" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+          </div>
+          <div class="col-md-3 d-flex align-items-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" name="pkg_is_active" id="pkgNewActive" checked>
+              <label class="form-check-label small" for="pkgNewActive">Activo</label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-dark w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
+          </div>
+        </div>
+      </form>
+
+      {% for pkg in packages %}
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_package">
+        <input type="hidden" name="pkg_id" value="{{ pkg.pk }}">
+        <div class="row g-2 align-items-start">
+          <div class="col-md-2">
+            {% if pkg.image %}
+            <img src="{{ pkg.image.url }}" alt="" class="img-fluid rounded border" style="aspect-ratio:4/3;object-fit:cover;width:100%;">
+            {% else %}
+            <div class="bg-light border rounded d-flex align-items-center justify-content-center small text-muted" style="aspect-ratio:4/3;">Sin foto</div>
+            {% endif %}
+          </div>
+          <div class="col-md-10">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <input type="text" name="pkg_title" class="form-control form-control-sm" value="{{ pkg.title }}" required>
+              </div>
+              <div class="col-md-3">
+                <input type="text" name="pkg_price_label" class="form-control form-control-sm" value="{{ pkg.price_label }}">
+              </div>
+              <div class="col-md-3">
+                <input type="text" name="pkg_link_url" class="form-control form-control-sm" value="{{ pkg.link_url }}">
+              </div>
+              <div class="col-md-2">
+                <input type="number" name="pkg_sort_order" class="form-control form-control-sm" value="{{ pkg.sort_order }}" min="0">
+              </div>
+              <div class="col-12">
+                <textarea name="pkg_description" class="form-control form-control-sm" rows="2">{{ pkg.description }}</textarea>
+              </div>
+              <div class="col-md-5">
+                <input type="file" name="pkg_image" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+              </div>
+              <div class="col-md-3 d-flex align-items-center">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="pkg_is_active" id="pkgActive{{ pkg.pk }}" {% if pkg.is_active %}checked{% endif %}>
+                  <label class="form-check-label small" for="pkgActive{{ pkg.pk }}">Activo</label>
+                </div>
+              </div>
+              <div class="col-md-4 text-end">
+                <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+      <form method="post" class="mb-3" onsubmit="return confirm('¿Eliminar paquete?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_package">
+        <input type="hidden" name="pkg_id" value="{{ pkg.pk }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar “{{ pkg.title }}”</button>
+      </form>
+      {% empty %}
+      <p class="text-muted small mb-0">Aún no hay paquetes. Agrega el primero arriba.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# —— Galería —— #}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3">Galería</h2>
+
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-3 bg-light">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_gallery">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Imagen *</label>
+            <input type="file" name="gallery_image" class="form-control form-control-sm" required
+                   accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Pie</label>
+            <input type="text" name="gallery_caption" class="form-control form-control-sm" maxlength="200">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Ubicación</label>
+            <input type="text" name="gallery_location" class="form-control form-control-sm" maxlength="160" placeholder="Ej: Cartagena">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Fecha</label>
+            <input type="date" name="gallery_event_date" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-1">
+            <label class="form-label small fw-semibold">Orden</label>
+            <input type="number" name="gallery_sort_order" class="form-control form-control-sm" value="0" min="0">
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-sm btn-dark w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="row g-3">
+        {% for g in gallery %}
+        <div class="col-md-4">
+          <div class="border rounded p-2 h-100">
+            <img src="{{ g.image.url }}" alt="{{ g.caption }}" class="img-fluid rounded mb-2" style="max-height:160px;width:100%;object-fit:contain;background:#0a1624;">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="gallery_id" value="{{ g.pk }}">
+              <input type="text" name="gallery_caption" class="form-control form-control-sm mb-1" value="{{ g.caption }}" placeholder="Pie">
+              <input type="text" name="gallery_location" class="form-control form-control-sm mb-1" value="{{ g.location }}" placeholder="Ubicación">
+              <input type="date" name="gallery_event_date" class="form-control form-control-sm mb-1" value="{{ g.event_date|date:'Y-m-d' }}">
+              <div class="d-flex gap-1 align-items-center mb-2">
+                <input type="number" name="gallery_sort_order" class="form-control form-control-sm" value="{{ g.sort_order }}" min="0" style="max-width:5rem">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="gallery_is_active" id="galActive{{ g.pk }}" {% if g.is_active %}checked{% endif %}>
+                  <label class="form-check-label small" for="galActive{{ g.pk }}">Activa</label>
+                </div>
+              </div>
+              <div class="d-flex gap-1">
+                <button type="submit" name="action" value="update_gallery" class="btn btn-sm btn-outline-primary">Guardar</button>
+                <button type="submit" name="action" value="delete_gallery" class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('¿Eliminar foto?');">Eliminar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><p class="text-muted small mb-0">Sin fotos aún.</p></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# —— Adicionales —— #}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3">Adicionales</h2>
+      <p class="small text-muted">Servicios extra: personalización, stickers, alcohol, etc.</p>
+
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-3 bg-light">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_addon">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <input type="text" name="addon_title" class="form-control form-control-sm" placeholder="Título *" required>
+          </div>
+          <div class="col-md-3">
+            <input type="text" name="addon_price_label" class="form-control form-control-sm" placeholder="Desde $50.000">
+          </div>
+          <div class="col-md-2">
+            <input type="number" name="addon_sort_order" class="form-control form-control-sm" value="0" min="0" placeholder="Orden">
+          </div>
+          <div class="col-md-3 d-flex align-items-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" name="addon_is_active" id="addonNewActive" checked>
+              <label class="form-check-label small" for="addonNewActive">Activo</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <textarea name="addon_description" class="form-control form-control-sm" rows="2" placeholder="Descripción"></textarea>
+          </div>
+          <div class="col-md-8">
+            <input type="file" name="addon_image" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-sm btn-dark w-100"><i class="bi bi-plus-lg"></i> Agregar adicional</button>
+          </div>
+        </div>
+      </form>
+
+      {% for ad in addons %}
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_addon">
+        <input type="hidden" name="addon_id" value="{{ ad.pk }}">
+        <div class="row g-2 align-items-start">
+          <div class="col-md-2">
+            {% if ad.image %}
+            <img src="{{ ad.image.url }}" alt="" class="img-fluid rounded border" style="aspect-ratio:16/9;object-fit:cover;width:100%;">
+            {% else %}
+            <div class="bg-light border rounded d-flex align-items-center justify-content-center small text-muted" style="aspect-ratio:16/9;">Sin foto</div>
+            {% endif %}
+          </div>
+          <div class="col-md-10">
+            <div class="row g-2">
+              <div class="col-md-5">
+                <input type="text" name="addon_title" class="form-control form-control-sm" value="{{ ad.title }}" required>
+              </div>
+              <div class="col-md-4">
+                <input type="text" name="addon_price_label" class="form-control form-control-sm" value="{{ ad.price_label }}">
+              </div>
+              <div class="col-md-3">
+                <input type="number" name="addon_sort_order" class="form-control form-control-sm" value="{{ ad.sort_order }}" min="0">
+              </div>
+              <div class="col-12">
+                <textarea name="addon_description" class="form-control form-control-sm" rows="2">{{ ad.description }}</textarea>
+              </div>
+              <div class="col-md-5">
+                <input type="file" name="addon_image" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+              </div>
+              <div class="col-md-3 d-flex align-items-center">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="addon_is_active" id="addonActive{{ ad.pk }}" {% if ad.is_active %}checked{% endif %}>
+                  <label class="form-check-label small" for="addonActive{{ ad.pk }}">Activo</label>
+                </div>
+              </div>
+              <div class="col-md-4 text-end">
+                <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+      <form method="post" class="mb-3" onsubmit="return confirm('¿Eliminar adicional?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_addon">
+        <input type="hidden" name="addon_id" value="{{ ad.pk }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar “{{ ad.title }}”</button>
+      </form>
+      {% empty %}
+      <p class="text-muted small mb-0">Aún no hay adicionales.</p>
+      {% endfor %}
+    </div>
   </div>
 </div>
 {% endblock %}

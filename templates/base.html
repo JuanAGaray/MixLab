@@ -103,6 +103,7 @@
             <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarNavDesktop">
                 <ul class="navbar-nav navbar-nav-center navbar-nav-left">
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:product_list' %}">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'store:portfolio_public' %}">Portafolio</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:event_landing' %}">Eventos</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:water_calculator' %}">Calculadora</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:alianzas' %}">Alianza</a></li>
@@ -126,7 +127,7 @@
                             <li><a class="dropdown-item" href="{% url 'store:event_leads_list' %}"><i class="bi bi-calendar-heart"></i> Leads de eventos</a></li>
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
-                            <li><a class="dropdown-item" href="{% url 'store:portfolio_manage' %}"><i class="bi bi-file-earmark-pdf"></i> Portafolio PDF</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:portfolio_manage' %}"><i class="bi bi-images"></i> Portafolio</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:flow_diagram_list' %}"><i class="bi bi-diagram-3"></i> Diagramas de flujo</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:drinzz_contract_edit' %}"><i class="bi bi-file-earmark-text"></i> Contrato Drinzz</a></li>
@@ -199,6 +200,9 @@
                         <a class="nav-link" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-1"></i> Productos</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:portfolio_public' %}"><i class="bi bi-images me-1"></i> Portafolio</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{% url 'store:event_landing' %}"><i class="bi bi-calendar-event me-1"></i> Eventos</a>
                     </li>
                     <li class="nav-item">
@@ -231,7 +235,7 @@
                             <li><a class="dropdown-item" href="{% url 'store:event_leads_list' %}"><i class="bi bi-calendar-heart"></i> Leads de eventos</a></li>
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:inventory_dashboard' %}"><i class="bi bi-boxes"></i> Inventario</a></li>
-                            <li><a class="dropdown-item" href="{% url 'store:portfolio_manage' %}"><i class="bi bi-file-earmark-pdf"></i> Portafolio PDF</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:portfolio_manage' %}"><i class="bi bi-images"></i> Portafolio</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:flow_diagram_list' %}"><i class="bi bi-diagram-3"></i> Diagramas de flujo</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:site_settings_edit' %}"><i class="bi bi-gear-wide-connected"></i> Configuración del sitio</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:drinzz_contract_edit' %}"><i class="bi bi-file-earmark-text"></i> Contrato Drinzz</a></li>

@@ -2450,6 +2450,76 @@ class SiteSettings(models.Model):
         blank=True,
         verbose_name='Portafolio actualizado en',
     )
+    # —— Página Preparación del evento ——
+    prep_title = models.CharField(
+        max_length=200,
+        blank=True,
+        default='Preparación del evento',
+        verbose_name='Título preparación',
+    )
+    prep_hero_kicker = models.CharField(
+        max_length=120,
+        blank=True,
+        default='Premium Night',
+        verbose_name='Kicker preparación',
+    )
+    prep_hero_title = models.CharField(
+        max_length=220,
+        blank=True,
+        default='Así preparamos tu celebración',
+        verbose_name='Título hero preparación',
+    )
+    prep_hero_subtitle = models.TextField(
+        blank=True,
+        default=(
+            'Elegancia, exclusividad y coctelería. Un proceso claro y coordinado '
+            'para eventos nocturnos: desde la definición del servicio hasta el montaje.'
+        ),
+        verbose_name='Subtítulo preparación',
+    )
+    prep_hero_image = models.ImageField(
+        upload_to='portfolio/prep/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen hero preparación',
+        help_text='Poster / fallback si no hay video.',
+    )
+    prep_hero_video = models.FileField(
+        upload_to='portfolio/prep/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['mp4', 'webm', 'mov'])],
+        verbose_name='Video hero preparación',
+        help_text='MP4/WEBM corto. Se reproduce muteado en loop.',
+    )
+    prep_watch_video = models.FileField(
+        upload_to='portfolio/prep/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['mp4', 'webm', 'mov'])],
+        verbose_name='Video “Ver preparación”',
+        help_text='Video que se abre al pulsar el botón de play (con audio).',
+    )
+    prep_product_title = models.CharField(
+        max_length=200,
+        blank=True,
+        default='Presentación del producto',
+        verbose_name='Título presentación producto',
+    )
+    prep_product_text = models.TextField(
+        blank=True,
+        default=(
+            'Mostramos la estación lista para servir: máquina, vasos, toppings y '
+            'detalles de marca que convierten el granizado en un momento memorable.'
+        ),
+        verbose_name='Texto presentación producto',
+    )
+    prep_product_image = models.ImageField(
+        upload_to='portfolio/prep/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen presentación producto',
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -3030,6 +3100,31 @@ class PortfolioAddon(models.Model):
     class Meta:
         verbose_name = 'Adicional de portafolio'
         verbose_name_plural = 'Adicionales de portafolio'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.title
+
+
+class PrepStage(models.Model):
+    """Etapa del proceso de preparación del evento."""
+
+    title = models.CharField(max_length=160, verbose_name='Título')
+    description = models.TextField(blank=True, default='', verbose_name='Descripción')
+    image = models.ImageField(
+        upload_to='portfolio/prep/stages/',
+        blank=True,
+        null=True,
+        verbose_name='Imagen',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name='Activa')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Etapa de preparación'
+        verbose_name_plural = 'Etapas de preparación'
         ordering = ['sort_order', 'id']
 
     def __str__(self):

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Preparación · MixLab{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:920px">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Preparación del evento</h1>
+      <p class="text-muted small mb-0">
+        Página pública:
+        <a href="{% url 'store:prep_public' %}" target="_blank" rel="noopener">/preparacion/</a>
+        · Los adicionales se editan en
+        <a href="{% url 'store:portfolio_manage' %}">Portafolio</a>.
+      </p>
+    </div>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'store:prep_public' %}" target="_blank" rel="noopener">
+      <i class="bi bi-eye"></i> Ver página
+    </a>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <label class="form-label small fw-semibold mb-1">Enlace</label>
+      <input type="text" class="form-control form-control-sm" readonly value="{{ public_url }}" onclick="this.select()">
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3">Contenido</h2>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_content">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Título SEO</label>
+            <input type="text" name="prep_title" class="form-control" value="{{ settings_obj.prep_title }}" maxlength="200">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Kicker</label>
+            <input type="text" name="prep_hero_kicker" class="form-control" value="{{ settings_obj.prep_hero_kicker }}" maxlength="120">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Título hero</label>
+            <input type="text" name="prep_hero_title" class="form-control" value="{{ settings_obj.prep_hero_title }}" maxlength="220">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Subtítulo</label>
+            <textarea name="prep_hero_subtitle" class="form-control" rows="3">{{ settings_obj.prep_hero_subtitle }}</textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Video hero (MP4)</label>
+            <input type="file" name="prep_hero_video" class="form-control" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+            <div class="form-text">Muteado + loop. Ideal &lt; 10 MB.</div>
+            {% if settings_obj.prep_hero_video %}
+            <div class="small mt-1">
+              Actual: <a href="{{ settings_obj.prep_hero_video.url }}" target="_blank" rel="noopener">{{ settings_obj.prep_hero_video.name }}</a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Video “Ver preparación” (play)</label>
+            <input type="file" name="prep_watch_video" class="form-control" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+            <div class="form-text">Se abre con el botón de play (con audio). Ideal MP4 H.264.</div>
+            {% if settings_obj.prep_watch_video %}
+            <div class="small mt-1">
+              Actual: <a href="{{ settings_obj.prep_watch_video.url }}" target="_blank" rel="noopener">{{ settings_obj.prep_watch_video.name }}</a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Poster / fallback hero</label>
+            <input type="file" name="prep_hero_image" class="form-control" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            {% if settings_obj.prep_hero_image %}
+            <img src="{{ settings_obj.prep_hero_image.url }}" alt="" class="img-fluid rounded border mt-2" style="max-height:90px;object-fit:cover;">
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Imagen presentación producto</label>
+            <input type="file" name="prep_product_image" class="form-control" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            {% if settings_obj.prep_product_image %}
+            <img src="{{ settings_obj.prep_product_image.url }}" alt="" class="img-fluid rounded border mt-2" style="max-height:90px;object-fit:cover;">
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Título presentación</label>
+            <input type="text" name="prep_product_title" class="form-control" value="{{ settings_obj.prep_product_title }}" maxlength="200">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Texto presentación</label>
+            <textarea name="prep_product_text" class="form-control" rows="4">{{ settings_obj.prep_product_text }}</textarea>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+      </form>
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        {% if settings_obj.prep_hero_video %}
+        <form method="post" onsubmit="return confirm('¿Quitar video hero?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_prep_hero_video">
+          <button class="btn btn-outline-secondary btn-sm">Quitar video hero</button>
+        </form>
+        {% endif %}
+        {% if settings_obj.prep_watch_video %}
+        <form method="post" onsubmit="return confirm('¿Quitar video Ver preparación?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_prep_watch_video">
+          <button class="btn btn-outline-secondary btn-sm">Quitar video play</button>
+        </form>
+        {% endif %}
+        {% if settings_obj.prep_hero_image %}
+        <form method="post" onsubmit="return confirm('¿Quitar poster hero?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_prep_hero">
+          <button class="btn btn-outline-secondary btn-sm">Quitar poster</button>
+        </form>
+        {% endif %}
+        {% if settings_obj.prep_product_image %}
+        <form method="post" onsubmit="return confirm('¿Quitar imagen producto?');">
+          {% csrf_token %}<input type="hidden" name="action" value="remove_prep_product">
+          <button class="btn btn-outline-secondary btn-sm">Quitar producto</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3">Etapas del proceso</h2>
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-3 bg-light">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_stage">
+        <div class="row g-2">
+          <div class="col-md-5">
+            <input type="text" name="stage_title" class="form-control form-control-sm" placeholder="Título *" required>
+          </div>
+          <div class="col-md-2">
+            <input type="number" name="stage_sort_order" class="form-control form-control-sm" value="0" min="0" placeholder="Orden">
+          </div>
+          <div class="col-md-3 d-flex align-items-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" name="stage_is_active" id="stageNewActive" checked>
+              <label class="form-check-label small" for="stageNewActive">Activa</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <textarea name="stage_description" class="form-control form-control-sm" rows="2" placeholder="Descripción"></textarea>
+          </div>
+          <div class="col-md-8">
+            <input type="file" name="stage_image" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            <div class="form-text">Imagen 16:9 recomendada</div>
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-sm btn-dark w-100"><i class="bi bi-plus-lg"></i> Agregar etapa</button>
+          </div>
+        </div>
+      </form>
+
+      {% for stage in stages %}
+      <form method="post" enctype="multipart/form-data" class="border rounded p-3 mb-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_stage">
+        <input type="hidden" name="stage_id" value="{{ stage.pk }}">
+        <div class="row g-2">
+          <div class="col-md-5">
+            <input type="text" name="stage_title" class="form-control form-control-sm" value="{{ stage.title }}" required>
+          </div>
+          <div class="col-md-2">
+            <input type="number" name="stage_sort_order" class="form-control form-control-sm" value="{{ stage.sort_order }}" min="0">
+          </div>
+          <div class="col-md-3 d-flex align-items-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" name="stage_is_active" id="stageActive{{ stage.pk }}" {% if stage.is_active %}checked{% endif %}>
+              <label class="form-check-label small" for="stageActive{{ stage.pk }}">Activa</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <textarea name="stage_description" class="form-control form-control-sm" rows="2">{{ stage.description }}</textarea>
+          </div>
+          <div class="col-md-6">
+            <input type="file" name="stage_image" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+            <div class="form-text">Imagen 16:9 recomendada{% if stage.image %} · <a href="{{ stage.image.url }}" target="_blank" rel="noopener">Ver imagen</a>{% endif %}</div>
+          </div>
+          <div class="col-md-6 text-end">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+          </div>
+        </div>
+      </form>
+      <form method="post" class="mb-3" onsubmit="return confirm('¿Eliminar etapa?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_stage">
+        <input type="hidden" name="stage_id" value="{{ stage.pk }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar “{{ stage.title }}”</button>
+      </form>
+      {% empty %}
+      <p class="text-muted small mb-0">Sin etapas aún.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-2">Adicionales en esta página</h2>
+      <p class="small text-muted mb-2">Se muestran los mismos activos del portafolio ({{ addons|length }}).</p>
+      <ul class="small mb-0">
+        {% for ad in addons %}<li>{{ ad.title }}</li>{% empty %}<li class="text-muted">Ninguno activo</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

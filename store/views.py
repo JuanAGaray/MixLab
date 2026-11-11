@@ -38,6 +38,7 @@ from .models import (
     PortfolioPackage,
     PortfolioGalleryImage,
     PortfolioAddon,
+    PrepStage,
 )
 from .forms import (
     ProductForm,
@@ -9910,6 +9911,237 @@ def portfolio_public(request):
         'title': title,
         'cta_label': (settings_obj.portfolio_cta_label or 'Ver paquetes').strip(),
         'hero_video_static': hero_video_static,
+    })
+
+
+@staff_member_required
+def prep_manage(request):
+    """Staff: editar página de preparación del evento + etapas."""
+    settings_obj = SiteSettings.load()
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or 'save_content').strip()
+
+        if action == 'remove_prep_hero':
+            if settings_obj.prep_hero_image:
+                settings_obj.prep_hero_image.delete(save=False)
+                settings_obj.prep_hero_image = None
+                settings_obj.save(update_fields=['prep_hero_image', 'updated_at'])
+                messages.success(request, 'Imagen hero de preparación eliminada.')
+            return redirect('store:prep_manage')
+
+        if action == 'remove_prep_hero_video':
+            if settings_obj.prep_hero_video:
+                settings_obj.prep_hero_video.delete(save=False)
+                settings_obj.prep_hero_video = None
+                settings_obj.save(update_fields=['prep_hero_video', 'updated_at'])
+                messages.success(request, 'Video hero de preparación eliminado.')
+            return redirect('store:prep_manage')
+
+        if action == 'remove_prep_watch_video':
+            if settings_obj.prep_watch_video:
+                settings_obj.prep_watch_video.delete(save=False)
+                settings_obj.prep_watch_video = None
+                settings_obj.save(update_fields=['prep_watch_video', 'updated_at'])
+                messages.success(request, 'Video “Ver preparación” eliminado.')
+            return redirect('store:prep_manage')
+
+        if action == 'remove_prep_product':
+            if settings_obj.prep_product_image:
+                settings_obj.prep_product_image.delete(save=False)
+                settings_obj.prep_product_image = None
+                settings_obj.save(update_fields=['prep_product_image', 'updated_at'])
+                messages.success(request, 'Imagen de presentación eliminada.')
+            return redirect('store:prep_manage')
+
+        if action == 'add_stage':
+            title = (request.POST.get('stage_title') or '').strip()
+            if not title:
+                messages.error(request, 'El título de la etapa es obligatorio.')
+                return redirect('store:prep_manage')
+            img = request.FILES.get('stage_image')
+            err = _portfolio_valid_image(img)
+            if err:
+                messages.error(request, err)
+                return redirect('store:prep_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('stage_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = 0
+            stage = PrepStage(
+                title=title[:160],
+                description=(request.POST.get('stage_description') or '').strip(),
+                sort_order=sort_order,
+                is_active=bool(request.POST.get('stage_is_active')),
+            )
+            if img:
+                stage.image = img
+            stage.save()
+            messages.success(request, f'Etapa “{stage.title}” creada.')
+            return redirect('store:prep_manage')
+
+        if action == 'update_stage':
+            stage = get_object_or_404(PrepStage, pk=request.POST.get('stage_id'))
+            title = (request.POST.get('stage_title') or '').strip()
+            if not title:
+                messages.error(request, 'El título de la etapa es obligatorio.')
+                return redirect('store:prep_manage')
+            img = request.FILES.get('stage_image')
+            err = _portfolio_valid_image(img)
+            if err:
+                messages.error(request, err)
+                return redirect('store:prep_manage')
+            try:
+                sort_order = max(0, int(request.POST.get('stage_sort_order') or 0))
+            except (TypeError, ValueError):
+                sort_order = stage.sort_order
+            stage.title = title[:160]
+            stage.description = (request.POST.get('stage_description') or '').strip()
+            stage.sort_order = sort_order
+            stage.is_active = bool(request.POST.get('stage_is_active'))
+            if img:
+                if stage.image:
+                    stage.image.delete(save=False)
+                stage.image = img
+            stage.save()
+            messages.success(request, f'Etapa “{stage.title}” actualizada.')
+            return redirect('store:prep_manage')
+
+        if action == 'delete_stage':
+            stage = get_object_or_404(PrepStage, pk=request.POST.get('stage_id'))
+            title = stage.title
+            if stage.image:
+                stage.image.delete(save=False)
+            stage.delete()
+            messages.warning(request, f'Etapa “{title}” eliminada.')
+            return redirect('store:prep_manage')
+
+        error = ''
+        settings_obj.prep_title = (
+            (request.POST.get('prep_title') or '').strip() or 'Preparación del evento'
+        )[:200]
+        settings_obj.prep_hero_kicker = (request.POST.get('prep_hero_kicker') or '').strip()[:120]
+        settings_obj.prep_hero_title = (request.POST.get('prep_hero_title') or '').strip()[:220]
+        settings_obj.prep_hero_subtitle = (request.POST.get('prep_hero_subtitle') or '').strip()
+        settings_obj.prep_product_title = (request.POST.get('prep_product_title') or '').strip()[:200]
+        settings_obj.prep_product_text = (request.POST.get('prep_product_text') or '').strip()
+        update_fields = [
+            'prep_title', 'prep_hero_kicker', 'prep_hero_title', 'prep_hero_subtitle',
+            'prep_product_title', 'prep_product_text', 'updated_at',
+        ]
+        for field_name, file_key in (
+            ('prep_hero_image', 'prep_hero_image'),
+            ('prep_product_image', 'prep_product_image'),
+        ):
+            f = request.FILES.get(file_key)
+            if not f:
+                continue
+            err = _portfolio_valid_image(f)
+            if err:
+                error = err
+                break
+            current = getattr(settings_obj, field_name)
+            if current:
+                current.delete(save=False)
+            setattr(settings_obj, field_name, f)
+            update_fields.append(field_name)
+
+        video = request.FILES.get('prep_hero_video')
+        if not error and video:
+            vname = (video.name or '').lower()
+            if not vname.endswith(('.mp4', '.webm', '.mov')):
+                error = 'El video hero debe ser MP4, WEBM o MOV.'
+            elif video.size and video.size > 40 * 1024 * 1024:
+                error = 'El video hero no puede superar 40 MB.'
+            else:
+                if settings_obj.prep_hero_video:
+                    settings_obj.prep_hero_video.delete(save=False)
+                settings_obj.prep_hero_video = video
+                update_fields.append('prep_hero_video')
+
+        watch = request.FILES.get('prep_watch_video')
+        if not error and watch:
+            wname = (watch.name or '').lower()
+            if not wname.endswith(('.mp4', '.webm', '.mov')):
+                error = 'El video “Ver preparación” debe ser MP4, WEBM o MOV.'
+            elif watch.size and watch.size > 80 * 1024 * 1024:
+                error = 'El video “Ver preparación” no puede superar 80 MB.'
+            else:
+                if settings_obj.prep_watch_video:
+                    settings_obj.prep_watch_video.delete(save=False)
+                settings_obj.prep_watch_video = watch
+                update_fields.append('prep_watch_video')
+
+        if error:
+            messages.error(request, error)
+        else:
+            settings_obj.save(update_fields=list(dict.fromkeys(update_fields)))
+            messages.success(request, 'Preparación guardada.')
+        return redirect('store:prep_manage')
+
+    public_url = ''
+    try:
+        public_url = request.build_absolute_uri(reverse('store:prep_public'))
+    except Exception:
+        public_url = '/preparacion/'
+
+    return render(request, 'store/prep_manage.html', {
+        'settings_obj': settings_obj,
+        'public_url': public_url,
+        'stages': PrepStage.objects.all(),
+        'addons': PortfolioAddon.objects.filter(is_active=True),
+    })
+
+
+def prep_public(request):
+    """Landing pública: preparación del evento (etapas + producto + adicionales)."""
+    settings_obj = SiteSettings.load()
+    title = (settings_obj.prep_title or 'Preparación del evento').strip()
+    share_url = request.build_absolute_uri(reverse('store:prep_public'))
+    og_image_url = ''
+    for img_field in (
+        settings_obj.prep_hero_image,
+        settings_obj.prep_product_image,
+        settings_obj.portfolio_cover,
+    ):
+        if img_field:
+            try:
+                og_image_url = request.build_absolute_uri(img_field.url)
+            except Exception:
+                og_image_url = img_field.url
+            break
+
+    cta_message = (settings_obj.portfolio_cta_message or '').strip() or (
+        'Hola MixLab, quiero conocer la preparación de mi evento.'
+    )
+    wa_cta = _wa_me_url(settings_obj.whatsapp_number or '', cta_message)
+
+    from django.templatetags.static import static as static_url
+    hero_video_static = ''
+    if not settings_obj.prep_hero_video:
+        try:
+            hero_video_static = static_url('img/portfolio-hero.mp4')
+        except Exception:
+            hero_video_static = ''
+
+    watch_video_url = ''
+    if settings_obj.prep_watch_video:
+        watch_video_url = settings_obj.prep_watch_video.url
+    elif settings_obj.prep_hero_video:
+        watch_video_url = settings_obj.prep_hero_video.url
+    elif hero_video_static:
+        watch_video_url = hero_video_static
+
+    return render(request, 'store/prep_public.html', {
+        'settings_obj': settings_obj,
+        'stages': PrepStage.objects.filter(is_active=True),
+        'addons': PortfolioAddon.objects.filter(is_active=True),
+        'share_url': share_url,
+        'og_image_url': og_image_url,
+        'wa_cta': wa_cta,
+        'title': title,
+        'hero_video_static': hero_video_static,
+        'watch_video_url': watch_video_url,
     })
 
 

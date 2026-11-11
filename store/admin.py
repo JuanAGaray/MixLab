@@ -5,6 +5,7 @@ from .models import (
     PortfolioAddon,
     PortfolioGalleryImage,
     PortfolioPackage,
+    PrepStage,
     QuotationServiceReview,
     ServiceBonusCoupon,
 )
@@ -46,6 +47,14 @@ class PortfolioGalleryImageAdmin(admin.ModelAdmin):
 @admin.register(PortfolioAddon)
 class PortfolioAddonAdmin(admin.ModelAdmin):
     list_display = ('title', 'price_label', 'sort_order', 'is_active', 'updated_at')
+    list_filter = ('is_active',)
+    search_fields = ('title', 'description')
+    list_editable = ('sort_order', 'is_active')
+
+
+@admin.register(PrepStage)
+class PrepStageAdmin(admin.ModelAdmin):
+    list_display = ('title', 'sort_order', 'is_active', 'updated_at')
     list_filter = ('is_active',)
     search_fields = ('title', 'description')
     list_editable = ('sort_order', 'is_active')

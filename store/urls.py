@@ -24,6 +24,8 @@ urlpatterns = [
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
     path('portafolio/', views.portfolio_public, name='portfolio_public'),
     path('inventory/portafolio/', views.portfolio_manage, name='portfolio_manage'),
+    path('preparacion/', views.prep_public, name='prep_public'),
+    path('inventory/preparacion/', views.prep_manage, name='prep_manage'),
 
     # Diagramas de flujo (Mermaid)
     path('flujos/', flow_diagram_views.flow_diagram_public_list, name='flow_diagram_public_list'),

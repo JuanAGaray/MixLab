@@ -41,6 +41,7 @@
       <span>{{ settings_obj.company_legal_name|default:"MIXLAB SAS" }} · NIT {{ settings_obj.company_nit|default:"—" }}</span>
     </div>
     <div class="pf-footer-links">
+      <a href="{% url 'store:prep_public' %}">Preparación</a>
       <a href="{% url 'store:event_landing' %}">Combo eventos</a>
       <a href="{% url 'store:home' %}">Tienda</a>
       {% if user.is_staff %}

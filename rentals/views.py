@@ -498,7 +498,7 @@ def rental_sample_delivery_acta(request, product_id):
 def create_rental(request, product_id):
     """Create a rental booking (solicitud) desde tipo de alquiler, sin fechas del cliente."""
     product = get_object_or_404(Product, id=product_id, product_type='rental', available=True)
-
+    
     if request.method == 'POST':
         avail = single_product_availability(product)
         if avail['available'] <= 0:
@@ -508,7 +508,7 @@ def create_rental(request, product_id):
                 '(puede estar reservada para combos o en cotizaciones activas).',
             )
             return redirect('rentals:rental_detail', product_id=product_id)
-
+        
         duration_type = (request.POST.get('duration_type') or 'daily').strip()
         special_requirements = (request.POST.get('special_requirements') or '').strip()
 
@@ -566,14 +566,14 @@ def create_rental(request, product_id):
         )
         rental.total_price = rental.calculate_total()
         rental.save()
-
+        
         messages.success(
             request,
             f'Solicitud de alquiler #{rental.id} creada. El equipo MixLab te contactará para '
             f'coordinar fechas, contrato y documentación.',
         )
         return redirect('rentals:rental_detail_view', rental_id=rental.id)
-
+    
     return redirect('rentals:rental_detail', product_id=product_id)
 
 

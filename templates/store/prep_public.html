@@ -1,0 +1,671 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} · MixLab{% endblock %}
+{% block meta_title %}{{ title }} · MixLab{% endblock %}
+{% block meta_description %}{{ settings_obj.prep_hero_subtitle|default:"Así preparamos tu celebración MixLab."|truncatechars:155 }}{% endblock %}
+{% block og_title %}{{ title }} · MixLab{% endblock %}
+{% block og_description %}{{ settings_obj.prep_hero_subtitle|default:"Preparación elegante del evento MixLab."|truncatechars:155 }}{% endblock %}
+{% block og_image %}{% if og_image_url %}{{ og_image_url }}{% else %}{{ block.super }}{% endif %}{% endblock %}
+{% block body_class %}prep-body{% endblock %}
+
+{% block site_chrome %}
+<header class="prep-topbar" id="prepTopbar">
+  <a href="{% url 'store:portfolio_public' %}" class="prep-topbar-logo" aria-label="MixLab">
+    <img src="{% static 'img/TotalLogoWhite.png' %}" alt="MixLab" height="28">
+  </a>
+  <nav class="prep-topbar-nav d-none d-md-flex" aria-label="Preparación">
+    <a href="#inicio">Inicio</a>
+    <a href="#etapas">Etapas</a>
+    <a href="#producto">Producto</a>
+    <a href="#adicionales">Adicionales</a>
+  </nav>
+  <div class="prep-topbar-actions">
+    <a class="prep-btn-outline d-none d-sm-inline-flex" href="{% url 'store:portfolio_public' %}">Portafolio</a>
+    <a class="prep-btn-solid" href="{{ wa_cta }}" target="_blank" rel="noopener">WhatsApp</a>
+  </div>
+</header>
+{% endblock %}
+
+{% block site_footer %}
+<footer class="prep-footer">
+  <div class="prep-footer-inner">
+    <span>{{ settings_obj.company_legal_name|default:"MIXLAB SAS" }} · Preparación de eventos</span>
+    <div class="prep-footer-links">
+      <a href="{% url 'store:portfolio_public' %}">Portafolio</a>
+      <a href="{% url 'store:event_landing' %}">Eventos</a>
+      {% if user.is_staff %}<a href="{% url 'store:prep_manage' %}">Editar</a>{% endif %}
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
+{% block floating_actions %}{% endblock %}
+
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Premium Night — Negro · Dorado · Coral · Beige · Blanco */
+  :root {
+    --prep-black: #0B0B0C;
+    --prep-black-2: #151518;
+    --prep-gold: #C6A15B;
+    --prep-gold-2: #D4B574;
+    --prep-coral: #E07A5F;
+    --prep-coral-2: #E9927C;
+    --prep-beige: #E8DCC8;
+    --prep-white: #FFFFFF;
+    --prep-bg: var(--prep-black);
+    --prep-ink: var(--prep-white);
+    --prep-muted: rgba(232, 220, 200, .72);
+    --prep-card: #16161A;
+    --prep-line: rgba(198, 161, 91, .22);
+  }
+  .prep-body {
+    background: var(--prep-bg);
+    color: var(--prep-ink);
+    font-family: Manrope, system-ui, sans-serif;
+  }
+  .prep-body .main-content-wrapper { padding-bottom: 0; }
+  .prep-serif { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; }
+
+  .prep-topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: .85rem 1.25rem;
+    transition: background .25s ease, border-color .25s ease, box-shadow .25s ease;
+    border-bottom: 1px solid transparent;
+  }
+  .prep-topbar.is-solid {
+    background: rgba(11, 11, 12, .92);
+    backdrop-filter: blur(12px);
+    border-bottom-color: var(--prep-line);
+    box-shadow: 0 10px 28px rgba(0,0,0,.35);
+  }
+  .prep-topbar-logo img { display: block; height: 28px; width: auto; }
+  .prep-topbar-nav { gap: 1.15rem; }
+  .prep-topbar-nav a {
+    color: rgba(232, 220, 200, .78);
+    text-decoration: none;
+    font-size: .74rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .prep-topbar-nav a:hover { color: var(--prep-gold); }
+  .prep-topbar-actions { display: flex; gap: .5rem; align-items: center; }
+  .prep-btn-solid, .prep-btn-outline {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .5rem 1rem;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  .prep-btn-solid { background: var(--prep-gold); color: var(--prep-black); }
+  .prep-btn-solid:hover { background: var(--prep-gold-2); color: var(--prep-black); }
+  .prep-btn-outline {
+    border: 1px solid rgba(232, 220, 200, .45);
+    color: var(--prep-beige);
+  }
+  .prep-btn-outline:hover { border-color: var(--prep-coral); color: var(--prep-coral); }
+  .prep-btn-coral { background: var(--prep-coral); color: var(--prep-white); }
+  .prep-btn-coral:hover { background: var(--prep-coral-2); color: var(--prep-white); }
+  .prep-btn-play {
+    display: inline-flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .45rem 1.05rem .45rem .45rem;
+    border: 1px solid rgba(198,161,91,.45);
+    background: rgba(11,11,12,.45);
+    color: var(--prep-beige);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  .prep-btn-play:hover {
+    border-color: var(--prep-gold);
+    color: var(--prep-white);
+    background: rgba(11,11,12,.62);
+  }
+  .prep-btn-play-icon {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 50%;
+    background: var(--prep-gold);
+    color: var(--prep-black);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 6px rgba(198,161,91,.18);
+  }
+  .prep-btn-play-icon svg { width: 14px; height: 14px; margin-left: 2px; display: block; }
+
+  .prep-video-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(5,5,6,.88);
+    backdrop-filter: blur(8px);
+  }
+  .prep-video-modal.is-open { display: flex; }
+  .prep-video-modal-dialog {
+    width: min(960px, 100%);
+    position: relative;
+  }
+  .prep-video-modal-close {
+    position: absolute;
+    top: -.85rem;
+    right: -.35rem;
+    z-index: 2;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    border: 1px solid rgba(198,161,91,.4);
+    background: #151518;
+    color: var(--prep-beige);
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .prep-video-modal-close:hover { color: var(--prep-gold); border-color: var(--prep-gold); }
+  .prep-video-modal-frame {
+    background: #000;
+    border: 1px solid var(--prep-line);
+    box-shadow: 0 24px 60px rgba(0,0,0,.55);
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+  }
+  .prep-video-modal-frame video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    background: #000;
+  }
+
+  .prep-hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 78vh;
+    display: flex;
+    align-items: flex-end;
+    padding: 7rem 1.25rem 3.5rem;
+    background:
+      {% if settings_obj.prep_hero_image %}
+      url("{{ settings_obj.prep_hero_image.url }}") center / cover no-repeat,
+      {% endif %}
+      radial-gradient(ellipse at 20% 10%, rgba(224,122,95,.28) 0%, transparent 45%),
+      linear-gradient(145deg, #1A1714 0%, #0B0B0C 55%, #1C1814 100%);
+    color: var(--prep-white);
+  }
+  .prep-hero-media {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .prep-hero-media video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .prep-hero-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(11,11,12,.35) 0%, rgba(11,11,12,.78) 100%),
+      radial-gradient(ellipse at center, rgba(11,11,12,.1) 0%, rgba(11,11,12,.45) 100%);
+  }
+  .prep-hero-inner {
+    position: relative;
+    z-index: 2;
+    max-width: 760px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prep-hero-media video { display: none; }
+  }
+  .prep-kicker {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--prep-gold);
+    margin-bottom: .75rem;
+  }
+  .prep-hero h1 {
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1.08;
+    margin: 0 0 1rem;
+    color: var(--prep-white);
+  }
+  .prep-hero p {
+    max-width: 560px;
+    margin: 0 0 1.5rem;
+    color: rgba(232, 220, 200, .88);
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+
+  .prep-section { padding: 4rem 1.25rem; }
+  .prep-inner { max-width: 1100px; margin: 0 auto; }
+  .prep-head { text-align: center; margin-bottom: 2.25rem; }
+  .prep-head .prep-kicker { color: var(--prep-coral); }
+  .prep-head h2 {
+    font-size: clamp(1.9rem, 4vw, 2.7rem);
+    margin: .35rem 0 0;
+    color: var(--prep-white);
+    line-height: 1.15;
+  }
+
+  .prep-stages { background: var(--prep-black); }
+  .prep-timeline {
+    display: grid;
+    gap: 1.15rem;
+  }
+  @media (min-width: 800px) {
+    .prep-timeline { grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+  }
+  .prep-stage {
+    background: var(--prep-card);
+    border: 1px solid var(--prep-line);
+    box-shadow: 0 14px 32px rgba(0,0,0,.28);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .prep-stage-media {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(160deg, #2A221C, #1A1512);
+    overflow: hidden;
+    border-bottom: 1px solid var(--prep-line);
+  }
+  .prep-stage-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .prep-stage-media::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(11,11,12,.15) 0%, rgba(11,11,12,.55) 100%);
+    pointer-events: none;
+  }
+  .prep-stage-num {
+    position: absolute;
+    top: .75rem;
+    left: .75rem;
+    z-index: 1;
+    background: rgba(11,11,12,.78);
+    color: var(--prep-gold);
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: .35rem .55rem;
+    border: 1px solid rgba(198,161,91,.4);
+    min-width: 2.1rem;
+    text-align: center;
+  }
+  .prep-stage-body { padding: 1.05rem 1.15rem 1.2rem; flex: 1; }
+  .prep-stage-body h3 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 1.45rem;
+    margin: 0 0 .4rem;
+    line-height: 1.15;
+    color: var(--prep-white);
+  }
+  .prep-stage-body p {
+    margin: 0;
+    color: var(--prep-muted);
+    font-size: .9rem;
+    line-height: 1.5;
+  }
+
+  .prep-product {
+    background: linear-gradient(180deg, #121214 0%, #0B0B0C 100%);
+    border-top: 1px solid var(--prep-line);
+    border-bottom: 1px solid var(--prep-line);
+  }
+  .prep-product-grid {
+    display: grid;
+    gap: 1.75rem;
+    align-items: center;
+  }
+  @media (min-width: 900px) {
+    .prep-product-grid { grid-template-columns: 1.05fr .95fr; gap: 2.5rem; }
+  }
+  .prep-product-media {
+    position: relative;
+    min-height: 280px;
+    aspect-ratio: 1 / 1;
+    max-height: 560px;
+    background: #15120F;
+    border: 1px solid var(--prep-line);
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .prep-product-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+  .prep-product-media .prep-btn-play {
+    position: absolute;
+    left: .85rem;
+    bottom: .85rem;
+    top: auto;
+    transform: none;
+    z-index: 2;
+    box-shadow: 0 12px 32px rgba(0,0,0,.45);
+  }
+  .prep-product-copy .prep-kicker { color: var(--prep-coral); }
+  .prep-product-copy h2 {
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
+    margin: .4rem 0 1rem;
+    line-height: 1.15;
+    color: var(--prep-white);
+  }
+  .prep-product-copy p {
+    color: var(--prep-muted);
+    font-size: 1rem;
+    line-height: 1.65;
+    margin: 0 0 1.35rem;
+    white-space: pre-line;
+  }
+
+  .prep-addons { background: var(--prep-black); }
+  .prep-addon-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .85rem;
+  }
+  @media (min-width: 700px) {
+    .prep-addon-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 1000px) {
+    .prep-addon-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  .prep-addon-card {
+    background: var(--prep-card);
+    border: 1px solid var(--prep-line);
+    overflow: hidden;
+    height: 100%;
+  }
+  .prep-addon-media {
+    aspect-ratio: 16 / 9;
+    background: #1A1512 center / cover no-repeat;
+  }
+  .prep-addon-body { padding: .85rem .9rem 1rem; }
+  .prep-addon-price {
+    color: var(--prep-coral);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    margin-bottom: .25rem;
+  }
+  .prep-addon-body h3 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 1.25rem;
+    margin: 0 0 .3rem;
+    line-height: 1.15;
+    color: var(--prep-white);
+  }
+  .prep-addon-body p {
+    margin: 0;
+    color: var(--prep-muted);
+    font-size: .8rem;
+    line-height: 1.4;
+  }
+  .prep-empty {
+    text-align: center;
+    color: var(--prep-muted);
+    border: 1px dashed rgba(198,161,91,.28);
+    padding: 1.5rem;
+    background: rgba(22,22,26,.7);
+  }
+
+  .prep-cta {
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(224,122,95,.18) 0%, transparent 55%),
+      linear-gradient(160deg, #151518, #0B0B0C);
+    color: var(--prep-white);
+    text-align: center;
+    border-top: 1px solid var(--prep-line);
+  }
+  .prep-cta .prep-kicker { color: var(--prep-gold); }
+  .prep-cta h2 { color: var(--prep-white); margin: .35rem 0 1rem; font-size: clamp(1.9rem, 4vw, 2.6rem); }
+  .prep-cta p { color: rgba(232, 220, 200, .75); max-width: 520px; margin: 0 auto 1.5rem; }
+
+  .prep-footer {
+    background: #101012;
+    border-top: 1px solid var(--prep-line);
+    padding: 1.1rem 1.25rem;
+    font-size: .8rem;
+    color: rgba(232, 220, 200, .65);
+  }
+  .prep-footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .prep-footer-links { display: flex; gap: 1rem; }
+  .prep-footer-links a { color: var(--prep-beige); text-decoration: none; font-weight: 700; }
+  .prep-footer-links a:hover { color: var(--prep-gold); }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="prep-hero" id="inicio">
+  {% if settings_obj.prep_hero_video %}
+  <div class="prep-hero-media" aria-hidden="true">
+    <video
+      autoplay muted loop playsinline preload="metadata"
+      {% if settings_obj.prep_hero_image %}poster="{{ settings_obj.prep_hero_image.url }}"{% endif %}
+    >
+      <source src="{{ settings_obj.prep_hero_video.url }}" type="video/mp4">
+    </video>
+  </div>
+  {% elif hero_video_static %}
+  <div class="prep-hero-media" aria-hidden="true">
+    <video
+      autoplay muted loop playsinline preload="metadata"
+      {% if settings_obj.prep_hero_image %}poster="{{ settings_obj.prep_hero_image.url }}"{% endif %}
+    >
+      <source src="{{ hero_video_static }}" type="video/mp4">
+    </video>
+  </div>
+  {% endif %}
+  <div class="prep-hero-overlay"></div>
+  <div class="prep-hero-inner">
+    {% if settings_obj.prep_hero_kicker %}<span class="prep-kicker">{{ settings_obj.prep_hero_kicker }}</span>{% endif %}
+    <h1 class="prep-serif">{{ settings_obj.prep_hero_title|default:title }}</h1>
+    {% if settings_obj.prep_hero_subtitle %}<p>{{ settings_obj.prep_hero_subtitle }}</p>{% endif %}
+    <div style="display:flex;flex-wrap:wrap;gap:.65rem;align-items:center;">
+      <a class="prep-btn-solid" href="#etapas">Ver etapas</a>
+      <a class="prep-btn-outline" href="#adicionales">Adicionales</a>
+    </div>
+  </div>
+</section>
+
+<section class="prep-section prep-stages" id="etapas">
+  <div class="prep-inner">
+    <div class="prep-head">
+      <span class="prep-kicker">Proceso</span>
+      <h2 class="prep-serif">Etapas de la preparación</h2>
+    </div>
+    {% if stages %}
+    <div class="prep-timeline">
+      {% for stage in stages %}
+      <article class="prep-stage">
+        <div class="prep-stage-media">
+          {% if stage.image %}<img src="{{ stage.image.url }}" alt="{{ stage.title }}" loading="lazy">{% endif %}
+          <span class="prep-stage-num">{% if stage.sort_order %}{{ stage.sort_order }}{% else %}{{ forloop.counter }}{% endif %}</span>
+        </div>
+        <div class="prep-stage-body">
+          <h3>{{ stage.title }}</h3>
+          {% if stage.description %}<p>{{ stage.description }}</p>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="prep-empty">Pronto publicaremos las etapas del proceso.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="prep-section prep-product" id="producto">
+  <div class="prep-inner prep-product-grid">
+    <div class="prep-product-media">
+      {% if settings_obj.prep_product_image %}
+      <img src="{{ settings_obj.prep_product_image.url }}" alt="{{ settings_obj.prep_product_title|default:'Presentación del producto' }}" loading="lazy">
+      {% endif %}
+      {% if watch_video_url %}
+      <button type="button" class="prep-btn-play" id="prepWatchOpen" aria-haspopup="dialog" aria-controls="prepWatchModal">
+        <span class="prep-btn-play-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72L19 12 8 5.14z"/></svg>
+        </span>
+        Ver preparación
+      </button>
+      {% endif %}
+    </div>
+    <div class="prep-product-copy">
+      <span class="prep-kicker">Producto</span>
+      <h2 class="prep-serif">{{ settings_obj.prep_product_title|default:"Presentación del producto" }}</h2>
+      <p>{{ settings_obj.prep_product_text }}</p>
+      <a class="prep-btn-solid" href="{% url 'store:portfolio_public' %}#paquetes">Ver paquetes</a>
+    </div>
+  </div>
+</section>
+
+{% if watch_video_url %}
+<div class="prep-video-modal" id="prepWatchModal" role="dialog" aria-modal="true" aria-label="Video de preparación" hidden>
+  <div class="prep-video-modal-dialog">
+    <button type="button" class="prep-video-modal-close" id="prepWatchClose" aria-label="Cerrar">&times;</button>
+    <div class="prep-video-modal-frame">
+      <video id="prepWatchVideo" controls playsinline preload="none"
+        {% if settings_obj.prep_product_image %}poster="{{ settings_obj.prep_product_image.url }}"{% elif settings_obj.prep_hero_image %}poster="{{ settings_obj.prep_hero_image.url }}"{% endif %}>
+        <source src="{{ watch_video_url }}" type="video/mp4">
+      </video>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<section class="prep-section prep-addons" id="adicionales">
+  <div class="prep-inner">
+    <div class="prep-head">
+      <span class="prep-kicker">Adicionales</span>
+      <h2 class="prep-serif">Extras para tu evento</h2>
+    </div>
+    {% if addons %}
+    <div class="prep-addon-grid">
+      {% for ad in addons %}
+      <article class="prep-addon-card">
+        <div class="prep-addon-media"{% if ad.image %} style="background-image:url('{{ ad.image.url }}')"{% endif %}></div>
+        <div class="prep-addon-body">
+          {% if ad.price_label %}<div class="prep-addon-price">{{ ad.price_label }}</div>{% endif %}
+          <h3>{{ ad.title }}</h3>
+          {% if ad.description %}<p>{{ ad.description }}</p>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="prep-empty">Personalización, stickers, alcohol y más extras aparecerán aquí.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="prep-section prep-cta">
+  <div class="prep-inner">
+    <span class="prep-kicker">Siguiente paso</span>
+    <h2 class="prep-serif">Coordinemos la preparación de tu evento</h2>
+    <p>Cuéntanos fecha y lugar. Te guiamos en cada etapa hasta el día de la celebración.</p>
+    <a class="prep-btn-solid" href="{{ wa_cta }}" target="_blank" rel="noopener">WhatsApp</a>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var bar = document.getElementById('prepTopbar');
+  if (bar) {
+    function onScroll() {
+      if (window.scrollY > 20) bar.classList.add('is-solid');
+      else bar.classList.remove('is-solid');
+    }
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  var modal = document.getElementById('prepWatchModal');
+  var openBtn = document.getElementById('prepWatchOpen');
+  var closeBtn = document.getElementById('prepWatchClose');
+  var video = document.getElementById('prepWatchVideo');
+  if (!modal || !openBtn || !video) return;
+
+  function openModal() {
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    var playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(function () {});
+    }
+  }
+  function closeModal() {
+    modal.classList.remove('is-open');
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    video.pause();
+    try { video.currentTime = 0; } catch (e) {}
+  }
+
+  openBtn.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) closeModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+  });
+})();
+</script>
+{% endblock %}

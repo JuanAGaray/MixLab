@@ -354,6 +354,21 @@
   .pf-packages .pf-section-head h2 {
     font-size: clamp(2.1rem, 4.5vw, 3.1rem);
   }
+  .pf-pkg-note {
+    max-width: 640px;
+    margin: -1.25rem auto 2rem;
+    text-align: center;
+    color: var(--pf-muted);
+    font-size: .92rem;
+    line-height: 1.55;
+    border: 1px solid rgba(196,165,116,.28);
+    background: rgba(196,165,116,.08);
+    padding: .85rem 1.1rem;
+  }
+  .pf-pkg-note strong {
+    color: var(--pf-gold-2);
+    font-weight: 700;
+  }
   .pf-pkg-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -969,6 +984,10 @@
       <span class="pf-kicker">Paquetes</span>
       <h2 class="pf-serif">Opciones para tu evento</h2>
     </div>
+    <p class="pf-pkg-note">
+      <strong>No incluye transporte.</strong>
+      Este se cotiza con el asesor según ubicación y logística del evento.
+    </p>
     {% if packages %}
     <div class="pf-pkg-grid">
       {% for pkg in packages %}

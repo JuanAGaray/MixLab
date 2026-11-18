@@ -998,7 +998,9 @@
             <tr>
               <td>
                 <div class="d-flex align-items-center">
-                  {% if it.product and it.product.image %}
+                  {% if it.line_images.all %}
+                  <img src="{{ it.line_images.all.0.image.url }}" alt="{{ it.display_name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                  {% elif it.product and it.product.image %}
                   <img src="{{ it.product.image.url }}" alt="{{ it.display_name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
                   {% else %}
                   <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
@@ -1011,6 +1013,15 @@
                     <div class="qd-help">{{ it.product.category.name }}</div>
                     {% elif not it.product %}
                     <div class="qd-help text-success">Paquete / extra</div>
+                    {% endif %}
+                    {% if it.line_images.all %}
+                    <div class="d-flex flex-wrap gap-1 mt-2">
+                      {% for img in it.line_images.all %}
+                      <a href="{{ img.image.url }}" target="_blank" rel="noopener">
+                        <img src="{{ img.image.url }}" alt="" class="rounded border" style="width:64px;height:64px;object-fit:cover;">
+                      </a>
+                      {% endfor %}
+                    </div>
                     {% endif %}
                     {% if it.discount_unit and it.discount_unit > 0 %}
                       <div class="small" style="color:#b45309;">

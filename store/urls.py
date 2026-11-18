@@ -94,6 +94,7 @@ urlpatterns = [
     path('cotizaciones/<int:quotation_id>/eliminar/', views.quotation_delete, name='quotation_delete'),
     path('cotizacion/ajax/add/', views.quotation_ajax_add, name='quotation_ajax_add'),
     path('cotizacion/ajax/add-custom/', views.quotation_ajax_add_custom, name='quotation_ajax_add_custom'),
+    path('cotizacion/ajax/add-portfolio/', views.quotation_ajax_add_portfolio, name='quotation_ajax_add_portfolio'),
     path('cotizacion/ajax/remove/', views.quotation_ajax_remove, name='quotation_ajax_remove'),
     path('cotizacion/ajax/update-qty/', views.quotation_ajax_update_qty, name='quotation_ajax_update_qty'),
     path('cotizacion/ajax/update-discount/', views.quotation_ajax_update_discount, name='quotation_ajax_update_discount'),

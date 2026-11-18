@@ -1223,6 +1223,30 @@ class QuotationItem(models.Model):
         super().save(*args, **kwargs)
 
 
+class QuotationItemImage(models.Model):
+    """Fotos adjuntas a una línea de cotización (producto de catálogo o extra)."""
+
+    item = models.ForeignKey(
+        QuotationItem,
+        on_delete=models.CASCADE,
+        related_name='line_images',
+        verbose_name='Ítem',
+    )
+    image = models.ImageField(
+        upload_to='quotations/line_images/',
+        verbose_name='Imagen',
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+
+    class Meta:
+        verbose_name = 'Imagen de ítem de cotización'
+        verbose_name_plural = 'Imágenes de ítems de cotización'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f'Imagen ítem #{self.item_id}'
+
+
 class QuotationPayment(models.Model):
     """Abono / pago registrado sobre una cotización (permite varios pagos parciales)."""
 

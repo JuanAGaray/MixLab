@@ -9,7 +9,60 @@
   /* Evitar que moneda se corte en tablas */
   .quotation-nowrap { white-space: nowrap; }
   /* Asegurar ancho para subtotal/total */
-  .quotation-money-col { min-width: 160px; }
+  .quotation-money-col { min-width: 108px; }
+  .quote-table { width: 100%; }
+  .quote-table th,
+  .quote-table td { vertical-align: top; }
+  .quote-product {
+    min-width: 0;
+  }
+  .quote-product strong {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .quote-product-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+  }
+  .quote-img-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .45rem;
+    padding: .38rem .75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #fff;
+    color: #0f172a;
+    font-size: .78rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  .quote-img-btn:hover {
+    border-color: #0d6efd;
+    color: #0d6efd;
+    background: #f8fafc;
+  }
+  .quote-img-btn input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+  .quote-img-status {
+    margin: .3rem 0 0;
+    font-size: .72rem;
+    color: #64748b;
+    line-height: 1.35;
+  }
 </style>
 <div class="container my-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -45,10 +98,10 @@
 
     {% if not client_name %}
     <!-- Cotización (misma hoja siempre) -->
-    <div class="row">
+    <form method="post" id="quotation-form" enctype="multipart/form-data">
+        {% csrf_token %}
+    <div class="row align-items-start">
         <div class="col-lg-8">
-            <form method="post" id="quotation-form">
-                {% csrf_token %}
 
                 <!-- Datos del cliente (arriba) -->
                 <div class="card border-0 shadow-sm mb-4">
@@ -126,7 +179,32 @@
                         </div>
                     </div>
                 </div>
+        </div>
 
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm sticky-top mb-4" style="top: 20px;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Resumen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Productos:</span>
+                        <strong>{{ quotation_items|length }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>Total:</span>
+                        <strong class="h5 mb-0">{{ total|pesos_colombianos }}</strong>
+                    </div>
+                    <hr>
+                    <p class="small text-muted mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Todos los precios incluyen IVA.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
                 <!-- Productos seleccionados -->
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -134,6 +212,9 @@
                         <div class="d-flex flex-wrap gap-2">
                             <button type="button" class="btn btn-sm btn-success" id="btn-focus-custom-extra">
                                 <i class="bi bi-pencil-square me-1"></i> Extra personalizado
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="collapse" data-bs-target="#portfolioPickCollapse" aria-expanded="false">
+                                <i class="bi bi-collection me-1"></i> Portafolio y adicionales
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addProductsCollapse" aria-expanded="false">
                                 <i class="bi bi-plus-circle me-1"></i> Agregar más productos
@@ -175,33 +256,94 @@
                                 </div>
                             </div>
                             <div id="custom-extra-error" class="text-danger small mt-2 d-none"></div>
+                            <div class="form-text mt-2 mb-0">Después de agregarlo, puedes subir fotos en la línea del producto (hasta 4).</div>
+                        </div>
+
+                        <div class="collapse mb-3" id="portfolioPickCollapse">
+                            <div class="border rounded-3 p-3">
+                                <div class="row g-3">
+                                    <div class="col-lg-6">
+                                        <div class="fw-semibold mb-2">Paquetes del portafolio</div>
+                                        {% for pkg in portfolio_packages %}
+                                        <div class="d-flex gap-2 align-items-center border rounded p-2 mb-2">
+                                            {% if pkg.image_url %}
+                                            <img src="{{ pkg.image_url }}" alt="" class="rounded" style="width:54px;height:36px;object-fit:cover;">
+                                            {% endif %}
+                                            <div class="flex-grow-1 min-w-0">
+                                                <div class="fw-semibold small">{{ pkg.title }}</div>
+                                                {% if pkg.price_label %}<div class="text-muted" style="font-size:.75rem;">{{ pkg.price_label }}</div>{% endif %}
+                                            </div>
+                                            <input type="number" class="form-control form-control-sm portfolio-price" value="{{ pkg.price }}" min="0" step="1000" style="width:110px;" aria-label="Precio de {{ pkg.title }}">
+                                            <button type="button" class="btn btn-sm btn-dark btn-add-portfolio" data-kind="package" data-id="{{ pkg.id }}">Agregar</button>
+                                        </div>
+                                        {% empty %}
+                                        <p class="text-muted small mb-0">No hay paquetes activos.</p>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <div class="fw-semibold mb-2">Adicionales</div>
+                                        {% for ad in portfolio_addons %}
+                                        <div class="d-flex gap-2 align-items-center border rounded p-2 mb-2">
+                                            {% if ad.image_url %}
+                                            <img src="{{ ad.image_url }}" alt="" class="rounded" style="width:54px;height:36px;object-fit:cover;">
+                                            {% endif %}
+                                            <div class="flex-grow-1 min-w-0">
+                                                <div class="fw-semibold small">{{ ad.title }}</div>
+                                                {% if ad.price_label %}<div class="text-muted" style="font-size:.75rem;">{{ ad.price_label }}</div>{% endif %}
+                                            </div>
+                                            <input type="number" class="form-control form-control-sm portfolio-price" value="{{ ad.price }}" min="0" step="1000" style="width:110px;" aria-label="Precio de {{ ad.title }}">
+                                            <button type="button" class="btn btn-sm btn-outline-dark btn-add-portfolio" data-kind="addon" data-id="{{ ad.id }}">Agregar</button>
+                                        </div>
+                                        {% empty %}
+                                        <p class="text-muted small mb-0">No hay adicionales activos.</p>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-text mt-1 mb-0">El precio se toma de la etiqueta del portafolio y puedes ajustarlo antes de agregar.</div>
+                            </div>
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover quote-table mb-0">
                                 <thead>
                                     <tr>
                                         <th>Producto</th>
-                                        <th style="width: 100px;">Cantidad</th>
-                                        <th style="width: 160px;">Descuento</th>
-                                        <th style="width: 160px;" class="text-end quotation-money-col">Precio unitario</th>
-                                        <th style="width: 170px;" class="text-end quotation-money-col">Subtotal</th>
-                                        <th style="width: 60px;"></th>
+                                        <th style="width: 96px;">Cantidad</th>
+                                        <th style="width: 148px;">Descuento</th>
+                                        <th class="text-end quotation-money-col">Precio unitario</th>
+                                        <th class="text-end quotation-money-col">Subtotal</th>
+                                        <th style="width: 52px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for item in quotation_items %}
                                     <tr>
                                         <td>
-                                            <div class="d-flex align-items-center">
+                                            <div class="d-flex align-items-start quote-product">
                                                 {% if item.is_custom %}
-                                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                {% if item.line_image_urls %}
+                                                <img src="{{ item.line_image_urls.0 }}" alt="{{ item.display_name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                                                {% else %}
+                                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center quote-product-icon">
                                                     <i class="bi bi-pencil-square text-secondary"></i>
                                                 </div>
+                                                {% endif %}
                                                 <div>
                                                     <strong>{{ item.display_name }}</strong>
                                                     <br>
                                                     <small class="text-muted">Extra personalizado</small>
+                                                    {% include "store/partials/quotation_line_images.html" %}
+                                                </div>
+                                                {% elif item.line_image_urls %}
+                                                <img src="{{ item.line_image_urls.0 }}" alt="{{ item.display_name|default:item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                                                <div>
+                                                    <strong>{{ item.display_name|default:item.product.name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        {{ item.product.category.name }}
+                                                        {% if item.period_label %} · Alquiler{% endif %}
+                                                    </small>
+                                                    {% include "store/partials/quotation_line_images.html" %}
                                                 </div>
                                                 {% elif item.product.image %}
                                                 <img src="{{ item.product.image.url }}" alt="{{ item.display_name|default:item.product.name }}" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;">
@@ -212,9 +354,10 @@
                                                         {{ item.product.category.name }}
                                                         {% if item.period_label %} · Alquiler{% endif %}
                                                     </small>
+                                                    {% include "store/partials/quotation_line_images.html" %}
                                                 </div>
                                                 {% else %}
-                                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center quote-product-icon">
                                                     <i class="bi bi-image text-muted"></i>
                                                 </div>
                                                 <div>
@@ -224,6 +367,7 @@
                                                         {{ item.product.category.name }}
                                                         {% if item.period_label %} · Alquiler{% endif %}
                                                     </small>
+                                                    {% include "store/partials/quotation_line_images.html" %}
                                                 </div>
                                                 {% endif %}
                                             </div>
@@ -298,8 +442,12 @@
                         </div>
                     </div>
                 </div>
+        </div>
+    </div>
             </form>
 
+    <div class="row">
+        <div class="col-12">
             <!-- Panel colapsable para agregar más productos -->
             <div class="collapse mb-4{% if not quotation_items %} show{% endif %}" id="addProductsCollapse">
                 <div class="card border-0 shadow-sm">
@@ -438,31 +586,6 @@
                 </div>
             </div>
 
-            {# formulario de cliente movido arriba; se elimina bloque duplicado #}
-        </div>
-
-        <div class="col-lg-4">
-            <!-- Resumen lateral -->
-            <div class="card border-0 shadow-sm sticky-top" style="top: 20px;">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Resumen</h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>Productos:</span>
-                        <strong>{{ quotation_items|length }}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between mb-3">
-                        <span>Total:</span>
-                        <strong class="h5 mb-0">{{ total|pesos_colombianos }}</strong>
-                    </div>
-                    <hr>
-                    <p class="small text-muted mb-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        Todos los precios incluyen IVA.
-                    </p>
-                </div>
-            </div>
         </div>
     </div>
     {% else %}
@@ -542,6 +665,18 @@
 <script>
 // Toggle cliente existente / no registrado
 document.addEventListener('DOMContentLoaded', function() {
+  const quoteForm = document.getElementById('quotation-form');
+  if (quoteForm) {
+    quoteForm.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter') return;
+      const tag = (e.target && e.target.tagName || '').toLowerCase();
+      const type = (e.target && e.target.type || '').toLowerCase();
+      if (tag === 'textarea') return;
+      if (tag === 'button' || type === 'submit') return;
+      e.preventDefault();
+    });
+  }
+
   const existingRadio = document.getElementById('client_mode_existing');
   const unregisteredRadio = document.getElementById('client_mode_unregistered');
   const existingWrap = document.getElementById('existing-client-wrap');
@@ -686,8 +821,64 @@ document.addEventListener('DOMContentLoaded', function() {
         );
     }
 
+    window.__quoteLineFiles = window.__quoteLineFiles || {};
+
+    function lineImagesHtml(item, lineKey) {
+        const urls = item.line_image_urls || [];
+        let thumbs = '';
+        urls.forEach(function (url) {
+            thumbs += '<img src="' + String(url).replace(/"/g, '&quot;') + '" alt="" class="rounded border me-1 mb-1" style="width:42px;height:42px;object-fit:cover;">';
+        });
+        const hint = urls.length
+            ? 'Ya hay fotos. Si eliges otras, reemplazan las actuales.'
+            : 'JPG, PNG o WEBP · máximo 4';
+        return '<div class="quote-line-images">' + thumbs +
+            '<label class="quote-img-btn">' +
+            '<i class="bi bi-images" aria-hidden="true"></i>' +
+            '<span class="quote-img-btn-text">Fotos del producto</span>' +
+            '<input type="file" name="line_images_' + lineKey + '" data-line-key="' + lineKey + '" ' +
+            'class="line-images-input" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple>' +
+            '</label>' +
+            '<div class="quote-img-status">' + hint + '</div></div>';
+    }
+
+    function updateLineImageLabel(input) {
+        if (!input) return;
+        const wrap = input.closest('.quote-line-images');
+        if (!wrap) return;
+        const label = wrap.querySelector('.quote-img-btn-text');
+        const status = wrap.querySelector('.quote-img-status');
+        const count = (input.files && input.files.length) || 0;
+        if (!count) return;
+        const shown = Math.min(count, 4);
+        if (label) label.textContent = shown === 1 ? '1 foto lista' : (shown + ' fotos listas');
+        if (status) {
+            const names = Array.from(input.files).slice(0, 4).map(function (f) { return f.name; });
+            status.textContent = names.join(', ');
+        }
+    }
+
+    function restoreLineFiles(root) {
+        if (!window.DataTransfer) return;
+        root.querySelectorAll('.line-images-input').forEach(function (input) {
+            const saved = window.__quoteLineFiles[input.dataset.lineKey];
+            if (!saved || !saved.length) return;
+            try {
+                const dt = new DataTransfer();
+                saved.forEach(function (file) { dt.items.add(file); });
+                input.files = dt.files;
+                updateLineImageLabel(input);
+            } catch (err) {}
+        });
+    }
+
     function renderQuote(payload) {
         // Actualiza tabla hoja de cotización
+        document.querySelectorAll('.line-images-input').forEach(function (input) {
+            if (input.files && input.files.length) {
+                window.__quoteLineFiles[input.dataset.lineKey] = Array.from(input.files);
+            }
+        });
         const tbody = document.querySelector('table.table-hover tbody');
         const tfootTotal = document.querySelector('table.table-hover tfoot td.quotation-money-col strong');
         if (!tbody) return;
@@ -698,11 +889,12 @@ document.addEventListener('DOMContentLoaded', function() {
             payload.items.forEach(item => {
                 const lineKey = String(item.line_key || item.id);
                 const isCustom = !!item.is_custom;
-                const img = isCustom
-                    ? '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-pencil-square text-secondary"></i></div>'
-                    : (item.image_url
-                        ? '<img src="' + item.image_url + '" class="rounded me-2" style="width:50px;height:50px;object-fit:cover;" />'
-                        : '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width:50px;height:50px;"><i class="bi bi-image text-muted"></i></div>');
+                const thumbUrl = (item.line_image_urls && item.line_image_urls[0]) || item.image_url || '';
+                const img = thumbUrl
+                    ? '<img src="' + String(thumbUrl).replace(/"/g, '&quot;') + '" class="rounded me-2" style="width:50px;height:50px;object-fit:cover;" />'
+                    : (isCustom
+                        ? '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width:50px;height:50px;"><i class="bi bi-pencil-square text-secondary"></i></div>'
+                        : '<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width:50px;height:50px;"><i class="bi bi-image text-muted"></i></div>');
                 const disc = Number(item.discount_value != null ? item.discount_value : (item.discount_percent || 0));
                 const priceCell = (disc > 0)
                     ? '<div class="small text-muted text-decoration-line-through">' + fmtCOP(item.list_unit_price) + '</div>' + fmtCOP(item.unit_price)
@@ -712,14 +904,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 const safeName = String(item.name || 'Extra').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 const tr = document.createElement('tr');
                 tr.innerHTML =
-                    '<td><div class="d-flex align-items-center">' + img +
-                    '<div><strong>' + safeName + '</strong><br><small class="text-muted">' + categoryLabel + '</small></div></div></td>' +
+                    '<td><div class="d-flex align-items-start">' + img +
+                    '<div><strong>' + safeName + '</strong><br><small class="text-muted">' + categoryLabel + '</small>' +
+                    lineImagesHtml(item, lineKey) + '</div></div></td>' +
                     '<td><input type="number" name="quantity_' + lineKey + '" value="' + item.qty + '" min="1" class="form-control form-control-sm quantity-input" data-line-key="' + lineKey + '" style="width:90px;"></td>' +
                     '<td>' + discountControlsHtml(lineKey, item) + '</td>' +
                     '<td class="text-end quotation-nowrap quotation-money-col">' + priceCell + '</td>' +
                     '<td class="text-end quotation-nowrap quotation-money-col"><strong>' + fmtCOP(item.subtotal) + '</strong></td>' +
                     '<td><button type="button" class="btn btn-sm btn-outline-danger btn-quote-remove" data-line-key="' + lineKey + '"><i class="bi bi-trash"></i></button></td>';
                 tbody.appendChild(tr);
+                restoreLineFiles(tr);
             });
         }
         if (tfootTotal) tfootTotal.textContent = fmtCOP(payload.total);
@@ -746,6 +940,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     })();
+
+    document.addEventListener('change', function(e) {
+        const fileInput = e.target.closest('.line-images-input');
+        if (fileInput) {
+            window.__quoteLineFiles = window.__quoteLineFiles || {};
+            window.__quoteLineFiles[fileInput.dataset.lineKey] = Array.from(fileInput.files || []);
+            updateLineImageLabel(fileInput);
+        }
+    });
 
     // Delegación: cantidad y descuento (incluye filas recreadas por AJAX)
     document.addEventListener('change', function(e) {
@@ -912,6 +1115,40 @@ document.addEventListener('DOMContentLoaded', function() {
     if (addCustomBtn) {
         addCustomBtn.addEventListener('click', submitCustomExtra);
     }
+
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-add-portfolio');
+        if (!btn) return;
+        const row = btn.closest('.d-flex');
+        const priceEl = row ? row.querySelector('.portfolio-price') : null;
+        let unitPrice = parseFloat(String(priceEl && priceEl.value || '0').replace(',', '.'));
+        if (isNaN(unitPrice) || unitPrice < 0) unitPrice = 0;
+        btn.disabled = true;
+        fetch("{% url 'store:quotation_ajax_add_portfolio' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                kind: btn.dataset.kind || '',
+                id: btn.dataset.id || '',
+                unit_price: String(unitPrice),
+                qty: '1',
+            }),
+        }).then(function(r) { return r.json(); }).then(function(payload) {
+            if (payload && payload.error) {
+                window.alert(payload.error);
+                return;
+            }
+            renderQuote(payload);
+        }).catch(function() {
+            window.alert('No se pudo agregar. Intenta de nuevo.');
+        }).finally(function() {
+            btn.disabled = false;
+        });
+    });
     ['custom-extra-name', 'custom-extra-price', 'custom-extra-qty'].forEach(function(id) {
         const el = document.getElementById(id);
         if (!el) return;

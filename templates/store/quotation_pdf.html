@@ -34,7 +34,7 @@
       text-align: center;
       font-size: 58px;
       font-weight: 900;
-      letter-spacing: 0.2em;
+      letter-spacing: 1px;
       color: #16a34a;
       opacity: 0.15;
       z-index: 0;
@@ -92,7 +92,7 @@
       font-size: 9px;
       color: #475569;
       font-weight: 600;
-      letter-spacing: 0.02em;
+      letter-spacing: 0;
     }
 
     .doc-block {
@@ -102,7 +102,7 @@
     .doc-kicker {
       margin: 0;
       font-size: 9px;
-      letter-spacing: 0.12em;
+      letter-spacing: 1px;
       text-transform: uppercase;
       color: #64748b;
       font-weight: 700;
@@ -112,7 +112,7 @@
       margin: 1px 0 0;
       font-size: 18px;
       font-weight: 800;
-      letter-spacing: 0.01em;
+      letter-spacing: 0;
       color: #0f172a;
       line-height: 1.15;
     }
@@ -141,7 +141,7 @@
     .meta-label {
       display: block;
       font-size: 8px;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: #64748b;
       font-weight: 700;
@@ -158,7 +158,7 @@
     .section-title {
       margin: 0 0 5px;
       font-size: 9px;
-      letter-spacing: 0.1em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: #0f172a;
       font-weight: 800;
@@ -176,7 +176,7 @@
       padding: 5px 9px;
       border-bottom: 0;
       font-size: 9px;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
       text-transform: uppercase;
       font-weight: 800;
       color: #ffffff;
@@ -195,7 +195,7 @@
       font-size: 8px;
       color: #64748b;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0;
       font-weight: 700;
       margin-bottom: 1px;
     }
@@ -220,7 +220,7 @@
       background: #0f172a;
       color: #ffffff;
       font-size: 8.5px;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
       text-transform: uppercase;
       font-weight: 800;
       padding: 6px 7px;
@@ -353,7 +353,7 @@
       display: block;
       margin-bottom: 3px;
       font-size: 10px;
-      letter-spacing: 0.06em;
+      letter-spacing: 0;
       text-transform: uppercase;
       font-weight: 800;
     }
@@ -371,7 +371,7 @@
       background: #0f172a;
       color: #ffffff;
       font-size: 9px;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
       text-transform: uppercase;
       font-weight: 800;
       padding: 4px 8px;
@@ -589,7 +589,9 @@
             <table style="width:100%; border-collapse:collapse;">
               <tr>
                 <td style="width:48px; padding:0 8px 0 0; border:0; vertical-align:middle;">
-                  {% if it.product and it.product.image %}
+                  {% if it.line_images.all %}
+                  <img class="thumb" src="{{ it.line_images.all.0.image.url }}" alt="{{ it.display_name }}">
+                  {% elif it.product and it.product.image %}
                   <img class="thumb" src="{{ it.product.image.url }}" alt="{{ it.display_name }}">
                   {% else %}
                   <div class="thumb-empty">N/A</div>
@@ -607,6 +609,13 @@
                     Desc. {{ it.discount_unit|pesos_colombianos }}
                     · <span class="strike">{{ it.original_unit_price|pesos_colombianos }}</span>
                   </span>
+                  {% endif %}
+                  {% if it.line_images.all %}
+                  <div style="margin-top:4px;">
+                    {% for img in it.line_images.all %}
+                    <img src="{{ img.image.url }}" alt="" style="width:78px;height:52px;object-fit:cover;margin:0 4px 4px 0;border:1px solid #cbd5e1;">
+                    {% endfor %}
+                  </div>
                   {% endif %}
                 </td>
               </tr>

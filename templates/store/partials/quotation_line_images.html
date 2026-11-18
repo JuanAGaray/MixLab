@@ -1,0 +1,24 @@
+<div class="quote-line-images">
+  {% for url in item.line_image_urls %}
+  <img src="{{ url }}" alt="" class="rounded border me-1 mb-1" style="width:42px;height:42px;object-fit:cover;">
+  {% endfor %}
+  <label class="quote-img-btn">
+    <i class="bi bi-images" aria-hidden="true"></i>
+    <span class="quote-img-btn-text">Fotos del producto</span>
+    <input
+      type="file"
+      name="line_images_{{ item.line_key }}"
+      data-line-key="{{ item.line_key }}"
+      class="line-images-input"
+      accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+      multiple
+    >
+  </label>
+  <div class="quote-img-status">
+    {% if item.line_image_urls %}
+      Ya hay fotos. Si eliges otras, reemplazan las actuales.
+    {% else %}
+      JPG, PNG o WEBP · máximo 4
+    {% endif %}
+  </div>
+</div>

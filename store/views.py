@@ -56,7 +56,7 @@ from .forms import (
     DrinzzContractConfigForm,
     EventLandingLeadForm,
 )
-from .models import Quotation, QuotationItem, QuotationServiceReview, ServiceBonusCoupon
+from .models import Quotation, QuotationItem, QuotationItemImage, QuotationServiceReview, ServiceBonusCoupon
 
 # IVA en Colombia (por defecto 19%). Los precios ya incluyen IVA en este proyecto.
 IVA_RATE = Decimal('0.19')
@@ -203,6 +203,7 @@ def _load_quotation_into_session(request, quote: Quotation) -> dict:
                 'discount_type': dtype,
                 'discount_value': dval,
                 'discount_percent': dval if dtype == 'percent' else 0.0,
+                'image_item_id': item.id,
             }
             continue
         rental_price_id = item.rental_price_id
@@ -216,6 +217,7 @@ def _load_quotation_into_session(request, quote: Quotation) -> dict:
             'discount_value': dval,
             'discount_percent': dval if dtype == 'percent' else 0.0,
             'rental_price_id': rental_price_id,
+            'image_item_id': item.id,
         }
     request.session['quotation'] = session_quote
     request.session['editing_quotation_id'] = quote.id
@@ -4945,6 +4947,7 @@ def quotation(request):
     
     # Si hay sesión de cotización, úsala como base (AJAX)
     session_quote = _get_quote_session(request)
+    line_image_urls = _quote_line_image_urls(session_quote)
     if session_quote:
         for line_key, entry in session_quote.items():
             try:
@@ -4959,6 +4962,10 @@ def quotation(request):
                     )
                     subtotal = price * qty
                     total += subtotal
+                    custom_urls = line_image_urls.get(custom.get('image_item_id')) or []
+                    if not custom_urls and custom.get('source_image'):
+                        src_url = _storage_file_url(custom.get('source_image'))
+                        custom_urls = [src_url] if src_url else []
                     quotation_items.append({
                         'product': None,
                         'is_custom': True,
@@ -4973,6 +4980,7 @@ def quotation(request):
                         'list_unit_price': list_unit,
                         'unit_price': price,
                         'subtotal': subtotal,
+                        'line_image_urls': custom_urls,
                     })
                     continue
 
@@ -5018,6 +5026,7 @@ def quotation(request):
                     'list_unit_price': list_unit,
                     'unit_price': price,
                     'subtotal': subtotal,
+                    'line_image_urls': line_image_urls.get(entry.get('image_item_id')) or [],
                 })
             except (Product.DoesNotExist, ValueError, TypeError):
                 continue
@@ -5081,6 +5090,13 @@ def quotation(request):
                     valid_client = False
 
         if form.is_valid() and product_ids and valid_client:
+            image_errors = _quote_line_image_errors(request, session_quote)
+            if image_errors:
+                for err in dict.fromkeys(image_errors):
+                    messages.error(request, err)
+                valid_client = False
+
+        if form.is_valid() and product_ids and valid_client:
             is_update = bool(editing_quote and _quotation_can_edit(editing_quote))
             if is_update and editing_quote.stock_deducted:
                 _restore_stock_for_quotation(editing_quote)
@@ -5097,8 +5113,15 @@ def quotation(request):
                 quotation_obj.notes = form.cleaned_data.get('notes', '') or ''
                 quotation_obj.total = Decimal('0.00')
                 quotation_obj.save()
+                previous_line_images = {}
+                for row in QuotationItemImage.objects.filter(
+                    item__quotation=quotation_obj
+                ).order_by('sort_order', 'id'):
+                    if row.image:
+                        previous_line_images.setdefault(row.item_id, []).append(row.image.name)
                 quotation_obj.items.all().delete()
             else:
+                previous_line_images = {}
                 # Crear cotización en BD (registro)
                 quotation_obj = Quotation.objects.create(
                     created_by=request.user if request.user.is_authenticated else None,
@@ -5133,6 +5156,14 @@ def quotation(request):
                         list_unit_price=list_unit,
                         subtotal=price * qty,
                     )
+                    _attach_quotation_line_images(
+                        request,
+                        item,
+                        line_key,
+                        custom.get('image_item_id'),
+                        previous_line_images,
+                        source_image=custom.get('source_image') or '',
+                    )
                     running_total += item.subtotal
                     continue
                 try:
@@ -5166,6 +5197,9 @@ def quotation(request):
                     list_unit_price=list_unit,
                     rental_price=rental_obj,
                     subtotal=price * qty,
+                )
+                _attach_quotation_line_images(
+                    request, item, line_key, entry.get('image_item_id'), previous_line_images,
                 )
                 running_total += item.subtotal
 
@@ -5262,6 +5296,7 @@ def quotation(request):
                     'list_unit_price': list_unit,
                     'unit_price': list_unit,
                     'subtotal': list_unit,
+                    'line_image_urls': [],
                 })
                 total += list_unit
                 session_quote[key] = {
@@ -5333,6 +5368,28 @@ def quotation(request):
         'categories': categories,
         'clients': clients,
         'editing_quote': editing_quote,
+        'portfolio_packages': [
+            {
+                'id': obj.id,
+                'title': obj.title,
+                'description': obj.description,
+                'price_label': obj.price_label,
+                'price': _parse_portfolio_price(obj.price_label),
+                'image_url': obj.image.url if obj.image else '',
+            }
+            for obj in PortfolioPackage.objects.filter(is_active=True)
+        ],
+        'portfolio_addons': [
+            {
+                'id': obj.id,
+                'title': obj.title,
+                'description': obj.description,
+                'price_label': obj.price_label,
+                'price': _parse_portfolio_price(obj.price_label),
+                'image_url': obj.image.url if obj.image else '',
+            }
+            for obj in PortfolioAddon.objects.filter(is_active=True)
+        ],
     }
     return render(request, 'store/quotation.html', context)
 
@@ -5949,7 +6006,7 @@ def quotation_detail(request, quotation_id):
         ),
         id=quotation_id,
     )
-    items = q.items.select_related('product', 'product__category').all()
+    items = q.items.select_related('product', 'product__category').prefetch_related('line_images').all()
     expires_at = q.created_at + timedelta(days=1)
     try:
         combo_booking = q.combo_booking
@@ -6497,7 +6554,8 @@ def _quotation_pdf_context(quote: Quotation, iva_mode: str = 'with_iva', doc_typ
     is_factura = (doc_type or 'cotizacion') == 'factura'
     is_paid = _quotation_is_fully_paid(quote) or quote.order_status in _fully_paid_statuses()
     items = quote.items.select_related('product', 'product__category').prefetch_related(
-        'product__rental_prices'
+        'product__rental_prices',
+        'line_images',
     ).all()
     expires_at = quote.created_at + timedelta(days=1)
 
@@ -6543,11 +6601,86 @@ def _quotation_pdf_context(quote: Quotation, iva_mode: str = 'with_iva', doc_typ
     }
 
 
+def _pdf_img_cache_dir() -> str:
+    import tempfile
+    from django.conf import settings
+
+    folder = os.path.join(
+        str(getattr(settings, 'PDF_CACHE_ROOT', None) or os.path.join(settings.MEDIA_ROOT, 'quotations', 'pdf_cache')),
+        'img',
+    )
+    try:
+        os.makedirs(folder, exist_ok=True)
+        return folder
+    except OSError:
+        folder = os.path.join(tempfile.gettempdir(), 'frozz_pdf_img')
+        os.makedirs(folder, exist_ok=True)
+        return folder
+
+
+def _pdf_cached_image(cache_key: str) -> str:
+    if not cache_key:
+        return ''
+    folder = _pdf_img_cache_dir()
+    for ext in ('.jpg', '.png'):
+        path = os.path.join(folder, cache_key + ext)
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
+            return path
+    return ''
+
+
+def _pdf_shrink_image(src_path: str, cache_key: str = '') -> str:
+    """Reduce fotos grandes antes de incrustarlas en el PDF."""
+    import hashlib
+
+    ext = os.path.splitext(src_path or '')[1].lower()
+    if ext not in {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'}:
+        return src_path
+    if not cache_key:
+        try:
+            st = os.stat(src_path)
+            cache_key = hashlib.md5(f'{src_path}:{st.st_size}:{int(st.st_mtime)}'.encode()).hexdigest()
+        except OSError:
+            return src_path
+    cached = _pdf_cached_image(cache_key)
+    if cached:
+        return cached
+    try:
+        from PIL import Image
+    except Exception:
+        return src_path
+    try:
+        with Image.open(src_path) as im:
+            has_alpha = im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info)
+            if has_alpha:
+                im = im.convert('RGBA')
+            else:
+                im = im.convert('RGB')
+            max_side = 640
+            width, height = im.size
+            if max(width, height) > max_side:
+                scale = max_side / float(max(width, height))
+                im = im.resize(
+                    (max(1, int(width * scale)), max(1, int(height * scale))),
+                    Image.Resampling.LANCZOS,
+                )
+            out_ext = '.png' if has_alpha else '.jpg'
+            out_path = os.path.join(_pdf_img_cache_dir(), cache_key + out_ext)
+            if has_alpha:
+                im.save(out_path, 'PNG', optimize=True)
+            else:
+                im.save(out_path, 'JPEG', quality=72, optimize=True)
+        return out_path
+    except Exception:
+        return src_path
+
+
 def _pdf_link_callback(uri, rel):
     """Resolve static/media URIs for xhtml2pdf (incluye URLs públicas de Supabase)."""
     from django.conf import settings
     from django.contrib.staticfiles import finders
     from urllib.parse import unquote, urlparse
+    import hashlib
     import tempfile
 
     raw = unquote(uri or '')
@@ -6555,6 +6688,10 @@ def _pdf_link_callback(uri, rel):
 
     # URL absoluta (Supabase Storage u otra CDN)
     if parsed.scheme in ('http', 'https'):
+        cache_key = hashlib.md5(raw.encode('utf-8')).hexdigest()
+        cached = _pdf_cached_image(cache_key)
+        if cached:
+            return cached
         try:
             import requests
             resp = requests.get(raw, timeout=20)
@@ -6563,7 +6700,13 @@ def _pdf_link_callback(uri, rel):
             fd, tmp_path = tempfile.mkstemp(prefix='pdfimg_', suffix=suffix)
             with os.fdopen(fd, 'wb') as fh:
                 fh.write(resp.content)
-            return tmp_path
+            shrunk = _pdf_shrink_image(tmp_path, cache_key=cache_key)
+            if shrunk != tmp_path:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            return shrunk
         except Exception:
             return uri
 
@@ -6592,6 +6735,8 @@ def _pdf_link_callback(uri, rel):
         return uri
     if isinstance(path, (list, tuple)):
         path = path[0]
+    if os.path.isfile(path):
+        return _pdf_shrink_image(path)
     return path
 
 
@@ -6610,7 +6755,7 @@ def _quotation_pdf_cache_path(quote: Quotation, iva_mode: str = 'with_iva', doc_
         # Último recurso en entornos read-only
         folder = os.path.join('/tmp', 'frozz_pdf_cache')
         os.makedirs(folder, exist_ok=True)
-    return os.path.join(folder, f'COT{quote.id}-{stamp}-{mode}-{kind}-{paid}.pdf')
+    return os.path.join(folder, f'COT{quote.id}-{stamp}-{mode}-{kind}-{paid}-sm.pdf')
 
 
 def _build_quotation_pdf_bytes(quote: Quotation, iva_mode: str = 'with_iva', doc_type: str = 'cotizacion'):
@@ -8881,6 +9026,15 @@ def _normalize_custom_quote_entry(raw) -> dict:
         discount_value = unit_price
     discount_value = discount_value.quantize(Decimal('0.01'))
     unit_price = unit_price.quantize(Decimal('0.01'))
+    image_item_id = None
+    source_image = ''
+    if isinstance(raw, dict):
+        try:
+            iid = raw.get('image_item_id')
+            image_item_id = int(iid) if iid not in (None, '', 'null') else None
+        except (TypeError, ValueError):
+            image_item_id = None
+        source_image = str(raw.get('source_image') or '').strip()[:300]
     return {
         'kind': 'custom',
         'name': name[:200],
@@ -8889,6 +9043,8 @@ def _normalize_custom_quote_entry(raw) -> dict:
         'discount_type': discount_type,
         'discount_value': float(discount_value),
         'discount_percent': float(discount_value) if discount_type == 'percent' else 0.0,
+        'image_item_id': image_item_id,
+        'source_image': source_image,
     }
 
 
@@ -8948,6 +9104,13 @@ def _normalize_quote_entry(raw) -> dict:
     if discount_type == 'percent' and discount_value > 100:
         discount_value = Decimal('100.00')
     discount_value = discount_value.quantize(Decimal('0.01'))
+    image_item_id = None
+    if isinstance(raw, dict):
+        try:
+            iid = raw.get('image_item_id')
+            image_item_id = int(iid) if iid not in (None, '', 'null') else None
+        except (TypeError, ValueError):
+            image_item_id = None
     return {
         'qty': qty,
         'discount_type': discount_type,
@@ -8955,7 +9118,101 @@ def _normalize_quote_entry(raw) -> dict:
         # Compat lectura templates/JS antiguos
         'discount_percent': float(discount_value) if discount_type == 'percent' else 0.0,
         'rental_price_id': rental_price_id,
+        'image_item_id': image_item_id,
     }
+
+
+def _quote_line_image_urls(session_quote) -> dict:
+    """Mapa item_id -> URLs de fotos ya guardadas en líneas de cotización."""
+    ids = []
+    for entry in (session_quote or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        iid = entry.get('image_item_id')
+        try:
+            if iid not in (None, '', 'null'):
+                ids.append(int(iid))
+        except (TypeError, ValueError):
+            continue
+    grouped = {}
+    if not ids:
+        return grouped
+    for img in QuotationItemImage.objects.filter(item_id__in=ids).order_by('sort_order', 'id'):
+        if not img.image:
+            continue
+        try:
+            url = img.image.url
+        except Exception:
+            continue
+        grouped.setdefault(img.item_id, []).append(url)
+    return grouped
+
+
+def _quote_line_image_errors(request, session_quote) -> list:
+    errors = []
+    for line_key in (session_quote or {}):
+        files = request.FILES.getlist(f'line_images_{line_key}')
+        if len(files) > 4:
+            errors.append('Máximo 4 imágenes por producto.')
+        for f in files[:4]:
+            err = _portfolio_valid_image(f)
+            if err:
+                errors.append(err)
+    return errors
+
+
+def _parse_portfolio_price(label) -> Decimal:
+    """Extrae un monto COP de etiquetas como 'Desde $390.000'."""
+    text = str(label or '')
+    match = re.search(r'(\d{1,3}(?:\.\d{3})+|\d+)', text)
+    if not match:
+        return Decimal('0.00')
+    raw = match.group(1).replace('.', '')
+    try:
+        return Decimal(raw).quantize(Decimal('0.01'))
+    except Exception:
+        return Decimal('0.00')
+
+
+def _storage_file_url(name) -> str:
+    if not name:
+        return ''
+    try:
+        from django.core.files.storage import default_storage
+        return default_storage.url(name)
+    except Exception:
+        return ''
+
+
+def _attach_quotation_line_images(request, item, line_key, source_item_id, previous_names, source_image=''):
+    files = [f for f in request.FILES.getlist(f'line_images_{line_key}') if f][:4]
+    valid = []
+    for f in files:
+        if _portfolio_valid_image(f):
+            continue
+        valid.append(f)
+    if valid:
+        for i, f in enumerate(valid):
+            QuotationItemImage.objects.create(item=item, image=f, sort_order=i)
+        return
+    names = []
+    try:
+        names = previous_names.get(int(source_item_id)) or []
+    except (TypeError, ValueError):
+        names = []
+    for i, name in enumerate(names[:4]):
+        if not name:
+            continue
+        obj = QuotationItemImage(item=item, sort_order=i)
+        obj.image.name = name
+        obj.save()
+    if names:
+        return
+    source_image = str(source_image or '').strip()
+    if source_image:
+        obj = QuotationItemImage(item=item, sort_order=0)
+        obj.image.name = source_image
+        obj.save()
 
 
 def _quote_base_unit_price(product, rental_price_id=None) -> Decimal:
@@ -9033,6 +9290,7 @@ def _get_quote_session(request) -> dict:
 def _quote_payload(request) -> dict:
     """Build JSON payload for current quotation session."""
     q = _get_quote_session(request)
+    line_image_urls = _quote_line_image_urls(q)
     product_ids = set()
     rental_ids = set()
     for key, entry in q.items():
@@ -9082,13 +9340,18 @@ def _quote_payload(request) -> dict:
             total_base += base_subtotal
             total_iva += iva_subtotal
             discount_unit = (list_unit - unit) if unit < list_unit else Decimal('0.00')
+            custom_urls = line_image_urls.get(custom.get('image_item_id')) or []
+            if not custom_urls and custom.get('source_image'):
+                src_url = _storage_file_url(custom.get('source_image'))
+                custom_urls = [src_url] if src_url else []
             items.append({
                 'id': None,
                 'line_key': line_key,
                 'is_custom': True,
                 'name': custom['name'],
                 'category': 'Extra personalizado',
-                'image_url': '',
+                'image_url': custom_urls[0] if custom_urls else '',
+                'line_image_urls': custom_urls,
                 'qty': qty,
                 'discount_type': custom['discount_type'],
                 'discount_value': float(custom['discount_value']),
@@ -9140,13 +9403,15 @@ def _quote_payload(request) -> dict:
             period_label = tariff.get_period_type_display()
             display_name = f'{p.name} · {period_label}'
 
+        extra_urls = line_image_urls.get(entry.get('image_item_id') if isinstance(entry, dict) else None) or []
         items.append({
             'id': p.id,
             'line_key': line_key,
             'is_custom': False,
             'name': display_name,
             'category': p.category.name,
-            'image_url': p.image.url if p.image else '',
+            'image_url': (extra_urls[0] if extra_urls else (p.image.url if p.image else '')),
+            'line_image_urls': extra_urls,
             'qty': qty,
             'discount_type': discount_type,
             'discount_value': float(discount_value),
@@ -9246,6 +9511,65 @@ def quotation_ajax_add_custom(request):
         'unit_price': float(unit_price),
         'discount_type': 'percent',
         'discount_value': 0.0,
+    })
+    request.session['quotation'] = q
+    request.session.modified = True
+    payload = _quote_payload(request)
+    payload['added'] = 1
+    payload['line_key'] = key
+    return JsonResponse(payload)
+
+
+def quotation_ajax_add_portfolio(request):
+    """Agrega un paquete o adicional del portafolio como línea de la cotización."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    kind = (request.POST.get('kind') or '').strip().lower()
+    try:
+        obj_id = int(request.POST.get('id') or 0)
+    except (TypeError, ValueError):
+        obj_id = 0
+    if kind == 'package':
+        obj = PortfolioPackage.objects.filter(pk=obj_id, is_active=True).first()
+        label = 'Paquete'
+    elif kind == 'addon':
+        obj = PortfolioAddon.objects.filter(pk=obj_id, is_active=True).first()
+        label = 'Adicional'
+    else:
+        return JsonResponse({'error': 'Tipo no válido'}, status=400)
+    if not obj:
+        return JsonResponse({'error': 'No se encontró en el portafolio'}, status=404)
+
+    try:
+        qty = int(request.POST.get('qty') or 1)
+    except (TypeError, ValueError):
+        qty = 1
+    if qty < 1:
+        qty = 1
+    raw_price = (request.POST.get('unit_price') or '').strip()
+    if raw_price:
+        try:
+            unit_price = Decimal(str(raw_price).replace(',', '.'))
+        except Exception:
+            return JsonResponse({'error': 'Precio inválido'}, status=400)
+    else:
+        unit_price = _parse_portfolio_price(obj.price_label)
+    if unit_price < 0:
+        unit_price = Decimal('0.00')
+
+    source_image = ''
+    if getattr(obj, 'image', None):
+        source_image = obj.image.name or ''
+
+    q = _get_quote_session(request)
+    key = f'custom:{uuid.uuid4().hex[:12]}'
+    q[key] = _normalize_custom_quote_entry({
+        'name': f'{label}: {obj.title}'[:200],
+        'qty': qty,
+        'unit_price': float(unit_price),
+        'discount_type': 'percent',
+        'discount_value': 0.0,
+        'source_image': source_image,
     })
     request.session['quotation'] = q
     request.session.modified = True

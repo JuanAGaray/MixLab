@@ -1,0 +1,338 @@
+{% load store_tags %}
+<div class="em-metrics" data-metrics-root>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="btn-group" role="group" aria-label="Vistas de métricas">
+      <button type="button" class="btn btn-sm btn-dark" data-metrics-view="resumen">Resumen</button>
+      <button type="button" class="btn btn-sm btn-outline-dark" data-metrics-view="semanas">Semanas</button>
+      <button type="button" class="btn btn-sm btn-outline-dark" data-metrics-view="meses">Mes a mes</button>
+      <button type="button" class="btn btn-sm btn-outline-dark" data-metrics-view="eventos">Eventos</button>
+    </div>
+    <form method="get" class="d-flex flex-wrap gap-2">
+      {% if embedded %}<input type="hidden" name="vista" value="metricas">{% endif %}
+      <select class="form-select form-select-sm" name="anio" aria-label="Año">
+        {% for option in years %}
+        <option value="{{ option }}" {% if option == year %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      {% if not embedded %}
+      <select class="form-select form-select-sm" name="combo" aria-label="Combo">
+        <option value="">Todos los combos</option>
+        {% for combo in combos %}
+        <option value="{{ combo.id }}" {% if combo_id == combo.id %}selected{% endif %}>{{ combo.name }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+    </form>
+  </div>
+
+  <div data-metrics-pane="resumen">
+    <div class="em-grid">
+      <div class="em-card"><div class="em-k">Vendidos</div><div class="em-v">{{ metrics.sold_count }}</div><div class="em-s">Con abono en {{ year }}</div></div>
+      <div class="em-card"><div class="em-k">Media por cotización</div><div class="em-v">{{ metrics.quote_avg|pesos_colombianos }}</div><div class="em-s">{{ metrics.quote_count }} con abono</div></div>
+      <div class="em-card"><div class="em-k">Facturado</div><div class="em-v">{{ metrics.billed|pesos_colombianos }}</div><div class="em-s">Ventas ya iniciadas</div></div>
+      <div class="em-card"><div class="em-k">Cobrado</div><div class="em-v text-success">{{ metrics.paid|pesos_colombianos }}</div><div class="em-s">{{ metrics.collection_rate }}% de lo facturado</div></div>
+      <div class="em-card"><div class="em-k">Por cobrar</div><div class="em-v text-danger">{{ metrics.remaining|pesos_colombianos }}</div><div class="em-s">Saldo de ventas con abono</div></div>
+      <div class="em-card"><div class="em-k">Cancelados</div><div class="em-v">{{ metrics.cancelled_count }}</div><div class="em-s">{{ metrics.cancel_rate }}% de lo agendado</div></div>
+    </div>
+    <div class="em-banner">
+      <div>
+        <div class="em-k text-danger mb-0">Sin pago inicial</div>
+        <div class="em-s mb-0">Cotizaciones sin abono. No entran en vendidos, facturado ni por cobrar.</div>
+      </div>
+      <strong>{{ metrics.pending_count }} · {{ metrics.pending_billed|pesos_colombianos }}</strong>
+    </div>
+    <div class="em-grid">
+      <div class="em-card"><div class="em-k">Anticipación</div><div class="em-v">{{ metrics.lead_avg|floatformat:0 }} días</div><div class="em-s">{{ metrics.lead_short }} menos de 7 · {{ metrics.lead_mid }} de 7 a 30 · {{ metrics.lead_long }} más de 30</div></div>
+      <div class="em-card"><div class="em-k">Por venir</div><div class="em-v">{{ metrics.upcoming_value|pesos_colombianos }}</div><div class="em-s">{{ metrics.upcoming_count }} eventos que aún no ocurren</div></div>
+      <div class="em-card"><div class="em-k">Mes más fuerte</div><div class="em-v">{{ metrics.peak_month }}</div><div class="em-s">{{ metrics.peak_count }} eventos en esa fecha</div></div>
+      <div class="em-card"><div class="em-k">Confirmados</div><div class="em-v">{{ metrics.confirm_rate }}%</div><div class="em-s">{{ metrics.confirmed_count }} de {{ metrics.sold_count }} ventas</div></div>
+      <div class="em-card"><div class="em-k">Fecha en {{ year }}</div><div class="em-v">{{ metrics.event_count }}</div><div class="em-s">{{ metrics.done_count }} pasaron · {{ metrics.upcoming_count }} por venir</div></div>
+      <button type="button" class="em-card" data-bs-toggle="modal" data-bs-target="#emCarteraModal">
+        <div class="em-k">Cartera vencida</div>
+        <div class="em-v text-danger">{{ metrics.cartera_amount|pesos_colombianos }}</div>
+        <div class="em-s">{{ metrics.cartera_count }} con saldo · Ver cotizaciones</div>
+      </button>
+    </div>
+
+    {{ metrics.chart|json_script:"emChartData" }}
+    <div class="row g-3 mb-3">
+      <div class="col-lg-7">
+        <div class="em-card h-100">
+          <div class="fw-semibold mb-1">Vendidos y eventos por mes</div>
+          <div class="small text-muted mb-2">Barras: cuándo se agendó contra cuándo ocurre.</div>
+          <canvas id="emChartBars" height="140"></canvas>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="em-card h-100">
+          <div class="fw-semibold mb-1">Facturado por departamento</div>
+          <div class="small text-muted mb-2">Circular: de los eventos con fecha en {{ year }}.</div>
+          <canvas id="emChartPie" height="160"></canvas>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="em-card">
+          <div class="fw-semibold mb-1">Eventos por semana</div>
+          <div class="small text-muted mb-2">Montaña: el ritmo del año, semana a semana.</div>
+          <canvas id="emChartArea" height="90"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="em-card h-100">
+          <div class="fw-semibold mb-2">Por combo</div>
+          {% for row in metrics.by_combo %}
+          <div class="mb-2">
+            <div class="d-flex justify-content-between gap-2 small"><span>{{ row.label }}</span><span>{{ row.count }} · {{ row.billed|pesos_colombianos }}</span></div>
+            <div class="em-track mt-1"><div class="em-fill is-event" style="width:{{ row.bar }}%"></div></div>
+          </div>
+          {% empty %}
+          <div class="text-muted small">Sin eventos en este año.</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="em-card h-100">
+          <div class="fw-semibold mb-2">Por departamento</div>
+          {% for row in metrics.by_dept %}
+          <div class="mb-2">
+            <div class="d-flex justify-content-between gap-2 small"><span>{{ row.label }}</span><span>{{ row.count }} · {{ row.billed|pesos_colombianos }}</span></div>
+            <div class="em-track mt-1"><div class="em-fill is-event" style="width:{{ row.bar }}%"></div></div>
+          </div>
+          {% empty %}
+          <div class="text-muted small">Sin eventos en este año.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-metrics-pane="semanas" class="d-none">
+    {% if metrics.show_this_week and metrics.this_week %}
+    <div class="row g-2 mb-3">
+      <div class="col-6 col-md-3"><div class="em-card"><div class="em-k">Esta semana</div><div class="em-v">{{ metrics.this_week.range }}</div><div class="em-s">Lunes a domingo</div></div></div>
+      <div class="col-6 col-md-3"><div class="em-card"><div class="em-k">Vendidos</div><div class="em-v">{{ metrics.this_week.sold_count }}</div><div class="em-s">Agendados estos días</div></div></div>
+      <div class="col-6 col-md-3"><div class="em-card"><div class="em-k">Ocurren</div><div class="em-v">{{ metrics.this_week.event_count }}</div><div class="em-s">{{ metrics.this_week.event_billed|pesos_colombianos }}</div></div></div>
+      <div class="col-6 col-md-3">
+        <div class="em-card h-100 d-flex flex-column">
+          <div class="em-k">Falta cobrar</div>
+          <div class="em-v text-danger">{{ metrics.this_week.event_remaining|pesos_colombianos }}</div>
+          <div class="em-s mb-2">De los eventos de esta semana</div>
+          <button type="button" class="btn btn-sm btn-outline-danger mt-auto" data-bs-toggle="modal" data-bs-target="#emDueModal">Ver quién debe</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="table-responsive em-card p-0">
+      <table class="table table-sm mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Semana</th>
+            <th>Vendidos</th>
+            <th>Eventos</th>
+            <th>Facturado</th>
+            <th>Cobrado</th>
+            <th>Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for month in metrics.month_groups reversed %}
+          <tr class="em-month-row">
+            <td>{{ month.label }}</td>
+            <td>{{ month.sold_count }}</td>
+            <td>{{ month.event_count }}</td>
+            <td>{{ month.event_billed|pesos_colombianos }}</td>
+            <td class="text-success">{{ month.event_paid|pesos_colombianos }}</td>
+            <td class="text-danger">{{ month.event_remaining|pesos_colombianos }}</td>
+          </tr>
+          {% for week in month.weeks reversed %}
+          <tr{% if metrics.this_week and week.start == metrics.this_week.start %} class="em-week-now"{% endif %}>
+            <td class="text-nowrap em-week-label">{{ week.range }}</td>
+            <td>{{ week.sold_count }}</td>
+            <td>{{ week.event_count }}</td>
+            <td>{{ week.event_billed|pesos_colombianos }}</td>
+            <td class="text-success">{{ week.event_paid|pesos_colombianos }}</td>
+            <td class="text-danger">{{ week.event_remaining|pesos_colombianos }}</td>
+          </tr>
+          {% endfor %}
+          {% empty %}
+          <tr><td colspan="6" class="text-muted p-3">No hay semanas con movimiento en {{ year }}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mt-2 mb-0">Cada mes resume ese mes completo. Debajo van sus semanas, de lunes a domingo. Vendidos es cuándo se agendó. Eventos, facturado, cobrado y saldo usan la fecha del servicio.</p>
+  </div>
+
+  <div class="modal fade" id="emCarteraModal" tabindex="-1" aria-labelledby="emCarteraModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="emCarteraModalLabel">Cartera vencida · {{ year }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Fecha</th>
+                  <th>Departamento</th>
+                  <th>Cotización</th>
+                  <th>Facturado</th>
+                  <th>Cobrado</th>
+                  <th>Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in metrics.cartera_items %}
+                <tr>
+                  <td>{{ item.client_name }}</td>
+                  <td class="text-nowrap">{{ item.event_date|date:"d/m/Y" }}</td>
+                  <td>{{ item.department }}</td>
+                  <td>
+                    {% if item.quotation_id %}
+                    <a href="{% url 'store:quotation_detail' item.quotation_id %}">COT-{{ item.quotation_id }}</a>
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>{{ item.total|pesos_colombianos }}</td>
+                  <td class="text-success">{{ item.paid|pesos_colombianos }}</td>
+                  <td class="text-danger">{{ item.remaining|pesos_colombianos }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-muted p-3">No hay cartera vencida en {{ year }}.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="me-auto fw-semibold text-danger">{{ metrics.cartera_amount|pesos_colombianos }}</span>
+          <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if metrics.show_this_week and metrics.this_week %}
+  <div class="modal fade" id="emDueModal" tabindex="-1" aria-labelledby="emDueModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="emDueModalLabel">Falta por cobrar · {{ metrics.this_week.range }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Fecha</th>
+                  <th>Departamento</th>
+                  <th>Facturado</th>
+                  <th>Cobrado</th>
+                  <th>Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in metrics.this_week.due %}
+                <tr>
+                  <td>{{ item.client_name }}</td>
+                  <td class="text-nowrap">{{ item.event_date }}</td>
+                  <td>{{ item.department }}</td>
+                  <td>{{ item.total|pesos_colombianos }}</td>
+                  <td class="text-success">{{ item.paid|pesos_colombianos }}</td>
+                  <td class="text-danger">{{ item.remaining|pesos_colombianos }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-muted p-3">Esta semana no tiene saldos pendientes.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="me-auto fw-semibold text-danger">{{ metrics.this_week.event_remaining|pesos_colombianos }}</span>
+          <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div data-metrics-pane="meses" class="d-none">
+    <div class="table-responsive em-card p-0">
+      <table class="table table-sm mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th>Vendidos</th>
+            <th>Facturado al vender</th>
+            <th>Eventos</th>
+            <th>Facturado del mes</th>
+            <th>Cobrado</th>
+            <th>Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for month in metrics.months reversed %}
+          <tr>
+            <td>{{ month.label }}</td>
+            <td>{{ month.sold_count }}</td>
+            <td>{{ month.sold_billed|pesos_colombianos }}</td>
+            <td>{{ month.event_count }}</td>
+            <td>{{ month.event_billed|pesos_colombianos }}</td>
+            <td class="text-success">{{ month.event_paid|pesos_colombianos }}</td>
+            <td class="text-danger">{{ month.event_remaining|pesos_colombianos }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mt-2 mb-0">Vendidos usa la fecha en que se agendó. Eventos, cobrado y saldo usan la fecha del evento.</p>
+  </div>
+
+  <div data-metrics-pane="eventos" class="d-none">
+    <input class="form-control form-control-sm mb-2" id="emEventSearch" type="search" placeholder="Buscar cliente, combo, departamento u operario">
+    <div class="table-responsive em-card p-0">
+      <table class="table table-sm mb-0 align-middle" id="emEventTable">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Vendido</th>
+            <th>Cliente</th>
+            <th>Combo</th>
+            <th>Departamento</th>
+            <th>Operario</th>
+            <th>Estado</th>
+            <th>Total</th>
+            <th>Cobrado</th>
+            <th>Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in metrics.events %}
+          <tr data-search="{{ event.client_name }} {{ event.combo_name }} {{ event.department }} {{ event.operator }} {{ event.status_label }}">
+            <td class="text-nowrap">{{ event.event_date|date:"d/m/Y" }}</td>
+            <td class="text-nowrap">{{ event.sold_on|date:"d/m/Y" }}</td>
+            <td>{{ event.client_name }}</td>
+            <td>{% if event.combo_id %}<a href="{% url 'store:inventory_combo_detail' event.combo_id %}">{{ event.combo_name }}</a>{% else %}—{% endif %}</td>
+            <td>{{ event.department }}</td>
+            <td>{{ event.operator|default:"—" }}</td>
+            <td>{% if event.no_deposit %}<span class="badge text-bg-danger">Sin abono</span>{% else %}{{ event.status_label }}{% endif %}</td>
+            <td class="text-nowrap">{{ event.total|pesos_colombianos }}</td>
+            <td class="text-nowrap text-success">{{ event.paid|pesos_colombianos }}</td>
+            <td class="text-nowrap text-danger">{{ event.remaining|pesos_colombianos }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="10" class="text-muted p-3">No hay eventos con fecha en {{ year }}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

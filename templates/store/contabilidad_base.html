@@ -1,0 +1,239 @@
+{% load store_tags %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0B0B0C">
+  <title>{% block title %}Contabilidad Mixlab{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f4f1ea; color: #1c1915; }
+    .cm-top { background: #0B0B0C; color: #fff; padding: 1rem 1rem .9rem; }
+    .cm-kicker { color: #C6A15B; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+    .cm-card { background: #fff; border-radius: 16px; padding: 1rem; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+    .cm-stat { font-size: clamp(1.15rem, 2vw, 1.6rem); font-weight: 800; }
+    .cm-pill { border-radius: 999px; }
+    .cm-app { max-width: 980px; }
+    .cm-choice {
+      display: block; text-decoration: none; color: inherit;
+      border: 1px solid #e7e1d6; border-radius: 16px; padding: 1rem 1.1rem; background: #fff;
+    }
+    .cm-choice { cursor: pointer; width: 100%; text-align: left; }
+    .cm-choice:hover { border-color: #C6A15B; }
+    .cm-choice strong { display: block; font-size: 1.15rem; }
+    .cm-modal .modal-content { border: 0; border-radius: 18px; }
+  </style>
+</head>
+<body>
+  <header class="cm-top">
+    <div class="d-flex justify-content-between align-items-center gap-2">
+      <a href="{% url 'store:contabilidad_app' %}" class="text-white text-decoration-none">
+        <div class="cm-kicker">MixLab</div>
+        <div class="h4 mb-0">Contabilidad</div>
+      </a>
+      {% if not needs_login %}
+      <form method="post" action="{% url 'store:contabilidad_app' %}" class="m-0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="logout">
+        <button class="btn btn-sm btn-outline-light cm-pill" type="submit">Salir</button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+  <main class="container-fluid cm-app py-3 py-lg-4">
+    {% if messages %}
+      {% for message in messages %}
+      <div class="alert alert-success py-2 small">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% if not needs_login %}
+  <div class="modal fade cm-modal" id="cmMovModal" tabindex="-1" aria-labelledby="cmMovTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <div>
+            <div class="cm-kicker">Movimiento</div>
+            <h2 class="h5 mb-0" id="cmMovTitle">¿Qué pasó con el dinero?</h2>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div id="cmStepType">
+            <p class="text-muted small">Elige una opción. No hace falta saber contabilidad.</p>
+            <div class="d-grid gap-2">
+              <button type="button" class="cm-choice" data-tipo="salio">
+                <strong>Salió dinero</strong>
+                <span class="small text-muted">Una compra, un servicio o cualquier pago del negocio.</span>
+              </button>
+              <button type="button" class="cm-choice" data-tipo="equipo">
+                <strong>Pago al equipo</strong>
+                <span class="small text-muted">Lo que le pagaste a una persona que trabaja contigo.</span>
+              </button>
+              <button type="button" class="cm-choice" data-tipo="entro">
+                <strong>Entró dinero</strong>
+                <span class="small text-muted">Un ingreso que no viene de una cotización.</span>
+              </button>
+            </div>
+          </div>
+          <form method="post" enctype="multipart/form-data" id="cmMovForm" class="d-none" action="{% url 'store:contabilidad_nuevo' tipo='salio' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <p class="text-muted small" id="cmFormHelp"></p>
+            {% if modal_error %}<div class="alert alert-danger py-2 small">{{ modal_error }}</div>{% endif %}
+            <div class="mb-3 cm-field" data-for="equipo">
+              <label class="form-label">¿A quién le pagaste?</label>
+              <input class="form-control" name="payee" maxlength="160" value="{{ modal_data.payee|default:'' }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" id="cmDescLabel">¿En qué se usó?</label>
+              <input class="form-control" name="description" maxlength="255" required value="{{ modal_data.description|default:'' }}">
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-sm-6">
+                <label class="form-label">¿Cuánto?</label>
+                <input class="form-control" name="amount" type="number" min="1" step="1" required inputmode="numeric" value="{{ modal_data.amount|default:'' }}">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label">¿Qué día?</label>
+                <input class="form-control" name="recorded_at" type="date" required value="{{ modal_data.recorded_at|default:'' }}">
+              </div>
+            </div>
+            <div class="mb-3 cm-field" data-for="salio">
+              <label class="form-label">¿Qué clase de salida es?</label>
+              <select class="form-select" name="category">
+                <option value="operacion">Operación del negocio</option>
+                <option value="inventario">Compra de insumos</option>
+                <option value="alquiler">Arriendo o local</option>
+                <option value="servicios">Un servicio</option>
+                <option value="proveedor">Pago a un proveedor</option>
+                <option value="otro">Otra salida</option>
+              </select>
+            </div>
+            <div class="mb-3 cm-field" data-for="salio entro">
+              <label class="form-label" id="cmPayeeLabel">¿A quién se lo pagaste?</label>
+              <input class="form-control" name="payee" maxlength="160" value="{{ modal_data.payee|default:'' }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">¿Cómo se movió el dinero?</label>
+              <select class="form-select" name="payment_method" required>
+                <option value="transferencia"{% if modal_data.payment_method != 'efectivo' %} selected{% endif %}>Transferencia</option>
+                <option value="efectivo"{% if modal_data.payment_method == 'efectivo' %} selected{% endif %}>Efectivo</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Soporte</label>
+              <input class="form-control" id="cmReceipt" name="receipt" type="file" accept="image/*" capture="environment">
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" name="sin_soporte" value="1" id="cmSinSoporte"{% if modal_data.sin_soporte %} checked{% endif %}>
+                <label class="form-check-label" for="cmSinSoporte">No hay soporte</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nota</label>
+              <textarea class="form-control" name="notes" rows="2">{{ modal_data.notes|default:'' }}</textarea>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-dark cm-pill" id="cmBackType">Volver</button>
+              <button class="btn btn-dark cm-pill" type="submit">Guardar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% if not needs_login %}
+  <script>
+  (function () {
+    var form = document.getElementById('cmMovForm');
+    var step = document.getElementById('cmStepType');
+    var title = document.getElementById('cmMovTitle');
+    var help = document.getElementById('cmFormHelp');
+    var descLabel = document.getElementById('cmDescLabel');
+    var payeeLabel = document.getElementById('cmPayeeLabel');
+    var actionBase = "{% url 'store:contabilidad_nuevo' tipo='salio' %}";
+    var copy = {
+      salio: { title: 'Salió dinero', help: 'Una compra, un servicio o cualquier pago del negocio.', desc: '¿En qué se usó?' },
+      equipo: { title: 'Pago al equipo', help: 'Lo que le pagaste a una persona que trabaja contigo.', desc: '¿Por qué le pagaste?' },
+      entro: { title: 'Entró dinero', help: 'Un ingreso que no viene de una cotización.', desc: '¿De dónde entró?' }
+    };
+    function showFields(tipo) {
+      document.querySelectorAll('.cm-field').forEach(function (el) {
+        var ok = el.getAttribute('data-for').split(' ').indexOf(tipo) !== -1;
+        el.classList.toggle('d-none', !ok);
+        el.querySelectorAll('input, select, textarea').forEach(function (input) {
+          input.disabled = !ok;
+        });
+      });
+    }
+    function showForm(tipo) {
+      var info = copy[tipo];
+      if (!info || !form) return;
+      form.action = actionBase.replace(/salio\/?$/, tipo + '/');
+      title.textContent = info.title;
+      help.textContent = info.help;
+      descLabel.textContent = info.desc;
+      if (payeeLabel) payeeLabel.textContent = tipo === 'entro' ? '¿Quién lo entregó?' : '¿A quién se lo pagaste?';
+      showFields(tipo);
+      step.classList.add('d-none');
+      form.classList.remove('d-none');
+    }
+    function showTypes() {
+      if (!form) return;
+      form.classList.add('d-none');
+      step.classList.remove('d-none');
+      title.textContent = '¿Qué pasó con el dinero?';
+    }
+    document.querySelectorAll('[data-tipo]').forEach(function (btn) {
+      btn.addEventListener('click', function () { showForm(btn.getAttribute('data-tipo')); });
+    });
+    var back = document.getElementById('cmBackType');
+    if (back) back.addEventListener('click', showTypes);
+    var modalEl = document.getElementById('cmMovModal');
+    if (modalEl) {
+      modalEl.addEventListener('hidden.bs.modal', showTypes);
+    }
+    var dateInput = form && form.querySelector('[name="recorded_at"]');
+    if (dateInput && !dateInput.value) {
+      var now = new Date();
+      var month = String(now.getMonth() + 1).padStart(2, '0');
+      var day = String(now.getDate()).padStart(2, '0');
+      dateInput.value = now.getFullYear() + '-' + month + '-' + day;
+    }
+    var receipt = document.getElementById('cmReceipt');
+    var noReceipt = document.getElementById('cmSinSoporte');
+    function syncReceipt() {
+      if (!receipt || !noReceipt) return;
+      receipt.disabled = noReceipt.checked;
+      if (noReceipt.checked) receipt.value = '';
+    }
+    if (noReceipt) {
+      noReceipt.addEventListener('change', syncReceipt);
+      syncReceipt();
+    }
+    if (receipt) {
+      receipt.addEventListener('change', function () {
+        if (receipt.files && receipt.files.length && noReceipt) noReceipt.checked = false;
+        syncReceipt();
+      });
+    }
+    var reopen = "{{ modal_tipo|default:''|escapejs }}";
+    if (reopen && modalEl) {
+      showForm(reopen);
+      var method = form.querySelector('[name="payment_method"]');
+      var category = form.querySelector('[name="category"]');
+      if (method) method.value = "{{ modal_data.payment_method|default:''|escapejs }}";
+      if (category) category.value = "{{ modal_data.category|default:''|escapejs }}";
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+  })();
+  </script>
+  {% endif %}
+</body>
+</html>

@@ -1,0 +1,180 @@
+<style>
+  .em-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.65rem; margin-bottom:.65rem; }
+  @media (min-width: 768px) { .em-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 1200px) { .em-grid { grid-template-columns:repeat(6, minmax(0, 1fr)); } }
+  .em-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:.8rem .9rem; min-width:0; height:100%; }
+  button.em-card { cursor:pointer; color:inherit; font:inherit; display:block; width:100%; text-align:left; }
+  button.em-card:hover { border-color:#dc2626; }
+  .em-k { font-size:.68rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#64748b; }
+  .em-v { font-size:1.15rem; font-weight:800; color:#0f172a; line-height:1.2; overflow-wrap:anywhere; }
+  .em-s { font-size:.72rem; color:#64748b; margin-top:.15rem; }
+  .em-banner { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.35rem 1.25rem; margin-bottom:.65rem; border:1px solid #fecaca; background:#fff7f7; border-radius:14px; padding:.7rem 1rem; }
+  .em-banner strong { color:#0f172a; font-size:1.05rem; }
+  .em-bar-row { display:grid; grid-template-columns:2.6rem minmax(0,1fr) 2.4rem; gap:.45rem; align-items:center; margin-bottom:.35rem; font-size:.8rem; }
+  .em-track { height:.45rem; background:#e2e8f0; border-radius:999px; overflow:hidden; }
+  .em-fill { height:100%; border-radius:999px; }
+  .em-fill.is-sale { background:#0f766e; }
+  .em-fill.is-event { background:#1d4ed8; }
+  .em-month-row td { background:#f1f5f9; font-weight:700; color:#0f172a; }
+  .em-week-label { padding-left:1.15rem !important; color:#475569; }
+  .em-week-now td { background:#fef3c7; }
+  .em-week-now td:first-child { color:#92400e; font-weight:700; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+<div id="emMetricsSlot"
+     data-url="{% url 'store:inventory_combo_metrics_ajax' %}"
+     data-anio="{{ year }}"
+     data-combo="{{ combo_id|default:'' }}"
+     data-embedded="{% if embedded %}1{% else %}0{% endif %}">
+  <div class="text-muted text-center py-5">
+    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+    Cargando métricas…
+  </div>
+</div>
+<script>
+(function () {
+  var slot = document.getElementById('emMetricsSlot');
+  if (!slot) return;
+
+  function bindMetrics(root) {
+    root.querySelectorAll('[data-metrics-view]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var view = btn.getAttribute('data-metrics-view');
+        root.querySelectorAll('[data-metrics-view]').forEach(function (other) {
+          var on = other === btn;
+          other.classList.toggle('btn-dark', on);
+          other.classList.toggle('btn-outline-dark', !on);
+        });
+        root.querySelectorAll('[data-metrics-pane]').forEach(function (pane) {
+          pane.classList.toggle('d-none', pane.getAttribute('data-metrics-pane') !== view);
+        });
+      });
+    });
+    var search = root.querySelector('#emEventSearch');
+    var table = root.querySelector('#emEventTable');
+    if (search && table) {
+      search.addEventListener('input', function () {
+        var query = search.value.trim().toLowerCase();
+        table.querySelectorAll('tbody tr[data-search]').forEach(function (row) {
+          var hay = (row.getAttribute('data-search') || '').toLowerCase();
+          row.classList.toggle('d-none', query && hay.indexOf(query) === -1);
+        });
+      });
+    }
+    drawCharts(root);
+    var form = root.querySelector('form');
+    if (!form) return;
+    form.addEventListener('submit', function (event) { event.preventDefault(); });
+    form.querySelectorAll('select').forEach(function (select) {
+      select.addEventListener('change', function () {
+        var yearInput = form.querySelector('[name="anio"]');
+        var comboInput = form.querySelector('[name="combo"]');
+        if (yearInput) slot.dataset.anio = yearInput.value;
+        if (comboInput) slot.dataset.combo = comboInput.value;
+        var pageUrl = new URL(window.location.href);
+        pageUrl.searchParams.set('anio', slot.dataset.anio || '');
+        if (slot.dataset.embedded !== '1') {
+          if (slot.dataset.combo) pageUrl.searchParams.set('combo', slot.dataset.combo);
+          else pageUrl.searchParams.delete('combo');
+        }
+        window.history.replaceState({}, '', pageUrl.toString());
+        loadMetrics();
+      });
+    });
+  }
+
+  var liveCharts = [];
+
+  function drawCharts(root) {
+    liveCharts.forEach(function (chart) { chart.destroy(); });
+    liveCharts = [];
+    if (!window.Chart) return;
+    var node = root.querySelector('#emChartData');
+    if (!node) return;
+    var data;
+    try { data = JSON.parse(node.textContent); } catch (error) { return; }
+    var bars = root.querySelector('#emChartBars');
+    var pie = root.querySelector('#emChartPie');
+    var area = root.querySelector('#emChartArea');
+    if (bars) {
+      liveCharts.push(new Chart(bars, {
+        type: 'bar',
+        data: {
+          labels: data.months || [],
+          datasets: [
+            { label: 'Vendidos', data: data.sold || [], backgroundColor: '#0f766e' },
+            { label: 'Eventos', data: data.events || [], backgroundColor: '#1d4ed8' }
+          ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+      }));
+    }
+    if (pie && (data.depts || []).length) {
+      liveCharts.push(new Chart(pie, {
+        type: 'doughnut',
+        data: {
+          labels: data.depts,
+          datasets: [{
+            data: data.dept_billed || [],
+            backgroundColor: ['#1d4ed8', '#0f766e', '#b45309', '#7c3aed', '#be123c', '#0e7490', '#65a30d', '#334155']
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+      }));
+    }
+    if (area) {
+      liveCharts.push(new Chart(area, {
+        type: 'line',
+        data: {
+          labels: data.weeks || [],
+          datasets: [{
+            label: 'Eventos',
+            data: data.week_events || [],
+            fill: true,
+            tension: 0.35,
+            borderColor: '#1d4ed8',
+            backgroundColor: 'rgba(29, 78, 216, 0.22)',
+            pointRadius: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxTicksLimit: 14 } },
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      }));
+    }
+  }
+
+  function loadMetrics() {
+    var url = new URL(slot.dataset.url, window.location.origin);
+    if (slot.dataset.anio) url.searchParams.set('anio', slot.dataset.anio);
+    if (slot.dataset.combo) url.searchParams.set('combo', slot.dataset.combo);
+    if (slot.dataset.embedded === '1') url.searchParams.set('embedded', '1');
+    slot.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Cargando métricas…</div>';
+    fetch(url.toString(), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error('No se pudieron cargar las métricas');
+        return response.text();
+      })
+      .then(function (html) {
+        slot.innerHTML = html;
+        var root = slot.querySelector('[data-metrics-root]');
+        if (root) bindMetrics(root);
+      })
+      .catch(function () {
+        slot.innerHTML = '<div class="alert alert-danger">No se pudieron cargar las métricas. <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="emMetricsRetry">Reintentar</button></div>';
+        var retry = document.getElementById('emMetricsRetry');
+        if (retry) retry.addEventListener('click', loadMetrics);
+      });
+  }
+
+  loadMetrics();
+})();
+</script>

@@ -1,0 +1,19 @@
+{% extends "store/contabilidad_base.html" %}
+
+{% block title %}Tipo de movimiento · Contabilidad Mixlab{% endblock %}
+
+{% block content %}
+<a class="small text-decoration-none" href="{% url 'store:contabilidad_app' %}">← Hoy</a>
+<h1 class="h4 mt-2 mb-1">¿Qué pasó con el dinero?</h1>
+<p class="text-muted small mb-3">Elige una opción. No hace falta saber contabilidad.</p>
+<div class="row g-3">
+  {% for tipo in tipos %}
+  <div class="col-12 col-md-4">
+    <a class="cm-choice h-100" href="{% url 'store:contabilidad_nuevo' tipo=tipo.key %}">
+      <strong>{{ tipo.title }}</strong>
+      <span class="small text-muted">{{ tipo.help }}</span>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

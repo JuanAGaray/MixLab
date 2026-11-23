@@ -95,6 +95,15 @@
               {{ form.category }}
             </div>
             <div class="col-12">
+              <label class="form-label small">{{ form.payee.label }}</label>
+              {{ form.payee }}
+              {% for e in form.payee.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label class="form-label small">{{ form.payment_method.label }}</label>
+              {{ form.payment_method }}
+            </div>
+            <div class="col-12">
               <label class="form-label small">{{ form.recorded_at.label }}</label>
               {{ form.recorded_at }}
             </div>
@@ -174,6 +183,7 @@
                 </td>
                 <td>
                   <div class="fw-semibold">{{ r.description }}</div>
+                  {% if r.payee %}<div class="small">{{ r.payee }}{% if r.method_label %} · {{ r.method_label }}{% endif %}</div>{% endif %}
                   {% if r.quotation_id %}
                   <a class="small" href="{% url 'store:quotation_detail' quotation_id=r.quotation_id %}">COT-{{ r.quotation_id }}</a>
                   {% endif %}

@@ -23,6 +23,8 @@ urlpatterns = [
     path('products/', views.product_list, name='product_list'),
     path('products/<slug:slug>/', views.product_detail, name='product_detail'),
     path('portafolio/', views.portfolio_public, name='portfolio_public'),
+    path('asesor/<str:token>/', views.advisor_client_form, name='advisor_client_form'),
+    path('inventory/asesor/', views.advisor_invite_list, name='advisor_invite_list'),
     path('inventory/portafolio/', views.portfolio_manage, name='portfolio_manage'),
     path('preparacion/', views.prep_public, name='prep_public'),
     path('inventory/preparacion/', views.prep_manage, name='prep_manage'),
@@ -128,6 +130,10 @@ urlpatterns = [
 
     # Manager - Gastos y pagos
     path('manager/finanzas/', views.finance_list, name='finance_list'),
+    path('contabilidad/', views.contabilidad_app, name='contabilidad_app'),
+    path('contabilidad/historial/', views.contabilidad_historial, name='contabilidad_historial'),
+    path('contabilidad/nuevo/', views.contabilidad_tipo, name='contabilidad_tipo'),
+    path('contabilidad/nuevo/<slug:tipo>/', views.contabilidad_nuevo, name='contabilidad_nuevo'),
     path('manager/finanzas/<int:record_id>/eliminar/', views.finance_delete, name='finance_delete'),
     path('manager/leads-eventos/', views.event_leads_list, name='event_leads_list'),
     
@@ -167,6 +173,12 @@ urlpatterns = [
     # Categories
     path('inventory/categories/create/', views.inventory_create_category, name='inventory_create_category'),
     path('inventory/combos/create/', views.inventory_combo_create, name='inventory_combo_create'),
+    path('inventory/combos/', views.inventory_combo_metrics, name='inventory_combo_metrics'),
+    path(
+        'inventory/combos/metricas-ajax/',
+        views.inventory_combo_metrics_ajax,
+        name='inventory_combo_metrics_ajax',
+    ),
     path('inventory/combos/<int:combo_id>/', views.inventory_combo_detail, name='inventory_combo_detail'),
     path(
         'inventory/combos/<int:combo_id>/calendar-ajax/',
@@ -177,6 +189,11 @@ urlpatterns = [
         'inventory/combos/<int:combo_id>/resumen-dia/',
         views.inventory_combo_day_summary_pdf,
         name='inventory_combo_day_summary_pdf',
+    ),
+    path(
+        'inventory/combos/<int:combo_id>/hoja-dia/',
+        views.inventory_combo_day_sheet,
+        name='inventory_combo_day_sheet',
     ),
     path('inventory/combos/<int:combo_id>/edit/', views.inventory_combo_edit, name='inventory_combo_edit'),
     path('inventory/combos/<int:combo_id>/delete/', views.inventory_combo_delete, name='inventory_combo_delete'),
@@ -201,6 +218,21 @@ urlpatterns = [
         'inventory/combos/bookings/<int:booking_id>/notas/',
         views.inventory_combo_booking_notes,
         name='inventory_combo_booking_notes',
+    ),
+    path(
+        'inventory/combos/bookings/<int:booking_id>/operario/',
+        views.inventory_combo_booking_operator,
+        name='inventory_combo_booking_operator',
+    ),
+    path(
+        'inventory/combos/bookings/<int:booking_id>/maquinas/',
+        views.inventory_combo_booking_machines,
+        name='inventory_combo_booking_machines',
+    ),
+    path(
+        'inventory/operarios/crear/',
+        views.inventory_field_operator_create,
+        name='inventory_field_operator_create',
     ),
     path('inventory/combos/ajax/product-price/', views.inventory_combo_product_price, name='inventory_combo_product_price'),
 

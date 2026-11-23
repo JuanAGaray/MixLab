@@ -1,0 +1,10 @@
+{
+  "appId": "co.com.mixlab.contabilidad",
+  "appName": "Contabilidad Mixlab",
+  "webDir": "www",
+  "server": {
+    "url": "https://www.mixlab.com.co/contabilidad/",
+    "cleartext": false,
+    "androidScheme": "https"
+  }
+}

@@ -756,6 +756,8 @@ class FinanceRecordForm(forms.ModelForm):
             'amount',
             'description',
             'category',
+            'payee',
+            'payment_method',
             'recorded_at',
             'related_quotation',
             'receipt',
@@ -769,6 +771,11 @@ class FinanceRecordForm(forms.ModelForm):
                 'placeholder': 'Ej: Compra de insumos / Arriendo',
             }),
             'category': forms.Select(attrs={'class': 'form-select'}),
+            'payee': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Empleado, proveedor u otro',
+            }),
+            'payment_method': forms.Select(attrs={'class': 'form-select'}),
             'recorded_at': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'related_quotation': forms.Select(attrs={'class': 'form-select'}),
             'receipt': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
@@ -779,6 +786,8 @@ class FinanceRecordForm(forms.ModelForm):
             'amount': 'Monto (COP)',
             'description': 'Descripción',
             'category': 'Categoría',
+            'payee': 'Beneficiario',
+            'payment_method': 'Medio de pago',
             'recorded_at': 'Fecha',
             'related_quotation': 'Cotización relacionada (opcional)',
             'receipt': 'Comprobante / foto',
@@ -801,6 +810,17 @@ class FinanceRecordForm(forms.ModelForm):
             ('gasto', 'Gasto'),
             ('pago', 'Otro ingreso (manual)'),
         ]
+        self.fields['payee'].required = False
+        self.fields['payment_method'].required = False
+        self.fields['payment_method'].choices = [('', '— Medio —')] + list(
+            FinanceRecord.METHOD_CHOICES
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('category') == 'nomina' and not (cleaned.get('payee') or '').strip():
+            self.add_error('payee', 'Indica a quién se le pagó.')
+        return cleaned
 
 
 STAFF_ROLE_CHOICES = [

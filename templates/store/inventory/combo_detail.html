@@ -138,6 +138,107 @@
     color: #fff;
     filter: brightness(0.88);
   }
+  .combo-event-chip.is-past {
+    background: #cbd5e1 !important;
+    color: #475569;
+  }
+  .combo-event-chip.is-past:hover {
+    color: #334155;
+    filter: none;
+  }
+  .combo-event-chip.needs-confirm {
+    position: relative;
+    overflow: hidden;
+    padding-left: .7rem;
+    padding-right: 1rem;
+  }
+  .combo-event-chip .chip-warn {
+    position: absolute;
+    top: .12rem;
+    right: .16rem;
+    z-index: 1;
+    color: #fff;
+    font-size: .72rem;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(15, 23, 42, .45);
+    animation: combo-confirm-icon 1s ease-in-out infinite;
+  }
+  .combo-event-chip.is-past .chip-warn {
+    color: #dc2626;
+    text-shadow: none;
+  }
+  .combo-event-chip.needs-confirm::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: linear-gradient(180deg, #fecaca 0%, #dc2626 45%, #fecaca 100%);
+    background-size: 100% 220%;
+    animation: combo-confirm-stripe 1s ease-in-out infinite;
+  }
+  .combo-day-list .event-row.needs-confirm,
+  .needs-confirm.combo-week-past,
+  .needs-confirm.text-muted {
+    box-shadow: inset 4px 0 0 #dc2626;
+    animation: combo-confirm-edge 1s ease-in-out infinite;
+  }
+  @keyframes combo-confirm-stripe {
+    0%, 100% { background-position: 0 0; opacity: 1; }
+    50% { background-position: 0 100%; opacity: .45; }
+  }
+  @keyframes combo-confirm-edge {
+    0%, 100% { box-shadow: inset 4px 0 0 #dc2626; }
+    50% { box-shadow: inset 4px 0 0 #fecaca; }
+  }
+  @keyframes combo-confirm-icon {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .combo-event-chip.needs-confirm::before,
+    .combo-event-chip .chip-warn,
+    .combo-day-list .event-row.needs-confirm,
+    .needs-confirm.combo-week-past,
+    .needs-confirm.text-muted {
+      animation: none;
+    }
+  }
+  .combo-day-list .day-block.is-past {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+  }
+  .combo-day-list .day-block.is-past .day-title,
+  .combo-day-list .event-row.is-past,
+  .combo-day-list .event-row.is-past .event-meta,
+  .combo-day-list .event-row.is-past .fw-semibold,
+  .combo-day-list .event-row.is-past .text-success,
+  .combo-day-list .event-row.is-past .text-danger {
+    color: #64748b !important;
+  }
+  .combo-day-list .event-row.is-past .combo-dept-dot {
+    background: #94a3b8 !important;
+  }
+  .combo-week-past {
+    color: #94a3b8 !important;
+  }
+  .combo-week-past .combo-dept-dot {
+    background: #cbd5e1 !important;
+  }
+  .combo-event-chip .chip-machine {
+    display: block;
+    margin-top: .12rem;
+    padding-top: .08rem;
+    border-top: 1px solid rgba(255, 255, 255, .35);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .combo-event-chip.is-past .chip-machine {
+    border-top-color: rgba(71, 85, 105, .25);
+  }
   .combo-event-chip .chip-dept {
     display: block;
     opacity: .88;
@@ -372,7 +473,20 @@
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div class="btn-group" role="group" aria-label="Vista del combo">
+      <a class="btn btn-sm {% if show_metrics %}btn-outline-dark{% else %}btn-dark{% endif %}" href="{% url 'store:inventory_combo_detail' combo.id %}?cal={{ cal_year }}-{{ cal_month|stringformat:'02d' }}">Agenda</a>
+      <a class="btn btn-sm {% if show_metrics %}btn-dark{% else %}btn-outline-dark{% endif %}" href="{% url 'store:inventory_combo_detail' combo.id %}?vista=metricas&anio={{ year|default:cal_year }}">Métricas</a>
+    </div>
+    <a class="small" href="{% url 'store:inventory_combo_metrics' %}?combo={{ combo.id }}&anio={{ year|default:cal_year }}">Ver todas las métricas</a>
+  </div>
+
+  {% if show_metrics %}
+  <div class="mb-3">
+    {% include "store/inventory/partials/combo_metrics_loader.html" %}
+  </div>
+  {% else %}
+  <div class="card border-0 shadow-sm mb-3" id="combo-view-agenda">
     <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
       <span class="fw-bold"><i class="bi bi-calendar3 me-1"></i> Agenda de este combo</span>
       <div class="d-flex flex-wrap gap-2" id="combo-agenda-header-pills">
@@ -385,7 +499,8 @@
          data-cal="{{ cal_year }}-{{ cal_month|stringformat:'02d' }}"
          data-lazy="{{ lazy_load_agenda|yesno:'1,0' }}"
          data-calendar-url="{% url 'store:inventory_combo_calendar_ajax' combo.id %}"
-         data-booking-detail-url-template="{% url 'store:inventory_combo_booking_detail_ajax' booking_id=0 %}">
+         data-booking-detail-url-template="{% url 'store:inventory_combo_booking_detail_ajax' booking_id=0 %}"
+         data-operator-create-url="{% url 'store:inventory_field_operator_create' %}">
       <div class="combo-agenda-overlay" id="comboAgendaOverlay">
         <div class="combo-agenda-overlay-card">
           <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
@@ -427,7 +542,8 @@
         Cada día muestra la <strong>hora</strong>, el <strong>lugar</strong> y el <strong>departamento</strong> (color).
         Haz clic en un evento para ver el detalle.
         En el listado puedes <strong>descargar el resumen PDF del día</strong>
-        (notas, ubicación, hora de llegada e ítems de agenda).
+        o la <strong>hoja por departamento</strong>
+        (cliente, teléfono, saldo, dirección y notas).
       </div>
 
       <div class="combo-day-list mb-4" id="combo-cal-detail">
@@ -458,6 +574,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   <div class="modal fade combo-event-modal" id="comboEventDetailModal" tabindex="-1" aria-labelledby="comboEventDetailLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -551,6 +668,61 @@
               </div>
 
               <div class="col-12">
+                <div class="border rounded-3 p-3">
+                  <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <div class="modal-label mb-0">Operario</div>
+                    <span class="small text-muted d-none" id="ev-operator-status"></span>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <label class="form-label small mb-1" for="ev-operator-select">Asignar</label>
+                      <select class="form-select form-select-sm" id="ev-operator-select">
+                        <option value="">Sin operario</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small mb-1" for="ev-operator-arrival">Hora de llegada</label>
+                      <input class="form-control form-control-sm" id="ev-operator-arrival" type="time">
+                    </div>
+                  </div>
+                  <div class="small text-danger d-none mt-2" id="ev-operator-conflict"></div>
+                  <div class="d-flex flex-wrap justify-content-between gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-link px-0" id="ev-operator-new-toggle">Nuevo operario</button>
+                    <button type="button" class="btn btn-sm btn-dark" id="ev-operator-save-btn" disabled>
+                      <i class="bi bi-person-check"></i> Guardar asignación
+                    </button>
+                  </div>
+                  <div class="d-none mt-2" id="ev-operator-new">
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <input class="form-control form-control-sm" id="ev-operator-name" maxlength="120" placeholder="Nombre">
+                      </div>
+                      <div class="col-md-6">
+                        <input class="form-control form-control-sm" id="ev-operator-phone" maxlength="40" placeholder="Teléfono">
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-dark mt-2" id="ev-operator-create-btn">Crear y asignar</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="border rounded-3 p-3">
+                  <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <div class="modal-label mb-0">Máquinas de granizado</div>
+                    <span class="small text-muted d-none" id="ev-machines-status"></span>
+                  </div>
+                  <div id="ev-machines" class="d-flex flex-column gap-2"></div>
+                  <div class="d-flex flex-wrap justify-content-between gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-link px-0" id="ev-machine-add">Agregar máquina</button>
+                    <button type="button" class="btn btn-sm btn-dark" id="ev-machines-save" disabled>
+                      Guardar máquinas
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
                 <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
                   <div class="modal-label mb-0">Notas</div>
                   <span class="small text-muted d-none" id="ev-notes-status"></span>
@@ -588,6 +760,28 @@
     </div>
   </div>
 
+  <div class="modal fade" id="comboDaySheetModal" tabindex="-1" aria-labelledby="daySheetTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="daySheetTitle">Hoja del día</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div id="daySheetLoading" class="text-muted">Cargando hoja…</div>
+          <div id="daySheetError" class="alert alert-danger d-none mb-0"></div>
+          <div id="daySheetBody"></div>
+        </div>
+        <div class="modal-footer flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-secondary" id="daySheetCopy">Copiar</button>
+          <a class="btn btn-outline-success" id="daySheetXls" href="#">Descargar XLS</a>
+          <a class="btn btn-outline-primary" id="daySheetPdf" href="#">Descargar PDF</a>
+          <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -616,9 +810,25 @@
   const notesInput = document.getElementById('ev-notes-input');
   const notesSaveBtn = document.getElementById('ev-notes-save-btn');
   const notesStatus = document.getElementById('ev-notes-status');
+  const operatorSelect = document.getElementById('ev-operator-select');
+  const operatorArrival = document.getElementById('ev-operator-arrival');
+  const operatorSaveBtn = document.getElementById('ev-operator-save-btn');
+  const operatorStatus = document.getElementById('ev-operator-status');
+  const operatorConflict = document.getElementById('ev-operator-conflict');
+  const operatorNew = document.getElementById('ev-operator-new');
+  const operatorCreateUrl = root.dataset.operatorCreateUrl || '';
   let currentBookingId = null;
   let currentNotesUrl = '';
   let notesBaseline = '';
+  let currentOperatorUrl = '';
+  let operatorBaseline = '';
+  let arrivalBaseline = '';
+  let machineOptions = [];
+  let machinesUrl = '';
+  const machinesBox = document.getElementById('ev-machines');
+  const machinesSave = document.getElementById('ev-machines-save');
+  const machinesStatus = document.getElementById('ev-machines-status');
+  const machineAdd = document.getElementById('ev-machine-add');
 
   function getCsrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -667,9 +877,10 @@
     wrap.innerHTML = list.map(function (ev) {
       var time = ev.event_time || 'Sin hora';
       var mark = ev.is_current ? ' <span class="badge text-bg-primary">Este</span>' : '';
+      var who = ev.operator_name ? (' · ' + ev.operator_name + (ev.operator_arrival ? ' ' + ev.operator_arrival : '')) : '';
       return (
         '<div class="d-flex justify-content-between gap-2 py-1 border-top">' +
-          '<div><strong>' + time + '</strong> · ' + (ev.client_name || 'Cliente') + mark + '</div>' +
+          '<div><strong>' + time + '</strong> · ' + (ev.client_name || 'Cliente') + who + mark + '</div>' +
           '<div class="text-nowrap">' +
             '<span class="text-success me-2">Abonado ' + money(ev.amount_paid) + '</span>' +
             '<span class="text-danger">Deben ' + money(ev.remaining_balance) + '</span>' +
@@ -768,14 +979,215 @@
       });
   }
 
+  function fillOperators(list, selectedId) {
+    if (!operatorSelect) return;
+    var html = '<option value="">Sin operario</option>';
+    (list || []).forEach(function (op) {
+      html += '<option value="' + op.id + '">' + (op.name || 'Operario') + '</option>';
+    });
+    operatorSelect.innerHTML = html;
+    operatorSelect.value = selectedId ? String(selectedId) : '';
+  }
+
+  function setOperatorStatus(text, isError) {
+    if (!operatorStatus) return;
+    if (!text) {
+      operatorStatus.classList.add('d-none');
+      operatorStatus.textContent = '';
+      return;
+    }
+    operatorStatus.textContent = text;
+    operatorStatus.classList.remove('d-none', 'text-success', 'text-danger', 'text-muted');
+    operatorStatus.classList.add(isError ? 'text-danger' : 'text-success');
+  }
+
+  function showOperatorConflict(count) {
+    if (!operatorConflict) return;
+    if (!count) {
+      operatorConflict.classList.add('d-none');
+      operatorConflict.textContent = '';
+      return;
+    }
+    operatorConflict.textContent = 'Este operario ya tiene ' + count + ' evento' + (count === 1 ? '' : 's') + ' más este mismo día.';
+    operatorConflict.classList.remove('d-none');
+  }
+
+  function syncOperatorDirty() {
+    if (!operatorSaveBtn || !operatorSelect) return;
+    var dirty = (operatorSelect.value || '') !== operatorBaseline
+      || ((operatorArrival && operatorArrival.value) || '') !== arrivalBaseline;
+    operatorSaveBtn.disabled = !dirty || !currentOperatorUrl;
+  }
+
+  function saveOperator(operatorId) {
+    if (!currentOperatorUrl) return;
+    operatorSaveBtn.disabled = true;
+    setOperatorStatus('Guardando…');
+    fetch(currentOperatorUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      credentials: 'same-origin',
+      body: new URLSearchParams({
+        operator_id: operatorId || '',
+        operator_arrival: operatorArrival ? operatorArrival.value : '',
+      }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.data || !res.data.ok) {
+          throw new Error(res.data && res.data.error ? res.data.error : 'Error');
+        }
+        operatorBaseline = res.data.operator_id ? String(res.data.operator_id) : '';
+        arrivalBaseline = res.data.operator_arrival || '';
+        if (operatorSelect) operatorSelect.value = operatorBaseline;
+        if (operatorArrival) operatorArrival.value = arrivalBaseline;
+        setOperatorStatus(res.data.message || 'Operario asignado');
+        showOperatorConflict(res.data.same_day || 0);
+        syncOperatorDirty();
+        if (root.dataset.cal) loadMonth(root.dataset.cal, { overlay: false });
+      })
+      .catch(function (err) {
+        setOperatorStatus(err && err.message ? err.message : 'No se pudo asignar', true);
+        syncOperatorDirty();
+      });
+  }
+
+  function setMachinesStatus(text, isError) {
+    if (!machinesStatus) return;
+    if (!text) {
+      machinesStatus.classList.add('d-none');
+      machinesStatus.textContent = '';
+      return;
+    }
+    machinesStatus.textContent = text;
+    machinesStatus.classList.remove('d-none', 'text-success', 'text-danger');
+    machinesStatus.classList.add(isError ? 'text-danger' : 'text-success');
+  }
+
+  function machineRow(machine) {
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 align-items-center';
+    const select = document.createElement('select');
+    select.className = 'form-select form-select-sm';
+    select.setAttribute('data-role', 'machine-product');
+    machineOptions.forEach(function (option) {
+      const node = document.createElement('option');
+      node.value = String(option.id);
+      node.textContent = option.name;
+      if (machine && String(machine.product_id) === String(option.id)) node.selected = true;
+      select.appendChild(node);
+    });
+    const qty = document.createElement('input');
+    qty.type = 'number';
+    qty.min = '1';
+    qty.max = '20';
+    qty.value = String((machine && machine.quantity) || 1);
+    qty.className = 'form-control form-control-sm';
+    qty.style.maxWidth = '5rem';
+    qty.setAttribute('data-role', 'machine-qty');
+    qty.setAttribute('aria-label', 'Cantidad');
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-sm btn-outline-danger';
+    remove.textContent = 'Quitar';
+    remove.addEventListener('click', function () {
+      row.remove();
+      if (machinesSave) machinesSave.disabled = !machinesUrl;
+    });
+    row.appendChild(select);
+    row.appendChild(qty);
+    row.appendChild(remove);
+    return row;
+  }
+
+  function renderMachines(list) {
+    if (!machinesBox) return;
+    machinesBox.innerHTML = '';
+    (list || []).forEach(function (machine) {
+      machinesBox.appendChild(machineRow(machine));
+    });
+    if (!machinesBox.children.length) {
+      const empty = document.createElement('div');
+      empty.className = 'small text-muted';
+      empty.textContent = 'Sin máquinas. Agrega el tipo de granizadora de este evento.';
+      machinesBox.appendChild(empty);
+    }
+    if (machinesSave) machinesSave.disabled = !machinesUrl;
+  }
+
+  function saveMachines() {
+    if (!machinesUrl || !machinesBox) return;
+    if (machinesSave) machinesSave.disabled = true;
+    setMachinesStatus('Guardando…');
+    const body = new URLSearchParams();
+    machinesBox.querySelectorAll('[data-role="machine-product"]').forEach(function (select) {
+      const row = select.parentElement;
+      const qty = row ? row.querySelector('[data-role="machine-qty"]') : null;
+      if (!select.value) return;
+      body.append('product_id', select.value);
+      body.append('quantity', qty ? qty.value : '1');
+    });
+    fetch(machinesUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+      body: body,
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.data || !res.data.ok) {
+          throw new Error(res.data && res.data.error ? res.data.error : 'Error');
+        }
+        renderMachines(res.data.machines || []);
+        setMachinesStatus(res.data.message || 'Máquinas guardadas');
+        if (root.dataset.cal) loadMonth(root.dataset.cal, { overlay: false });
+      })
+      .catch(function (err) {
+        setMachinesStatus(err && err.message ? err.message : 'No se pudieron guardar', true);
+        if (machinesSave) machinesSave.disabled = !machinesUrl;
+      });
+  }
+
+  if (machineAdd) {
+    machineAdd.addEventListener('click', function () {
+      if (!machinesBox) return;
+      const empty = machinesBox.querySelector('.text-muted');
+      if (empty) empty.remove();
+      const first = machineOptions[0] || null;
+      machinesBox.appendChild(machineRow(first ? { product_id: first.id, quantity: 1 } : null));
+      if (machinesSave) machinesSave.disabled = !machinesUrl;
+    });
+  }
+  if (machinesSave) machinesSave.addEventListener('click', saveMachines);
+
   function openBookingDetail(bookingId) {
     if (!modal || !bookingId) return;
     currentBookingId = bookingId;
     currentNotesUrl = '';
+    currentOperatorUrl = '';
     notesBaseline = '';
+    operatorBaseline = '';
+    arrivalBaseline = '';
     if (notesInput) notesInput.value = '';
     if (notesSaveBtn) notesSaveBtn.disabled = true;
+    if (operatorSelect) operatorSelect.innerHTML = '<option value="">Sin operario</option>';
+    if (operatorArrival) operatorArrival.value = '';
+    if (operatorSaveBtn) operatorSaveBtn.disabled = true;
+    if (operatorNew) operatorNew.classList.add('d-none');
     setNotesStatus('');
+    setOperatorStatus('');
+    setMachinesStatus('');
+    machinesUrl = '';
+    machineOptions = [];
+    renderMachines([]);
+    showOperatorConflict(0);
     loadingEl.classList.remove('d-none');
     errorEl.classList.add('d-none');
     bodyEl.classList.add('d-none');
@@ -821,6 +1233,18 @@
         if (notesInput) notesInput.value = notesBaseline;
         syncNotesDirty();
 
+        currentOperatorUrl = data.operator_url || '';
+        fillOperators(data.operators || [], data.operator_id);
+        operatorBaseline = data.operator_id ? String(data.operator_id) : '';
+        arrivalBaseline = data.operator_arrival || '';
+        if (operatorArrival) operatorArrival.value = arrivalBaseline;
+        syncOperatorDirty();
+        showOperatorConflict(0);
+
+        machineOptions = data.machine_options || [];
+        machinesUrl = data.machines_url || '';
+        renderMachines(data.machines || []);
+
         if (data.quotation_id && data.quotation_url) {
           document.getElementById('ev-quote').innerHTML =
             '<a href="' + data.quotation_url + '">COT-' + data.quotation_id + '</a>';
@@ -851,6 +1275,70 @@
         errorEl.textContent = 'No se pudo cargar el detalle del evento.';
         errorEl.classList.remove('d-none');
       });
+  }
+
+  if (operatorSelect) operatorSelect.addEventListener('change', syncOperatorDirty);
+  if (operatorArrival) operatorArrival.addEventListener('input', syncOperatorDirty);
+  if (operatorSaveBtn) {
+    operatorSaveBtn.addEventListener('click', function () {
+      saveOperator(operatorSelect ? operatorSelect.value : '');
+    });
+  }
+  var operatorNewToggle = document.getElementById('ev-operator-new-toggle');
+  if (operatorNewToggle && operatorNew) {
+    operatorNewToggle.addEventListener('click', function () {
+      operatorNew.classList.toggle('d-none');
+    });
+  }
+  var operatorCreateBtn = document.getElementById('ev-operator-create-btn');
+  if (operatorCreateBtn) {
+    operatorCreateBtn.addEventListener('click', function () {
+      var nameInput = document.getElementById('ev-operator-name');
+      var phoneInput = document.getElementById('ev-operator-phone');
+      var name = nameInput ? nameInput.value.trim() : '';
+      if (!name || !operatorCreateUrl) {
+        setOperatorStatus('Escribe el nombre del operario', true);
+        return;
+      }
+      operatorCreateBtn.disabled = true;
+      fetch(operatorCreateUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        credentials: 'same-origin',
+        body: new URLSearchParams({
+          name: name,
+          phone: phoneInput ? phoneInput.value.trim() : '',
+        }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          operatorCreateBtn.disabled = false;
+          if (!res.ok || !res.data || !res.data.ok) {
+            throw new Error(res.data && res.data.error ? res.data.error : 'Error');
+          }
+          var op = res.data.operator;
+          if (operatorSelect && op) {
+            var option = document.createElement('option');
+            option.value = String(op.id);
+            option.textContent = op.name;
+            operatorSelect.appendChild(option);
+            operatorSelect.value = String(op.id);
+          }
+          if (nameInput) nameInput.value = '';
+          if (phoneInput) phoneInput.value = '';
+          if (operatorNew) operatorNew.classList.add('d-none');
+          syncOperatorDirty();
+          saveOperator(op ? String(op.id) : '');
+        })
+        .catch(function (err) {
+          operatorCreateBtn.disabled = false;
+          setOperatorStatus(err && err.message ? err.message : 'No se pudo crear', true);
+        });
+    });
   }
 
   if (notesInput) {
@@ -906,6 +1394,106 @@
     if (!btn || !root.contains(btn)) return;
     e.preventDefault();
     openBookingDetail(btn.getAttribute('data-booking-id'));
+  });
+
+  const sheetModalEl = document.getElementById('comboDaySheetModal');
+  const sheetModal = sheetModalEl ? new bootstrap.Modal(sheetModalEl) : null;
+  let sheetCopyText = '';
+
+  function escSheet(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch];
+    });
+  }
+
+  function renderSheet(data) {
+    var body = document.getElementById('daySheetBody');
+    var title = document.getElementById('daySheetTitle');
+    if (title) title.textContent = data.title || 'Hoja del día';
+    var headers = data.headers || [];
+    var lines = [];
+    var html = '';
+    if (!data.departments || !data.departments.length) {
+      html = '<p class="text-muted mb-0">No hay eventos este día.</p>';
+      lines.push('No hay eventos este día.');
+    }
+    (data.departments || []).forEach(function (dept) {
+      lines.push(dept.name || '');
+      lines.push(headers.join('\t'));
+      html += '<h6 class="mt-2 mb-2">' + escSheet(dept.name) + '</h6>';
+      html += '<div class="table-responsive border rounded"><table class="table table-sm table-bordered align-top mb-0"><thead class="table-light"><tr>';
+      headers.forEach(function (header) { html += '<th>' + escSheet(header) + '</th>'; });
+      html += '</tr></thead><tbody>';
+      (dept.rows || []).forEach(function (row) {
+        lines.push((row || []).join('\t'));
+        html += '<tr>';
+        (row || []).forEach(function (cell) { html += '<td>' + escSheet(cell) + '</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+      lines.push('');
+    });
+    if (body) body.innerHTML = html;
+    sheetCopyText = lines.join('\n');
+  }
+
+  function openDaySheet(url) {
+    if (!sheetModal || !url) return;
+    var sep = url.indexOf('?') >= 0 ? '&' : '?';
+    var pdfLink = document.getElementById('daySheetPdf');
+    var xlsLink = document.getElementById('daySheetXls');
+    var loading = document.getElementById('daySheetLoading');
+    var error = document.getElementById('daySheetError');
+    var body = document.getElementById('daySheetBody');
+    if (pdfLink) pdfLink.href = url + sep + 'format=pdf';
+    if (xlsLink) xlsLink.href = url + sep + 'format=xls';
+    if (loading) loading.classList.remove('d-none');
+    if (error) error.classList.add('d-none');
+    if (body) body.innerHTML = '';
+    sheetCopyText = '';
+    sheetModal.show();
+    fetch(url + sep + 'format=json', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (loading) loading.classList.add('d-none');
+        if (!data || !data.ok) throw new Error('No se pudo cargar');
+        renderSheet(data);
+      })
+      .catch(function () {
+        if (loading) loading.classList.add('d-none');
+        if (error) {
+          error.textContent = 'No se pudo cargar la hoja.';
+          error.classList.remove('d-none');
+        }
+      });
+  }
+
+  var copyBtn = document.getElementById('daySheetCopy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      var btn = copyBtn;
+      function markCopied() {
+        btn.textContent = 'Copiado';
+        setTimeout(function () { btn.textContent = 'Copiar'; }, 1200);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(sheetCopyText).then(markCopied).catch(function () {
+          window.prompt('Copia la hoja:', sheetCopyText);
+        });
+      } else {
+        window.prompt('Copia la hoja:', sheetCopyText);
+      }
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var link = e.target.closest('.js-day-sheet');
+    if (!link || !root.contains(link)) return;
+    e.preventDefault();
+    openDaySheet(link.getAttribute('href'));
   });
 
   // Carga inicial diferida (overlay + AJAX)

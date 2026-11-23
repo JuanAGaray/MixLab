@@ -5,11 +5,12 @@
       <div class="small mb-2">
         <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
         {% for b in row.bookings %}
-        <div class="text-muted d-flex align-items-start gap-1">
+        <div class="d-flex align-items-start gap-1 {% if row.date < today %}combo-week-past{% else %}text-muted{% endif %}{% if b.needs_confirm %} needs-confirm{% endif %}">
+          {% if b.needs_confirm %}<i class="bi bi-exclamation-triangle-fill text-danger" title="Por confirmar, sin abono"></i>{% endif %}
           <span class="combo-dept-dot mt-1" style="background:{{ b.dept_color|default:'#64748b' }}"
                 title="{{ b.dept_name|default:'Sin departamento' }}"></span>
           <div>
-            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline {% if row.date < today %}text-secondary{% endif %}"
                     data-booking-id="{{ b.id }}">
               {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
               {{ b.client_name|default:"Cliente" }}
@@ -18,6 +19,9 @@
             {% if b.dept_name %}
             <div class="combo-dept-label">{{ b.dept_name }}</div>
             {% endif %}
+            {% for machine in b.machine_lines %}
+            <div>{{ machine.quantity }} × {{ machine.label }}</div>
+            {% endfor %}
           </div>
         </div>
         {% endfor %}
@@ -41,11 +45,12 @@
       <div class="small mb-2">
         <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
         {% for b in row.bookings %}
-        <div class="text-muted d-flex align-items-start gap-1">
+        <div class="d-flex align-items-start gap-1 {% if row.date < today %}combo-week-past{% else %}text-muted{% endif %}{% if b.needs_confirm %} needs-confirm{% endif %}">
+          {% if b.needs_confirm %}<i class="bi bi-exclamation-triangle-fill text-danger" title="Por confirmar, sin abono"></i>{% endif %}
           <span class="combo-dept-dot mt-1" style="background:{{ b.dept_color|default:'#64748b' }}"
                 title="{{ b.dept_name|default:'Sin departamento' }}"></span>
           <div>
-            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline {% if row.date < today %}text-secondary{% endif %}"
                     data-booking-id="{{ b.id }}">
               {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
               {{ b.client_name|default:"Cliente" }}
@@ -54,6 +59,9 @@
             {% if b.dept_name %}
             <div class="combo-dept-label">{{ b.dept_name }}</div>
             {% endif %}
+            {% for machine in b.machine_lines %}
+            <div>{{ machine.quantity }} × {{ machine.label }}</div>
+            {% endfor %}
           </div>
         </div>
         {% endfor %}
@@ -78,11 +86,12 @@
       <div class="small mb-2">
         <div class="fw-semibold">{{ row.date|date:"d/m/Y" }}</div>
         {% for b in row.bookings %}
-        <div class="text-muted d-flex align-items-start gap-1">
+        <div class="d-flex align-items-start gap-1 {% if row.date < today %}combo-week-past{% else %}text-muted{% endif %}{% if b.needs_confirm %} needs-confirm{% endif %}">
+          {% if b.needs_confirm %}<i class="bi bi-exclamation-triangle-fill text-danger" title="Por confirmar, sin abono"></i>{% endif %}
           <span class="combo-dept-dot mt-1" style="background:{{ b.dept_color|default:'#64748b' }}"
                 title="{{ b.dept_name|default:'Sin departamento' }}"></span>
           <div>
-            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline {% if row.date < today %}text-secondary{% endif %}"
                     data-booking-id="{{ b.id }}">
               {% if b.event_time %}{{ b.event_time|time:"H:i" }} · {% endif %}
               {{ b.client_name|default:"Cliente" }}
@@ -91,6 +100,9 @@
             {% if b.dept_name %}
             <div class="combo-dept-label">{{ b.dept_name }}</div>
             {% endif %}
+            {% for machine in b.machine_lines %}
+            <div>{{ machine.quantity }} × {{ machine.label }}</div>
+            {% endfor %}
           </div>
         </div>
         {% endfor %}

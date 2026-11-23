@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Enlace al cliente · MixLab{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:980px">
+  <div class="mb-3">
+    <h1 class="h4 fw-bold mb-1">Enlace para el cliente</h1>
+    <p class="text-muted small mb-0">El enlace se cierra solo a las 12 horas. Si no eliges paquete o adicionales, se los pide la página. Los sabores siempre los elige el cliente.</p>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      {% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+      <form method="post" class="row g-3">
+        {% csrf_token %}
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="flavor_limit">Sabores</label>
+          <input class="form-control" id="flavor_limit" name="flavor_limit" type="number" min="1" max="8" value="3">
+        </div>
+        <div class="col-12">
+          <div class="small text-muted">Se cierra en 12 horas. El cliente ve este mensaje: “Hola, tienes 12 horas para dejar listo tu evento. Elige el paquete, los adicionales y los sabores. Al enviar, tu asesor recibe la selección.”</div>
+        </div>
+        <div class="col-12">
+          <label class="form-label small fw-semibold" for="package">Paquete</label>
+          <select class="form-select" id="package" name="package">
+            <option value="">El cliente lo elige</option>
+            {% for pkg in packages %}
+            <option value="{{ pkg.id }}">{{ pkg.title }}{% if pkg.price_label %} · {{ pkg.price_label }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <div class="form-label small fw-semibold">Adicionales</div>
+          <div class="small text-muted mb-2">Si no marcas ninguno, el cliente los elige.</div>
+          <div class="row g-2">
+            {% for addon in addons %}
+            <div class="col-md-6">
+              <label class="d-flex gap-2 align-items-start border rounded-3 p-2 small">
+                <input type="checkbox" name="addons" value="{{ addon.id }}" class="mt-1">
+                <span><strong>{{ addon.title }}</strong>{% if addon.price_label %} · {{ addon.price_label }}{% endif %}</span>
+              </label>
+            </div>
+            {% empty %}
+            <div class="col-12 text-muted small">No hay adicionales activos en el portafolio.</div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-dark" type="submit">Generar enlace</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Creado</th>
+            <th>Quién lo generó</th>
+            <th>Cierra</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for invite in invites %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ invite.created_at|date:"d/m/Y H:i" }}</div>
+              <div class="small text-muted">
+                {% if invite.package %}Paquete: {{ invite.package.title }}{% else %}Paquete lo elige el cliente{% endif %}
+                · {{ invite.flavor_limit }} sabores
+              </div>
+              {% if invite.submitted_at %}
+              <div class="small mt-1">
+                {{ invite.client_name }} · {{ invite.client_phone }}
+                {% if invite.address %} · {{ invite.address }}{% endif %}
+                {% if invite.city %} · {{ invite.city }}{% endif %}
+                {% if invite.chosen_package %} · {{ invite.chosen_package.title }}{% endif %}
+                {% for flavor in invite.chosen_flavors.all %} · {{ flavor.name }}{% endfor %}
+              </div>
+              {% endif %}
+            </td>
+            <td>{{ invite.created_by.get_full_name|default:invite.created_by.username|default:"—" }}</td>
+            <td class="text-nowrap small">{{ invite.expires_at|date:"d/m/Y H:i" }}</td>
+            <td>
+              {% if invite.submitted_at %}
+              <span class="badge text-bg-success">Respondió</span>
+              {% elif invite.is_expired %}
+              <span class="badge text-bg-secondary">Vencido</span>
+              {% else %}
+              <span class="badge text-bg-warning">Abierto</span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <button type="button" class="btn btn-sm btn-success js-share-invite"
+                      data-url="{{ invite.public_url }}">
+                <i class="bi bi-whatsapp"></i> Compartir
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-dark js-copy-invite"
+                      data-url="{{ invite.public_url }}">
+                <i class="bi bi-clipboard"></i> Copiar
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted p-3">Todavía no hay enlaces.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.js-share-invite').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var url = btn.getAttribute('data-url');
+    var text = 'Hola, tienes 12 horas para dejar listo tu evento. Elige el paquete, los adicionales y los sabores.\n' + url;
+    var wa = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(wa, '_blank', 'noopener');
+  });
+});
+document.querySelectorAll('.js-copy-invite').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var url = btn.getAttribute('data-url');
+    var done = function () {
+      var previous = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check2"></i> Copiado';
+      setTimeout(function () { btn.innerHTML = previous; }, 1600);
+    };
+    var fallback = function () {
+      var input = document.createElement('textarea');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+      done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Tu evento · MixLab{% endblock %}
+{% block body_class %}as-body{% endblock %}
+
+{% block site_chrome %}
+<header class="as-top">
+  <a href="#inicio" aria-label="MixLab">
+    <img src="{% static 'img/TotalLogoWhite.png' %}" alt="MixLab" height="28">
+  </a>
+  <div class="as-clock" id="asClock" data-expires="{{ expires_iso }}">Tiempo restante</div>
+</header>
+{% endblock %}
+
+{% block site_footer %}
+<footer class="as-foot">{{ settings_obj.company_legal_name|default:"MIXLAB SAS" }}</footer>
+{% endblock %}
+{% block floating_actions %}{% endblock %}
+
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  :root { --pf-navy:#071526; --pf-gold:#C4A574; --pf-cream:#f7f3ec; }
+  .as-body { background:#071526; color:#f7f3ec; font-family:Manrope, system-ui, sans-serif; }
+  .as-body .main-content-wrapper { padding-bottom:0; background:#071526; }
+  .as-body h1, .as-body h2, .as-body h3, .as-body p { color:#f7f3ec; }
+  .as-serif { font-family:"Cormorant Garamond", Georgia, serif; font-weight:600; color:#f7f3ec; }
+  .as-top, .as-foot {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:1rem 1.25rem; gap:1rem;
+  }
+  .as-top { position:sticky; top:0; z-index:5; background:rgba(7,21,38,.92); backdrop-filter:blur(12px); border-bottom:1px solid rgba(196,165,116,.18); }
+  .as-clock { font-size:.75rem; letter-spacing:.06em; text-transform:uppercase; color:var(--pf-gold); }
+  .as-wrap { max-width:1040px; margin:0 auto; padding:2.2rem 1.1rem 4rem; }
+  .as-kicker { color:var(--pf-gold); letter-spacing:.16em; text-transform:uppercase; font-size:.72rem; font-weight:700; }
+  .as-wrap h1 { font-size:clamp(2.4rem, 6vw, 4.4rem); line-height:.95; margin:.35rem 0 .8rem; }
+  .as-lead { max-width:38rem; color:#e7dfd2; }
+  .as-block.is-wrong { outline:2px solid #fca5a5; outline-offset:10px; border-radius:16px; }
+  .as-inline-error { display:none; margin:0 0 .8rem; color:#fecaca; font-weight:700; }
+  .as-note { margin:1.2rem 0 0; padding:1rem 1.1rem; border-left:2px solid var(--pf-gold); color:rgba(247,243,236,.88); }
+  .as-block { margin-top:2.4rem; }
+  .as-block h2 { font-size:2.1rem; margin:.2rem 0 1rem; }
+  .as-grid { display:grid; grid-template-columns:1fr; gap:.8rem; }
+  @media (min-width:720px) { .as-grid.packs { grid-template-columns:1fr 1fr; } .as-grid.flavors { grid-template-columns:1fr 1fr; } }
+  @media (min-width:980px) { .as-grid.addons { grid-template-columns:1fr 1fr 1fr; } }
+  .as-card {
+    position:relative; display:flex; flex-direction:column; overflow:hidden;
+    border:1px solid rgba(196,165,116,.22); border-radius:18px; background:#0c2744; color:inherit; cursor:pointer;
+  }
+  .as-card input { position:absolute; opacity:0; pointer-events:none; }
+  .as-card:has(input:checked) { border-color:var(--pf-gold); box-shadow:0 0 0 1px var(--pf-gold); }
+  .as-card.is-locked { cursor:default; }
+  .as-media { aspect-ratio:16/10; background:#06101c; }
+  .as-media img { width:100%; height:100%; object-fit:cover; display:block; }
+  .as-body-card { padding:.9rem 1rem 1rem; }
+  .as-price { color:var(--pf-gold); font-size:.78rem; font-weight:700; letter-spacing:.04em; }
+  .as-body-card h3 { font-size:1.35rem; margin:.15rem 0 .3rem; color:#f7f3ec; }
+  .as-body-card p { margin:0; color:#e7dfd2; font-size:.88rem; }
+  .as-cat { margin:1.1rem 0 .45rem; color:rgba(247,243,236,.6); font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; }
+  .as-fields { display:grid; gap:.75rem; }
+  @media (min-width:720px) { .as-fields { grid-template-columns:1fr 1fr; } .as-fields .wide { grid-column:1 / -1; } }
+  .as-fields label { display:block; font-size:.75rem; letter-spacing:.06em; text-transform:uppercase; color:#e7dfd2; margin-bottom:.3rem; }
+  .as-fields input, .as-fields textarea, .as-fields select {
+    width:100%; border:1px solid rgba(196,165,116,.7); background:#16324f;
+    color:#f7f3ec; border-radius:12px; padding:.75rem .85rem; font:inherit; color-scheme:dark;
+  }
+  .as-fields input:focus, .as-fields textarea:focus, .as-fields select:focus { outline:2px solid #C4A574; border-color:#C4A574; }
+  .as-fields select { appearance:auto; }
+  .as-submit {
+    margin-top:1.4rem; border:0; border-radius:999px; padding:.9rem 1.4rem;
+    background:var(--pf-gold); color:#071526; font-weight:800; letter-spacing:.04em;
+  }
+  .as-error { background:#3f1218; color:#fecaca; border-radius:12px; padding:.75rem 1rem; margin-top:1rem; }
+  .as-done { margin-top:1.5rem; border:1px solid rgba(196,165,116,.28); border-radius:18px; padding:1.2rem; background:#0c2744; }
+  .as-chip { display:inline-block; margin:.2rem .35rem .2rem 0; padding:.28rem .6rem; border-radius:999px; border:1px solid rgba(196,165,116,.4); font-size:.82rem; }
+  .as-foot { justify-content:center; color:rgba(247,243,236,.45); font-size:.8rem; border-top:1px solid rgba(196,165,116,.12); }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="as-wrap" id="inicio">
+  <div class="as-kicker">MixLab Eventos</div>
+  <h1 class="as-serif">{% if invite.label %}{{ invite.label }}{% else %}Cuéntanos tu evento{% endif %}</h1>
+  {% if invite.advisor_message %}<p class="as-lead">{{ invite.advisor_message|linebreaksbr }}</p>{% else %}<p class="as-lead">Completa lo que falta para dejar listo tu servicio. El enlace se cierra solo.</p>{% endif %}
+
+  {% if invite.submitted_at %}
+  <section class="as-done">
+    <div class="as-kicker">Listo</div>
+    <h2 class="as-serif">Recibimos tu selección</h2>
+    <p>{{ invite.client_name }} · {{ invite.client_phone }}</p>
+    <p>{{ invite.address }}{% if invite.city %} · {{ invite.city }}{% endif %}</p>
+    <p><strong>Paquete.</strong> {{ invite.package.title|default:invite.chosen_package.title }}</p>
+    <div>
+      {% for addon in invite.advisor_addons.all %}
+      <span class="as-chip">{{ addon.title }}</span>
+      {% empty %}
+      {% for addon in invite.chosen_addons.all %}
+      <span class="as-chip">{{ addon.title }}</span>
+      {% empty %}
+      <span class="as-chip">Sin adicionales</span>
+      {% endfor %}
+      {% endfor %}
+    </div>
+    <div class="mt-2">
+      {% for flavor in invite.chosen_flavors.all %}
+      <span class="as-chip">{{ flavor.name }}</span>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% elif invite.is_expired %}
+  <section class="as-done">
+    <div class="as-kicker">Cerrado</div>
+    <h2 class="as-serif">Este enlace ya no recibe respuestas</h2>
+    <p>El tiempo terminó el {{ invite.expires_at|date:"d/m/Y H:i" }}. Escríbele a tu asesor para abrir uno nuevo.</p>
+  </section>
+
+  {% else %}
+  <form method="post" id="asForm" novalidate>
+    {% csrf_token %}
+    <section class="as-block" id="as-datos">
+      <p class="as-inline-error" data-error></p>
+      <div class="as-kicker">Tus datos</div>
+      <h2 class="as-serif">Para contactarte</h2>
+      <div class="as-fields">
+        <div>
+          <label for="client_name">Nombre</label>
+          <input id="client_name" name="client_name" maxlength="200" value="{{ invite.client_name }}">
+        </div>
+        <div>
+          <label for="client_phone">Teléfono</label>
+          <input id="client_phone" name="client_phone" maxlength="40" value="{{ invite.client_phone }}">
+        </div>
+        <div>
+          <label for="client_email">Correo</label>
+          <input id="client_email" name="client_email" type="email" value="{{ invite.client_email }}">
+        </div>
+        <div>
+          <label for="event_date">Fecha del evento</label>
+          <input id="event_date" name="event_date" type="date" value="{% if invite.event_date %}{{ invite.event_date|date:'Y-m-d' }}{% endif %}">
+        </div>
+        <div class="wide">
+          <label for="address">Dirección</label>
+          <input id="address" name="address" maxlength="200" value="{{ invite.address }}" placeholder="Barrio, calle y número">
+        </div>
+        <div class="wide">
+          <label for="city">Ciudad</label>
+          <select id="city" name="city">
+            <option value="">Elige la ciudad</option>
+            {% for group, cities in city_groups %}
+            <optgroup label="{{ group }}">
+              {% for city in cities %}
+              <option value="{{ city }}" {% if invite.city == city %}selected{% endif %}>{{ city }}</option>
+              {% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="wide">
+          <label for="client_note">Nota</label>
+          <textarea id="client_note" name="client_note" rows="3">{{ invite.client_note }}</textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="as-block" id="as-paquete">
+      <p class="as-inline-error" data-error></p>
+      <div class="as-kicker">Paquete</div>
+      <h2 class="as-serif">{% if locked_package %}El que dejó tu asesor{% else %}Elige uno{% endif %}</h2>
+      <div class="as-grid packs">
+        {% if locked_package %}
+        <article class="as-card is-locked">
+          {% if locked_package.image %}<div class="as-media"><img src="{{ locked_package.image.url }}" alt=""></div>{% endif %}
+          <div class="as-body-card">
+            {% if locked_package.price_label %}<div class="as-price">{{ locked_package.price_label }}</div>{% endif %}
+            <h3 class="as-serif">{{ locked_package.title }}</h3>
+            {% if locked_package.description %}<p>{{ locked_package.description }}</p>{% endif %}
+          </div>
+        </article>
+        {% else %}
+        {% for pkg in packages %}
+        <label class="as-card">
+          <input type="radio" name="package" value="{{ pkg.id }}" {% if invite.chosen_package_id == pkg.id %}checked{% endif %}>
+          {% if pkg.image %}<div class="as-media"><img src="{{ pkg.image.url }}" alt=""></div>{% endif %}
+          <div class="as-body-card">
+            {% if pkg.price_label %}<div class="as-price">{{ pkg.price_label }}</div>{% endif %}
+            <h3 class="as-serif">{{ pkg.title }}</h3>
+            {% if pkg.description %}<p>{{ pkg.description }}</p>{% endif %}
+          </div>
+        </label>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="as-block">
+      <div class="as-kicker">Adicionales</div>
+      <h2 class="as-serif">{% if locked_addons %}Incluidos{% else %}Si quieres sumar algo{% endif %}</h2>
+      <div class="as-grid addons">
+        {% if locked_addons %}
+        {% for addon in locked_addons %}
+        <article class="as-card is-locked">
+          {% if addon.image %}<div class="as-media"><img src="{{ addon.image.url }}" alt=""></div>{% endif %}
+          <div class="as-body-card">
+            {% if addon.price_label %}<div class="as-price">{{ addon.price_label }}</div>{% endif %}
+            <h3 class="as-serif">{{ addon.title }}</h3>
+            {% if addon.description %}<p>{{ addon.description }}</p>{% endif %}
+          </div>
+        </article>
+        {% endfor %}
+        {% else %}
+        {% for addon in addons %}
+        <label class="as-card">
+          <input type="checkbox" name="addons" value="{{ addon.id }}">
+          {% if addon.image %}<div class="as-media"><img src="{{ addon.image.url }}" alt=""></div>{% endif %}
+          <div class="as-body-card">
+            {% if addon.price_label %}<div class="as-price">{{ addon.price_label }}</div>{% endif %}
+            <h3 class="as-serif">{{ addon.title }}</h3>
+            {% if addon.description %}<p>{{ addon.description }}</p>{% endif %}
+          </div>
+        </label>
+        {% empty %}
+        <p class="as-lead">No hay adicionales publicados.</p>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="as-block" id="as-sabores">
+      <p class="as-inline-error" data-error></p>
+      <div class="as-kicker">Sabores</div>
+      <h2 class="as-serif">Elige hasta {{ invite.flavor_limit }}</h2>
+      {% for group in flavor_groups %}
+      <div class="as-cat">{{ group.name }}</div>
+      <div class="as-grid flavors">
+        {% for flavor in group.products %}
+        <label class="as-card">
+          <input type="checkbox" name="flavors" value="{{ flavor.id }}" data-flavor>
+          <div class="as-body-card">
+            <h3 class="as-serif">{{ flavor.name }}</h3>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+      {% empty %}
+      <p class="as-lead">Todavía no hay sabores publicados.</p>
+      {% endfor %}
+    </section>
+
+    <button class="as-submit" type="submit">Enviar selección</button>
+  </form>
+  {% endif %}
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var clock = document.getElementById('asClock');
+  if (clock) {
+    var end = new Date(clock.getAttribute('data-expires'));
+    function tick() {
+      var left = end.getTime() - Date.now();
+      if (isNaN(end.getTime())) return;
+      if (left <= 0) { clock.textContent = 'Tiempo agotado'; return; }
+      var hours = Math.floor(left / 3600000);
+      var mins = Math.floor((left % 3600000) / 60000);
+      clock.textContent = hours + ' h ' + mins + ' min';
+    }
+    tick();
+    setInterval(tick, 30000);
+  }
+  var limit = {{ invite.flavor_limit|default:3 }};
+  var askPackage = {{ ask_package|yesno:"true,false" }};
+  document.querySelectorAll('[data-flavor]').forEach(function (box) {
+    box.addEventListener('change', function () {
+      var picked = document.querySelectorAll('[data-flavor]:checked').length;
+      if (picked > limit) box.checked = false;
+    });
+  });
+
+  function mark(id, message) {
+    var section = document.getElementById(id);
+    if (!section) return;
+    document.querySelectorAll('.as-block.is-wrong').forEach(function (node) {
+      node.classList.remove('is-wrong');
+    });
+    document.querySelectorAll('[data-error]').forEach(function (node) {
+      node.style.display = 'none';
+      node.textContent = '';
+    });
+    section.classList.add('is-wrong');
+    var note = section.querySelector('[data-error]');
+    if (note) {
+      note.textContent = message;
+      note.style.display = 'block';
+    }
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  var form = document.getElementById('asForm');
+  if (form) {
+    form.addEventListener('submit', function (event) {
+      var name = (document.getElementById('client_name').value || '').trim();
+      var phone = (document.getElementById('client_phone').value || '').trim();
+      var address = (document.getElementById('address').value || '').trim();
+      var city = document.getElementById('city').value;
+      if (!name || !phone || !address || !city) {
+        event.preventDefault();
+        mark('as-datos', 'Completa nombre, teléfono, dirección y ciudad.');
+        return;
+      }
+      if (askPackage && !form.querySelector('input[name="package"]:checked')) {
+        event.preventDefault();
+        mark('as-paquete', 'Elige un paquete.');
+        return;
+      }
+      var flavors = form.querySelectorAll('[data-flavor]:checked').length;
+      if (!flavors) {
+        event.preventDefault();
+        mark('as-sabores', 'Elige al menos un sabor.');
+        return;
+      }
+      if (flavors > limit) {
+        event.preventDefault();
+        mark('as-sabores', 'Puedes elegir hasta ' + limit + ' sabores.');
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

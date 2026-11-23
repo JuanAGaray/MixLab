@@ -1,0 +1,79 @@
+{% extends "store/contabilidad_base.html" %}
+{% load store_tags %}
+
+{% block content %}
+{% if needs_login %}
+<div class="cm-card mx-auto" style="max-width:420px;">
+  <h2 class="h5 mb-3">Ingresar</h2>
+  {% if login_error %}<div class="alert alert-danger py-2 small">{{ login_error }}</div>{% endif %}
+  <form method="post" class="row g-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="login">
+    <div class="col-12">
+      <label class="form-label small" for="username">Usuario</label>
+      <input class="form-control" id="username" name="username" autocomplete="username" required>
+    </div>
+    <div class="col-12">
+      <label class="form-label small" for="password">Clave</label>
+      <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-dark w-100 cm-pill" type="submit">Entrar</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-0">Hoy</h1>
+    <div class="small text-muted">{{ today|date:"l d \d\e F" }}</div>
+  </div>
+  <a class="btn btn-dark cm-pill" href="#cmMovModal" data-bs-toggle="modal" data-bs-target="#cmMovModal">Añadir movimiento</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-4">
+    <div class="cm-card h-100">
+      <div class="small text-muted">Entró</div>
+      <div class="cm-stat text-success">{{ total_pagos|pesos_colombianos }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4">
+    <div class="cm-card h-100">
+      <div class="small text-muted">Salió</div>
+      <div class="cm-stat text-danger">{{ total_gastos|pesos_colombianos }}</div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="cm-card h-100">
+      <div class="small text-muted">Queda</div>
+      <div class="cm-stat">{{ balance|pesos_colombianos }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="h6 mb-0">Movimientos de hoy</h2>
+  <a class="small" href="{% url 'store:contabilidad_historial' %}">Ver todos</a>
+</div>
+<div class="cm-card p-0 overflow-hidden">
+  {% for r in movements %}
+  <div class="d-flex justify-content-between gap-2 px-3 py-2 border-bottom">
+    <div>
+      <div class="fw-semibold">{{ r.description }}</div>
+      <div class="small text-muted">
+        {% if r.record_type == 'pago' %}Entró dinero{% else %}Salió dinero{% endif %}
+        {% if r.category_label %} · {{ r.category_label }}{% endif %}
+        {% if r.payee %} · {{ r.payee }}{% endif %}
+      </div>
+    </div>
+    <div class="fw-bold text-nowrap {% if r.record_type == 'pago' %}text-success{% else %}text-danger{% endif %}">
+      {{ r.amount|pesos_colombianos }}
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-muted small p-3">Hoy no hay movimientos.</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

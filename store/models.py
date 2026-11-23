@@ -1314,6 +1314,23 @@ class QuotationPayment(models.Model):
         return self.method == 'efectivo'
 
 
+class FieldOperator(models.Model):
+    """Persona que atiende eventos en campo."""
+
+    name = models.CharField(max_length=120, verbose_name='Nombre')
+    phone = models.CharField(max_length=40, blank=True, default='', verbose_name='Teléfono')
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Operario'
+        verbose_name_plural = 'Operarios'
+        ordering = ['name', 'id']
+
+    def __str__(self):
+        return self.name
+
+
 class ComboBooking(models.Model):
     """Agenda de un combo para un cliente (registrado o sin registro) con ubicación en mapa."""
 
@@ -1399,6 +1416,19 @@ class ComboBooking(models.Model):
         verbose_name='Precio del paquete cobrado',
     )
     notes = models.TextField(blank=True, default='', verbose_name='Notas')
+    operator = models.ForeignKey(
+        'FieldOperator',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings',
+        verbose_name='Operario',
+    )
+    operator_arrival = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name='Hora de llegada del operario',
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -1581,6 +1611,36 @@ class ComboBookingExtra(models.Model):
     @property
     def line_total(self) -> Decimal:
         return Decimal(str(self.unit_price or 0)) * Decimal(self.quantity or 0)
+
+
+class ComboBookingMachine(models.Model):
+    """Máquina de granizados incluida en un evento. Un evento puede llevar varias."""
+
+    booking = models.ForeignKey(
+        ComboBooking,
+        on_delete=models.CASCADE,
+        related_name='machines',
+        verbose_name='Evento',
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='combo_booking_machines',
+        verbose_name='Tipo de máquina',
+    )
+    name = models.CharField(max_length=200, verbose_name='Nombre')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+
+    class Meta:
+        verbose_name = 'Máquina del evento'
+        verbose_name_plural = 'Máquinas del evento'
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f'{self.quantity} × {self.name}'
 
 
 class RentalContractRequirements(models.Model):
@@ -2600,6 +2660,12 @@ class FinanceRecord(models.Model):
         ('proveedor', 'Pago a proveedor'),
         ('otro', 'Otro'),
     ]
+    METHOD_CHOICES = [
+        ('efectivo', 'Efectivo'),
+        ('transferencia', 'Transferencia'),
+        ('nequi', 'Nequi'),
+        ('daviplata', 'Daviplata'),
+    ]
 
     record_type = models.CharField(
         max_length=20,
@@ -2619,6 +2685,20 @@ class FinanceRecord(models.Model):
         default='otro',
         verbose_name='Categoría',
     )
+    payee = models.CharField(
+        max_length=160,
+        blank=True,
+        default='',
+        verbose_name='Beneficiario',
+        help_text='A quién se le pagó. Obligatorio en nómina.',
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=METHOD_CHOICES,
+        blank=True,
+        default='',
+        verbose_name='Medio de pago',
+    )
     notes = models.TextField(blank=True, default='', verbose_name='Notas')
     receipt = models.ImageField(
         upload_to='finance/receipts/',
@@ -2633,6 +2713,12 @@ class FinanceRecord(models.Model):
         blank=True,
         related_name='finance_records',
         verbose_name='Cotización relacionada',
+    )
+    accounting_book = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name='Libro de contabilidad',
+        help_text='Movimiento creado en Contabilidad Mixlab, separado de cotizaciones.',
     )
     recorded_at = models.DateField(verbose_name='Fecha del movimiento')
     created_by = models.ForeignKey(
@@ -3128,6 +3214,83 @@ class PortfolioAddon(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class AdvisorClientInvite(models.Model):
+    """Enlace con tiempo límite para que el cliente complete paquete, adicionales y sabores."""
+
+    token = models.CharField(max_length=48, unique=True, db_index=True, verbose_name='Token')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='advisor_invites',
+        verbose_name='Asesor',
+    )
+    label = models.CharField(max_length=160, blank=True, default='', verbose_name='Referencia')
+    advisor_message = models.TextField(blank=True, default='', verbose_name='Mensaje para el cliente')
+    expires_at = models.DateTimeField(verbose_name='Cierra el')
+    flavor_limit = models.PositiveIntegerField(default=3, verbose_name='Sabores que puede elegir')
+    package = models.ForeignKey(
+        PortfolioPackage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='advisor_invites',
+        verbose_name='Paquete elegido por el asesor',
+    )
+    advisor_addons = models.ManyToManyField(
+        PortfolioAddon,
+        blank=True,
+        related_name='advisor_preset_invites',
+        verbose_name='Adicionales elegidos por el asesor',
+    )
+    client_name = models.CharField(max_length=200, blank=True, default='', verbose_name='Nombre del cliente')
+    client_phone = models.CharField(max_length=40, blank=True, default='', verbose_name='Teléfono')
+    client_email = models.EmailField(blank=True, default='', verbose_name='Correo')
+    event_date = models.DateField(null=True, blank=True, verbose_name='Fecha del evento')
+    address = models.CharField(max_length=200, blank=True, default='', verbose_name='Dirección')
+    city = models.CharField(max_length=120, blank=True, default='', verbose_name='Ciudad')
+    client_note = models.TextField(blank=True, default='', verbose_name='Nota del cliente')
+    chosen_package = models.ForeignKey(
+        PortfolioPackage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='client_chosen_invites',
+        verbose_name='Paquete elegido por el cliente',
+    )
+    chosen_addons = models.ManyToManyField(
+        PortfolioAddon,
+        blank=True,
+        related_name='client_chosen_invites',
+        verbose_name='Adicionales elegidos por el cliente',
+    )
+    chosen_flavors = models.ManyToManyField(
+        'Product',
+        blank=True,
+        related_name='advisor_flavor_choices',
+        verbose_name='Sabores elegidos',
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True, verbose_name='Enviado el')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Enlace del asesor'
+        verbose_name_plural = 'Enlaces del asesor'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.label or self.client_name or self.token
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_open(self):
+        return self.submitted_at is None and not self.is_expired
 
 
 class PrepStage(models.Model):

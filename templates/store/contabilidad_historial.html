@@ -1,0 +1,37 @@
+{% extends "store/contabilidad_base.html" %}
+{% load store_tags %}
+
+{% block title %}Todos los movimientos · Contabilidad Mixlab{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0">Todos los movimientos</h1>
+  <a class="btn btn-outline-dark btn-sm cm-pill" href="{% url 'store:contabilidad_app' %}">Volver a hoy</a>
+</div>
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  <a class="btn btn-sm {% if not filter_tipo %}btn-dark{% else %}btn-outline-dark{% endif %} cm-pill" href="{% url 'store:contabilidad_historial' %}">Todos</a>
+  <a class="btn btn-sm {% if filter_tipo == 'gasto' %}btn-dark{% else %}btn-outline-dark{% endif %} cm-pill" href="?tipo=gasto">Salió dinero</a>
+  <a class="btn btn-sm {% if filter_tipo == 'nomina' %}btn-dark{% else %}btn-outline-dark{% endif %} cm-pill" href="?tipo=nomina">Equipo</a>
+  <a class="btn btn-sm {% if filter_tipo == 'pago' %}btn-dark{% else %}btn-outline-dark{% endif %} cm-pill" href="?tipo=pago">Entró dinero</a>
+</div>
+<div class="cm-card p-0 overflow-hidden">
+  {% for r in movements %}
+  <div class="d-flex justify-content-between gap-2 px-3 py-2 border-bottom">
+    <div>
+      <div class="fw-semibold">{{ r.description }}</div>
+      <div class="small text-muted">
+        {{ r.recorded_at|date:"d/m/Y" }}
+        · {% if r.record_type == 'pago' %}Entró dinero{% else %}Salió dinero{% endif %}
+        {% if r.payee %} · {{ r.payee }}{% endif %}
+        {% if r.method_label %} · {{ r.method_label }}{% endif %}
+      </div>
+    </div>
+    <div class="fw-bold text-nowrap {% if r.record_type == 'pago' %}text-success{% else %}text-danger{% endif %}">
+      {{ r.amount|pesos_colombianos }}
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-muted small p-3">Todavía no hay movimientos.</div>
+  {% endfor %}
+</div>
+{% endblock %}

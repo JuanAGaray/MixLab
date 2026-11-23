@@ -4,7 +4,7 @@
 </div>
 
 {% for row in month_event_rows %}
-<div class="day-block {% if row.is_past_day and row.has_open_debt %}border-warning{% endif %}" id="dia-{{ row.date|date:'Y-m-d' }}">
+<div class="day-block {% if row.is_past_day %}is-past{% endif %} {% if row.is_past_day and row.has_open_debt %}border-warning{% endif %}" id="dia-{{ row.date|date:'Y-m-d' }}">
   <div class="day-title d-flex flex-wrap align-items-center justify-content-between gap-2">
     <span>
       {{ row.date|date:"l d/m/Y" }}
@@ -15,13 +15,20 @@
       <span class="badge text-bg-primary ms-1">Hoy</span>
       {% endif %}
     </span>
-    <a class="btn btn-sm btn-outline-primary"
-       href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
-       target="_blank"
-       rel="noopener"
-       title="Descargar PDF con notas, ubicación, hora e ítems del día">
-      <i class="bi bi-download"></i> Resumen PDF
-    </a>
+    <span class="d-flex flex-wrap gap-1">
+      <a class="btn btn-sm btn-outline-primary"
+         href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
+         target="_blank"
+         rel="noopener"
+         title="Descargar PDF con notas, ubicación, hora e ítems del día">
+        <i class="bi bi-download"></i> Resumen PDF
+      </a>
+      <a class="btn btn-sm btn-outline-success js-day-sheet"
+         href="{% url 'store:inventory_combo_day_sheet' combo.id %}?date={{ row.date|date:'Y-m-d' }}"
+         title="Ver la hoja del día por departamento">
+        <i class="bi bi-table"></i> Hoja por departamento
+      </a>
+    </span>
   </div>
   <div class="small mb-2 px-1">
     <span class="text-success me-2">Abonado día: ${{ row.day_paid|floatformat:0 }}</span>
@@ -30,12 +37,13 @@
   </div>
   {% for item in row.bookings %}
   {% with b=item.booking %}
-  <div class="event-row">
+  <div class="event-row {% if item.is_past %}is-past{% endif %}{% if not item.pay_paid %} needs-confirm{% endif %}">
     <div class="event-meta" style="color:{{ b.dept_color|default:'#047857' }}">
       {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}—{% endif %}
     </div>
     <div class="flex-grow-1">
       <div class="fw-semibold">
+        {% if not item.pay_paid %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" title="Por confirmar, sin abono"></i>{% endif %}
         <span class="combo-dept-dot align-middle me-1" style="background:{{ b.dept_color|default:'#64748b' }}"></span>
         {{ b.display_client_name|default:b.client_name|default:"Cliente" }}
         {% if b.dept_name %}
@@ -56,6 +64,19 @@
           · <a href="{{ b.maps_url }}" target="_blank" rel="noopener">Maps</a>
         {% endif %}
       </div>
+      {% if b.machine_lines %}
+      <div class="small mt-1">
+        {% for machine in b.machine_lines %}
+        <span class="badge text-bg-light text-dark border me-1">{{ machine.quantity }} × {{ machine.label }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if b.operator_id %}
+      <div class="small mt-1">
+        <i class="bi bi-person-badge"></i> {{ b.operator.name }}
+        {% if b.operator_arrival %} · llega {{ b.operator_arrival|time:"H:i" }}{% endif %}
+      </div>
+      {% endif %}
       {% if b.notes %}
       <div class="small text-muted mt-1">
         <i class="bi bi-sticky"></i> {{ b.notes|truncatechars:90 }}
@@ -92,18 +113,24 @@
   <div class="collapse mt-2" id="past-done-events">
     <div class="small text-muted mb-2">Pasados y ya cobrados. Solo consulta.</div>
     {% for row in month_past_done_rows %}
-    <div class="day-block opacity-75" id="dia-past-{{ row.date|date:'Y-m-d' }}">
+    <div class="day-block is-past" id="dia-past-{{ row.date|date:'Y-m-d' }}">
       <div class="day-title d-flex flex-wrap align-items-center justify-content-between gap-2">
         <span>
           {{ row.date|date:"l d/m/Y" }}
           <span class="badge text-bg-secondary ms-1">Realizado</span>
           <span class="badge text-bg-light text-dark border ms-1">{{ row.bookings|length }}</span>
         </span>
-        <a class="btn btn-sm btn-outline-secondary"
-           href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
-           target="_blank" rel="noopener">
-          <i class="bi bi-download"></i> PDF
-        </a>
+        <span class="d-flex flex-wrap gap-1">
+          <a class="btn btn-sm btn-outline-secondary"
+             href="{% url 'store:inventory_combo_day_summary_pdf' combo.id %}?date={{ row.date|date:'Y-m-d' }}&download=1"
+             target="_blank" rel="noopener">
+            <i class="bi bi-download"></i> PDF
+          </a>
+          <a class="btn btn-sm btn-outline-success js-day-sheet"
+             href="{% url 'store:inventory_combo_day_sheet' combo.id %}?date={{ row.date|date:'Y-m-d' }}">
+            <i class="bi bi-table"></i> Hoja
+          </a>
+        </span>
       </div>
       <div class="small mb-2 px-1">
         <span class="text-success me-2">Abonado: ${{ row.day_paid|floatformat:0 }}</span>
@@ -111,7 +138,7 @@
       </div>
       {% for item in row.bookings %}
       {% with b=item.booking %}
-      <div class="event-row">
+      <div class="event-row is-past">
         <div class="event-meta">
           {% if b.event_time %}{{ b.event_time|time:"H:i" }}{% else %}—{% endif %}
         </div>

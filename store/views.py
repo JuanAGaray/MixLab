@@ -29,7 +29,7 @@ from .models import (
     Product, Category, Cart, CartItem, Order, OrderItem,
     ProductImage, ProductVariation, ProductVariationImage, ProductTechnicalSpec, ProductAttribute,
     ProductRentalPrice, RentalCombo, RentalComboItem,
-    ComboBooking, ComboBookingExtra, QuotationPayment,
+    ComboBooking, ComboBookingExtra, ComboBookingMachine, FieldOperator, QuotationPayment,
     DilutionBaseProduct, SiteSettings, PaymentMethod,
     RentalContractRequirements, RentalDeliveryActa, RentalMachinePart,
     FinanceRecord,
@@ -39,6 +39,7 @@ from .models import (
     PortfolioGalleryImage,
     PortfolioAddon,
     PrepStage,
+    AdvisorClientInvite,
 )
 from .forms import (
     ProductForm,
@@ -3509,7 +3510,89 @@ def _combo_annotate_booking_dept(booking):
     return booking
 
 
-def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
+def _mark_unconfirmed(booking):
+    """Sin abono: el evento sigue por confirmar."""
+    paid = _combo_booking_payment_snapshot(booking)['amount_paid']
+    booking.needs_confirm = paid <= 0
+    return booking
+
+
+def _machine_short_name(name):
+    """'Maquina Granizadora de 3 Tanques' → '3 tanques'."""
+    import re
+    text = (name or '').strip()
+    match = re.search(r'(\d+)\s*tanques?', text, re.IGNORECASE)
+    if match:
+        count = int(match.group(1))
+        return '1 tanque' if count == 1 else f'{count} tanques'
+    return text[:32] or 'Máquina'
+
+
+def _granizado_machine_options():
+    return list(
+        Product.objects.filter(available=True)
+        .filter(Q(category__name__icontains='granizadora') | Q(name__icontains='granizadora'))
+        .order_by('name')
+    )
+
+
+def _combo_default_machines(combo):
+    """Máquinas fijas del paquete, antes de personalizar el evento."""
+    lines = []
+    for item in combo.items.select_related('product').all():
+        product = item.product if item.product_id else None
+        if product is None:
+            continue
+        name = product.name or ''
+        folded = name.casefold()
+        if 'graniz' not in folded and 'tanque' not in folded:
+            continue
+        lines.append({
+            'product_id': product.id,
+            'name': name,
+            'quantity': item.quantity or 1,
+            'label': _machine_short_name(name),
+        })
+    return lines
+
+
+def _booking_machine_lines(booking, defaults):
+    """Máquinas guardadas en el evento, o las del combo multiplicadas por cuántos combos lleva."""
+    saved = list(booking.machines.all()) if booking.pk else []
+    if saved:
+        return [
+            {
+                'product_id': row.product_id,
+                'name': row.name,
+                'quantity': row.quantity or 1,
+                'label': _machine_short_name(row.name),
+            }
+            for row in saved
+        ]
+    multiplier = 1
+    quote = booking.quotation if booking.quotation_id else None
+    if quote is not None:
+        for item in quote.items.all():
+            if (item.custom_name or '').lower().startswith('combo'):
+                multiplier = max(int(item.quantity or 1), 1)
+                break
+    return [
+        {
+            'product_id': line['product_id'],
+            'name': line['name'],
+            'quantity': line['quantity'] * multiplier,
+            'label': line['label'],
+        }
+        for line in defaults
+    ]
+
+
+def _attach_booking_machines(booking, defaults):
+    booking.machine_lines = _booking_machine_lines(booking, defaults)
+    return booking
+
+
+def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today, machine_defaults=None):
     """Construye datos del calendario mensual del combo."""
     from calendar import monthrange
     from datetime import date as _date
@@ -3568,6 +3651,9 @@ def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
             })
         return rows
 
+    if machine_defaults is None:
+        machine_defaults = _combo_default_machines(combo)
+
     month_start = _date(cal_year, cal_month, 1)
     days_in_month = monthrange(cal_year, cal_month)[1]
     month_end = _date(cal_year, cal_month, days_in_month)
@@ -3581,6 +3667,8 @@ def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
     dept_legend = {}
     for b in month_bookings:
         _combo_annotate_booking_dept(b)
+        _attach_booking_machines(b, machine_defaults)
+        _mark_unconfirmed(b)
         bookings_by_date.setdefault(b.event_date, []).append(b)
         dept_legend[b.dept_name] = b.dept_color
 
@@ -3615,6 +3703,7 @@ def _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today):
     month_list = list(month_qs)
     for b in month_list:
         _combo_annotate_booking_dept(b)
+        _attach_booking_machines(b, machine_defaults)
         dept_legend[b.dept_name] = b.dept_color
     month_event_rows = _group_rows(month_list, only_visible=True)
     month_past_done_rows = _group_rows(month_list, only_visible=False)
@@ -3661,6 +3750,18 @@ def _combo_booking_payment_snapshot(booking: ComboBooking) -> dict:
     }
 
 
+def _field_operator_choices(include_id=None):
+    qs = FieldOperator.objects.all()
+    if include_id:
+        qs = qs.filter(Q(is_active=True) | Q(pk=include_id))
+    else:
+        qs = qs.filter(is_active=True)
+    return [
+        {'id': op.id, 'name': op.name, 'phone': op.phone or ''}
+        for op in qs.order_by('name', 'id')
+    ]
+
+
 def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
     """JSON con detalle de un evento agendado para modal."""
     quote = booking.quotation
@@ -3704,7 +3805,7 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
         ComboBooking.objects
         .filter(combo_id=booking.combo_id, event_date=booking.event_date)
         .exclude(status='cancelado')
-        .select_related('quotation')
+        .select_related('quotation', 'operator')
         .prefetch_related('quotation__payments')
         .order_by('event_time', 'created_at', 'id')
     )
@@ -3720,6 +3821,8 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
             'grand_total': float(snap['grand_total']),
             'amount_paid': float(snap['amount_paid']),
             'remaining_balance': float(snap['remaining_balance']),
+            'operator_name': sib.operator.name if sib.operator_id else '',
+            'operator_arrival': sib.operator_arrival.strftime('%H:%M') if sib.operator_arrival else '',
             'is_current': sib.id == booking.id,
         })
 
@@ -3739,6 +3842,17 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
         'status': booking.status,
         'status_display': booking.get_status_display(),
         'notes': booking.notes or '',
+        'operator_id': booking.operator_id,
+        'operator_name': booking.operator.name if booking.operator_id else '',
+        'operator_arrival': booking.operator_arrival.strftime('%H:%M') if booking.operator_arrival else '',
+        'operators': _field_operator_choices(booking.operator_id),
+        'operator_url': reverse('store:inventory_combo_booking_operator', kwargs={'booking_id': booking.id}),
+        'machines': _booking_machine_lines(booking, _combo_default_machines(booking.combo)),
+        'machine_options': [
+            {'id': product.id, 'name': product.name, 'label': _machine_short_name(product.name)}
+            for product in _granizado_machine_options()
+        ],
+        'machines_url': reverse('store:inventory_combo_booking_machines', kwargs={'booking_id': booking.id}),
         'package_price': float(booking.package_price or 0),
         'grand_total': float(pay['grand_total']),
         'amount_paid': float(pay['amount_paid']),
@@ -3759,7 +3873,7 @@ def _combo_booking_detail_payload(booking: ComboBooking) -> dict:
     }
 
 
-def _combo_agenda_week_payload(bookings_qs, today):
+def _combo_agenda_week_payload(bookings_qs, today, machine_defaults=None):
     """Filas esta / próxima semana / futuros (+ anotación de depto)."""
     week_start = today - timedelta(days=today.weekday())  # lunes
     this_week_end = week_start + timedelta(days=6)
@@ -3770,6 +3884,8 @@ def _combo_agenda_week_payload(bookings_qs, today):
         by_date = {}
         for b in bookings:
             _combo_annotate_booking_dept(b)
+            _attach_booking_machines(b, machine_defaults or [])
+            _mark_unconfirmed(b)
             by_date.setdefault(b.event_date, []).append(b)
         return [
             {'date': d, 'bookings': by_date[d]}
@@ -3798,6 +3914,341 @@ def _combo_agenda_week_payload(bookings_qs, today):
     }
 
 
+def _event_metric_years():
+    years = {timezone.localdate().year}
+    for day in ComboBooking.objects.dates('event_date', 'year'):
+        years.add(day.year)
+    for moment in ComboBooking.objects.dates('created_at', 'year'):
+        years.add(moment.year)
+    return sorted(years, reverse=True)
+
+
+def _event_metrics(year, combo_id=None):
+    """Ventas, fechas de evento, caja, anticipación y ritmo de cobro de un año."""
+    today = timezone.localdate()
+    month_labels = (
+        'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+    )
+    month_names = (
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    )
+    month_short = (
+        'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+        'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    )
+
+    def _day_label(day):
+        return f'{day.day} {month_short[day.month - 1]}'
+    bookings = (
+        ComboBooking.objects
+        .select_related('combo', 'quotation', 'operator', 'existing_client')
+        .prefetch_related('extras', 'quotation__payments')
+        .filter(Q(event_date__year=year) | Q(created_at__year=year))
+        .order_by('-event_date', '-created_at', '-id')
+    )
+    if combo_id:
+        bookings = bookings.filter(combo_id=combo_id)
+
+    months = [
+        {
+            'month': index,
+            'label': month_labels[index - 1],
+            'sold_count': 0,
+            'sold_billed': Decimal('0.00'),
+            'event_count': 0,
+            'event_billed': Decimal('0.00'),
+            'event_paid': Decimal('0.00'),
+            'event_remaining': Decimal('0.00'),
+        }
+        for index in range(1, 13)
+    ]
+    from datetime import date as date_cls
+
+    def _monday(day):
+        return day - timedelta(days=day.weekday())
+
+    jan1 = date_cls(year, 1, 1)
+    dec31 = date_cls(year, 12, 31)
+    week_rows = []
+    week_index = {}
+    cursor = _monday(jan1)
+    while cursor <= dec31:
+        end = cursor + timedelta(days=6)
+        row = {
+            'start': cursor,
+            'end': end,
+            'label': f'{cursor.day}/{cursor.month}',
+            'range': f'{_day_label(cursor)} – {_day_label(end)}',
+            'sold_count': 0,
+            'event_count': 0,
+            'event_billed': Decimal('0.00'),
+            'event_paid': Decimal('0.00'),
+            'event_remaining': Decimal('0.00'),
+            'due': [],
+        }
+        week_rows.append(row)
+        week_index[cursor] = row
+        cursor += timedelta(days=7)
+
+    sold_count = cancelled_count = done_count = upcoming_count = cartera_count = 0
+    cartera_items = []
+    confirmed_count = quote_count = pending_count = 0
+    billed = paid = remaining = cartera_amount = upcoming_value = quote_billed = Decimal('0.00')
+    pending_billed = Decimal('0.00')
+    lead_days = []
+    lead_short = lead_mid = lead_long = 0
+    by_combo = {}
+    by_dept = {}
+    events = []
+
+    def _add_cut(bucket, key, label, amount):
+        row = bucket.setdefault(key, {'label': label, 'count': 0, 'billed': Decimal('0.00')})
+        row['count'] += 1
+        row['billed'] += amount
+
+    for booking in bookings:
+        snap = _combo_booking_payment_snapshot(booking)
+        created = timezone.localtime(booking.created_at).date()
+        cancelled = booking.status == 'cancelado'
+        total = snap['grand_total']
+        paid_amount = snap['amount_paid']
+        due = snap['remaining_balance']
+        no_deposit = (not cancelled) and paid_amount <= 0
+        _combo_annotate_booking_dept(booking)
+
+        if created.year == year:
+            if cancelled:
+                cancelled_count += 1
+            elif no_deposit:
+                pending_count += 1
+                pending_billed += total
+            else:
+                sold_count += 1
+                billed += total
+                paid += paid_amount
+                remaining += due
+                if booking.status == 'confirmado':
+                    confirmed_count += 1
+                if booking.quotation_id:
+                    quote_count += 1
+                    quote_billed += total
+                months[created.month - 1]['sold_count'] += 1
+                months[created.month - 1]['sold_billed'] += total
+                sold_week = week_index.get(_monday(created))
+                if sold_week is not None:
+                    sold_week['sold_count'] += 1
+                days = (booking.event_date - created).days
+                lead_days.append(days)
+                if days < 7:
+                    lead_short += 1
+                elif days <= 30:
+                    lead_mid += 1
+                else:
+                    lead_long += 1
+
+        if booking.event_date.year == year and not cancelled and not no_deposit:
+            month = months[booking.event_date.month - 1]
+            month['event_count'] += 1
+            month['event_billed'] += total
+            month['event_paid'] += paid_amount
+            month['event_remaining'] += due
+            if booking.event_date < today:
+                done_count += 1
+                if due > 0:
+                    cartera_count += 1
+                    cartera_amount += due
+                    cartera_items.append({
+                        'client_name': booking.display_client_name,
+                        'event_date': booking.event_date,
+                        'department': booking.dept_name,
+                        'quotation_id': booking.quotation_id,
+                        'total': total,
+                        'paid': paid_amount,
+                        'remaining': due,
+                    })
+            else:
+                upcoming_count += 1
+                upcoming_value += total
+            _add_cut(by_combo, booking.combo_id, booking.combo.name if booking.combo_id else 'Sin combo', total)
+            _add_cut(by_dept, booking.dept_name, booking.dept_name, total)
+            event_week = week_index.get(_monday(booking.event_date))
+            if event_week is not None:
+                event_week['event_count'] += 1
+                event_week['event_billed'] += total
+                event_week['event_paid'] += paid_amount
+                event_week['event_remaining'] += due
+                if due > 0:
+                    event_week['due'].append({
+                        'client_name': booking.display_client_name,
+                        'event_date': _day_label(booking.event_date),
+                        'department': booking.dept_name,
+                        'total': total,
+                        'paid': paid_amount,
+                        'remaining': due,
+                    })
+
+        if booking.event_date.year == year:
+            events.append({
+                'id': booking.id,
+                'combo_id': booking.combo_id,
+                'combo_name': booking.combo.name if booking.combo_id else '',
+                'client_name': booking.display_client_name,
+                'event_date': booking.event_date,
+                'sold_on': created,
+                'department': booking.dept_name,
+                'operator': booking.operator.name if booking.operator_id else '',
+                'status': booking.status,
+                'status_label': booking.get_status_display(),
+                'total': total,
+                'paid': paid_amount,
+                'remaining': due,
+                'cancelled': cancelled,
+                'no_deposit': no_deposit,
+            })
+
+    def _share(amount, whole):
+        if not whole:
+            return 0
+        return int((Decimal(amount) / Decimal(whole) * Decimal('100')).quantize(Decimal('1')))
+
+    def _ranked(bucket):
+        rows = sorted(bucket.values(), key=lambda row: (-row['billed'], row['label'].casefold()))
+        top_billed = rows[0]['billed'] if rows else Decimal('0.00')
+        for row in rows:
+            row['share'] = _share(row['billed'], sum((item['billed'] for item in rows), Decimal('0.00')))
+            row['bar'] = _share(row['billed'], top_billed) if top_billed else 0
+        return rows[:8]
+
+    sold_max = max((month['sold_count'] for month in months), default=0)
+    event_max = max((month['event_count'] for month in months), default=0)
+    for month in months:
+        month['sold_bar'] = _share(month['sold_count'], sold_max) if sold_max else 0
+        month['event_bar'] = _share(month['event_count'], event_max) if event_max else 0
+
+    lead_count = len(lead_days)
+    sales_base = sold_count + cancelled_count + pending_count
+    event_count = sum(month['event_count'] for month in months)
+    peak = max(months, key=lambda month: (month['event_count'], month['event_billed']))
+    active_weeks = [row for row in week_rows if row['sold_count'] or row['event_count']]
+    for row in active_weeks:
+        anchor = row['start'] + timedelta(days=3)
+        if anchor.year == year:
+            row['month'] = anchor.month
+        elif anchor < jan1:
+            row['month'] = 1
+        else:
+            row['month'] = 12
+        row['due'].sort(key=lambda item: (-item['remaining'], item['event_date'], item['client_name'].casefold()))
+    weeks_by_month = {index: [] for index in range(1, 13)}
+    for row in active_weeks:
+        weeks_by_month[row['month']].append(row)
+    month_groups = []
+    for month in months:
+        weeks = weeks_by_month[month['month']]
+        if not weeks and not month['sold_count'] and not month['event_count']:
+            continue
+        month_groups.append({
+            'label': month_names[month['month'] - 1],
+            'sold_count': month['sold_count'],
+            'event_count': month['event_count'],
+            'event_billed': month['event_billed'],
+            'event_paid': month['event_paid'],
+            'event_remaining': month['event_remaining'],
+            'weeks': weeks,
+        })
+    cartera_items.sort(key=lambda item: (-item['remaining'], item['event_date']))
+    this_week = week_index.get(_monday(today)) if today.year == year else None
+    dept_rows = _ranked(by_dept)
+    return {
+        'year': year,
+        'sold_count': sold_count,
+        'pending_count': pending_count,
+        'pending_billed': pending_billed,
+        'cancelled_count': cancelled_count,
+        'cancel_rate': _share(cancelled_count, sales_base),
+        'billed': billed,
+        'paid': paid,
+        'remaining': remaining,
+        'ticket': (billed / sold_count) if sold_count else Decimal('0.00'),
+        'quote_count': quote_count,
+        'quote_avg': (quote_billed / quote_count) if quote_count else Decimal('0.00'),
+        'collection_rate': _share(paid, billed),
+        'confirm_rate': _share(confirmed_count, sold_count),
+        'confirmed_count': confirmed_count,
+        'event_count': event_count,
+        'done_count': done_count,
+        'upcoming_count': upcoming_count,
+        'upcoming_value': upcoming_value,
+        'cartera_count': cartera_count,
+        'cartera_amount': cartera_amount,
+        'cartera_items': cartera_items,
+        'peak_month': peak['label'] if peak['event_count'] else '—',
+        'peak_count': peak['event_count'],
+        'lead_avg': (sum(lead_days) / lead_count) if lead_count else 0,
+        'lead_short': lead_short,
+        'lead_mid': lead_mid,
+        'lead_long': lead_long,
+        'lead_count': lead_count,
+        'months': months,
+        'by_combo': _ranked(by_combo),
+        'by_dept': dept_rows,
+        'events': events,
+        'weeks': active_weeks,
+        'month_groups': month_groups,
+        'this_week': this_week,
+        'show_this_week': today.year == year,
+        'chart': {
+            'months': [month['label'] for month in months],
+            'sold': [month['sold_count'] for month in months],
+            'events': [month['event_count'] for month in months],
+            'depts': [row['label'] for row in dept_rows],
+            'dept_billed': [float(row['billed']) for row in dept_rows],
+            'weeks': [row['label'] for row in week_rows],
+            'week_events': [row['event_count'] for row in week_rows],
+        },
+    }
+
+
+def _metrics_request_filters(request, combo_id=None):
+    today = timezone.localdate()
+    try:
+        year = int(request.GET.get('anio') or today.year)
+    except (TypeError, ValueError):
+        year = today.year
+    if combo_id is None:
+        combo_raw = (request.GET.get('combo') or '').strip()
+        combo_id = int(combo_raw) if combo_raw.isdigit() else None
+    embedded = request.GET.get('embedded') == '1' or request.GET.get('vista') == 'metricas'
+    return year, combo_id, embedded
+
+
+@staff_member_required
+def inventory_combo_metrics(request):
+    """Página de métricas. Los números llegan por AJAX."""
+    year, combo_id, _embedded = _metrics_request_filters(request)
+    return render(request, 'store/inventory/combo_metrics.html', {
+        'year': year,
+        'combo_id': combo_id or '',
+        'embedded': False,
+    })
+
+
+@staff_member_required
+def inventory_combo_metrics_ajax(request):
+    """HTML de las métricas para cargarlo sin recargar la página."""
+    year, combo_id, embedded = _metrics_request_filters(request)
+    return render(request, 'store/inventory/partials/combo_metrics_panel.html', {
+        'metrics': _event_metrics(year, combo_id),
+        'year': year,
+        'years': _event_metric_years(),
+        'combos': RentalCombo.objects.order_by('name'),
+        'combo_id': combo_id,
+        'embedded': embedded,
+    })
+
+
 @staff_member_required
 def inventory_combo_detail(request, combo_id):
     """Shell rápido del combo: la agenda/calendario se carga por AJAX."""
@@ -3824,9 +4275,18 @@ def inventory_combo_detail(request, combo_id):
         '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
     )
+    show_metrics = request.GET.get('vista') == 'metricas'
+    try:
+        metrics_year = int(request.GET.get('anio') or today.year)
+    except (TypeError, ValueError):
+        metrics_year = today.year
 
     return render(request, 'store/inventory/combo_detail.html', {
         'combo': combo,
+        'year': metrics_year,
+        'combo_id': combo.id,
+        'embedded': True,
+        'show_metrics': show_metrics,
         'today': today,
         'lazy_load_agenda': True,
         'this_week_rows': [],
@@ -3859,12 +4319,15 @@ def inventory_combo_calendar_ajax(request, combo_id):
         ComboBooking.objects
         .filter(combo=combo)
         .exclude(status='cancelado')
-        .select_related('quotation')
-        .prefetch_related('quotation__payments')
+        .select_related('quotation', 'operator')
+        .prefetch_related('quotation__payments', 'quotation__items', 'machines')
         .order_by('event_date', 'event_time', 'created_at')
     )
-    cal_data = _combo_calendar_payload(combo, bookings_qs, cal_year, cal_month, today)
-    weeks_data = _combo_agenda_week_payload(bookings_qs, today)
+    machine_defaults = _combo_default_machines(combo)
+    cal_data = _combo_calendar_payload(
+        combo, bookings_qs, cal_year, cal_month, today, machine_defaults=machine_defaults,
+    )
+    weeks_data = _combo_agenda_week_payload(bookings_qs, today, machine_defaults=machine_defaults)
     calendar_html = render(
         request,
         'store/inventory/partials/combo_calendar_grid.html',
@@ -4095,13 +4558,182 @@ def inventory_combo_day_summary_pdf(request, combo_id):
     return response
 
 
+def _combo_excel_cell(value, style=''):
+    from xml.sax.saxutils import escape
+    text = escape('' if value is None else str(value))
+    style_attr = f' ss:StyleID="{style}"' if style else ''
+    return f'<Cell{style_attr}><Data ss:Type="String">{text}</Data></Cell>'
+
+
+def _combo_day_sheet_data(combo, event_date):
+    """Tablas del día, una por departamento."""
+    bookings = (
+        ComboBooking.objects
+        .filter(combo=combo, event_date=event_date)
+        .exclude(status='cancelado')
+        .select_related('quotation', 'existing_client', 'operator')
+        .prefetch_related('quotation__payments', 'extras')
+        .order_by('event_time', 'created_at', 'id')
+    )
+    grouped = {}
+    for booking in bookings:
+        _combo_annotate_booking_dept(booking)
+        grouped.setdefault(booking.dept_name, []).append(booking)
+
+    def _dept_sort(name):
+        return (name == 'Sin departamento', name.casefold())
+
+    weekday_names = (
+        'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+    )
+    month_names = (
+        '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+    )
+    date_label = (
+        f'{weekday_names[event_date.weekday()]} '
+        f'{event_date.day} de {month_names[event_date.month]} de {event_date.year}'
+    )
+    headers = [
+        'Cliente',
+        'Número del cliente',
+        'Operario',
+        'Saldo por cobrar',
+        'Dirección',
+        'Hora de llegada del operario',
+        'Notas',
+    ]
+    departments = []
+    for dept in sorted(grouped, key=_dept_sort):
+        table_rows = []
+        for booking in grouped[dept]:
+            snap = _combo_booking_payment_snapshot(booking)
+            remaining = int(Decimal(str(snap['remaining_balance'] or 0)).quantize(Decimal('1')))
+            table_rows.append([
+                booking.display_client_name,
+                (booking.client_phone or '').strip(),
+                booking.operator.name if booking.operator_id else '',
+                f'${remaining:,}'.replace(',', '.'),
+                (booking.location_text or '').strip(),
+                booking.operator_arrival.strftime('%H:%M') if booking.operator_arrival else '',
+                (booking.notes or '').strip(),
+            ])
+        departments.append({'name': dept, 'rows': table_rows})
+    return {
+        'title': f'{combo.name} · {date_label}',
+        'date_label': date_label,
+        'headers': headers,
+        'departments': departments,
+    }
+
+
+@staff_member_required
+def inventory_combo_day_sheet(request, combo_id):
+    """Hoja del día: vista JSON, PDF o Excel, con una tabla por departamento."""
+    from datetime import datetime as _dt
+    from io import BytesIO
+
+    from django.template.loader import get_template
+
+    combo = get_object_or_404(RentalCombo, id=combo_id)
+    date_raw = (request.GET.get('date') or '').strip()
+    try:
+        event_date = _dt.strptime(date_raw, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return HttpResponse(
+            'Fecha inválida. Use ?date=YYYY-MM-DD',
+            content_type='text/plain; charset=utf-8',
+            status=400,
+        )
+
+    sheet = _combo_day_sheet_data(combo, event_date)
+    fmt = (request.GET.get('format') or 'json').strip().lower()
+    safe_combo = slugify(combo.name or 'combo')[:40] or 'combo'
+    if fmt == 'json':
+        return JsonResponse({'ok': True, 'date': event_date.isoformat(), **sheet})
+
+    if fmt == 'pdf':
+        try:
+            from xhtml2pdf import pisa
+        except Exception:
+            return HttpResponse(
+                'Generador PDF no disponible (xhtml2pdf).',
+                content_type='text/plain; charset=utf-8',
+                status=500,
+            )
+        html = get_template('store/inventory/combo_day_sheet_pdf.html').render({
+            'combo': combo,
+            'event_date': event_date,
+            **sheet,
+        })
+        result = BytesIO()
+        pdf = pisa.pisaDocument(BytesIO(html.encode('utf-8')), result, encoding='utf-8')
+        if pdf.err:
+            return HttpResponse(
+                'Error al generar el PDF de la hoja.',
+                content_type='text/plain; charset=utf-8',
+                status=500,
+            )
+        filename = f'hoja-{safe_combo}-{event_date.isoformat()}.pdf'
+        payload = result.getvalue()
+        response = HttpResponse(payload, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = str(len(payload))
+        return response
+
+    rows = [
+        '<Row>' + _combo_excel_cell(sheet['title'], 'title') + '</Row>',
+        '<Row></Row>',
+    ]
+    if not sheet['departments']:
+        rows.append('<Row>' + _combo_excel_cell('No hay eventos este día.') + '</Row>')
+    for dept in sheet['departments']:
+        rows.append('<Row>' + _combo_excel_cell(dept['name'], 'dept') + '</Row>')
+        rows.append('<Row>' + ''.join(_combo_excel_cell(h, 'head') for h in sheet['headers']) + '</Row>')
+        for values in dept['rows']:
+            rows.append('<Row>' + ''.join(_combo_excel_cell(value) for value in values) + '</Row>')
+        rows.append('<Row></Row>')
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<?mso-application progid="Excel.Sheet"?>\n'
+        '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
+        'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n'
+        '<Styles>'
+        '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="14"/></Style>'
+        '<Style ss:ID="dept"><Font ss:Bold="1" ss:Size="12"/></Style>'
+        '<Style ss:ID="head"><Font ss:Bold="1"/>'
+        '<Interior ss:Color="#E8EEF6" ss:Pattern="Solid"/></Style>'
+        '</Styles>'
+        '<Worksheet ss:Name="Dia">'
+        '<Table>'
+        '<Column ss:Width="160"/>'
+        '<Column ss:Width="120"/>'
+        '<Column ss:Width="120"/>'
+        '<Column ss:Width="110"/>'
+        '<Column ss:Width="220"/>'
+        '<Column ss:Width="150"/>'
+        '<Column ss:Width="220"/>'
+        + ''.join(rows) +
+        '</Table></Worksheet></Workbook>'
+    )
+    safe_combo = slugify(combo.name or 'combo')[:40] or 'combo'
+    filename = f'hoja-{safe_combo}-{event_date.isoformat()}.xls'
+    payload = xml.encode('utf-8')
+    response = HttpResponse(payload, content_type='application/vnd.ms-excel; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Length'] = str(len(payload))
+    response['Cache-Control'] = 'private, max-age=60'
+    return response
+
+
 @staff_member_required
 def inventory_combo_booking_detail_ajax(request, booking_id):
     """AJAX: detalle de un evento para el modal."""
     booking = get_object_or_404(
         ComboBooking.objects.select_related(
-            'combo', 'quotation', 'quotation__service_review', 'existing_client',
-        ).prefetch_related('quotation__payments'),
+            'combo', 'quotation', 'quotation__service_review', 'existing_client', 'operator',
+        ).prefetch_related('quotation__payments', 'quotation__items', 'machines'),
         id=booking_id,
     )
     return JsonResponse(_combo_booking_detail_payload(booking))
@@ -4125,6 +4757,126 @@ def inventory_combo_booking_notes(request, booking_id):
         'id': booking.id,
         'notes': booking.notes or '',
         'message': 'Notas guardadas.',
+    })
+
+
+@staff_member_required
+def inventory_field_operator_create(request):
+    """Crea un operario desde el modal del evento."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+    name = (request.POST.get('name') or '').strip()
+    phone = (request.POST.get('phone') or '').strip()
+    if not name:
+        return JsonResponse({'ok': False, 'error': 'Escribe el nombre del operario.'}, status=400)
+    operator = FieldOperator.objects.create(name=name[:120], phone=phone[:40])
+    return JsonResponse({
+        'ok': True,
+        'operator': {'id': operator.id, 'name': operator.name, 'phone': operator.phone or ''},
+    })
+
+
+@staff_member_required
+def inventory_combo_booking_operator(request, booking_id):
+    """Asigna operario y hora de llegada desde el modal."""
+    from datetime import datetime as _dt
+
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+    booking = get_object_or_404(
+        ComboBooking.objects.select_related('operator'),
+        id=booking_id,
+    )
+    raw_id = (request.POST.get('operator_id') or '').strip()
+    operator = None
+    if raw_id:
+        operator = FieldOperator.objects.filter(pk=raw_id, is_active=True).first()
+        if operator is None and str(booking.operator_id or '') == raw_id:
+            operator = booking.operator
+        if operator is None:
+            return JsonResponse({'ok': False, 'error': 'Ese operario no está disponible.'}, status=400)
+
+    arrival = None
+    arrival_raw = (request.POST.get('operator_arrival') or '').strip()
+    if arrival_raw:
+        parsed = None
+        for fmt in ('%H:%M', '%H:%M:%S'):
+            try:
+                parsed = _dt.strptime(arrival_raw, fmt).time()
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            return JsonResponse({'ok': False, 'error': 'La hora de llegada no es válida.'}, status=400)
+        arrival = parsed
+
+    booking.operator = operator
+    booking.operator_arrival = arrival
+    booking.save(update_fields=['operator', 'operator_arrival', 'updated_at'])
+    same_day = 0
+    if operator is not None:
+        same_day = (
+            ComboBooking.objects
+            .filter(combo_id=booking.combo_id, event_date=booking.event_date, operator=operator)
+            .exclude(status='cancelado')
+            .exclude(pk=booking.pk)
+            .count()
+        )
+    return JsonResponse({
+        'ok': True,
+        'operator_id': operator.id if operator else None,
+        'operator_name': operator.name if operator else '',
+        'operator_arrival': arrival.strftime('%H:%M') if arrival else '',
+        'same_day': same_day,
+        'message': 'Operario asignado.' if operator else 'Operario quitado.',
+    })
+
+
+@staff_member_required
+def inventory_combo_booking_machines(request, booking_id):
+    """Guarda los tipos de máquina de granizados que van dentro del evento."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+    booking = get_object_or_404(
+        ComboBooking.objects.select_related('combo', 'quotation'),
+        id=booking_id,
+    )
+    options = {product.id: product for product in _granizado_machine_options()}
+    product_ids = request.POST.getlist('product_id')
+    quantities = request.POST.getlist('quantity')
+    rows = []
+    for index, raw_id in enumerate(product_ids):
+        try:
+            product_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        product = options.get(product_id)
+        if product is None:
+            return JsonResponse({'ok': False, 'error': 'Ese tipo de máquina no está disponible.'}, status=400)
+        raw_qty = quantities[index] if index < len(quantities) else '1'
+        try:
+            quantity = int(raw_qty)
+        except (TypeError, ValueError):
+            quantity = 1
+        if quantity < 1:
+            continue
+        rows.append((product, min(quantity, 20)))
+    booking.machines.all().delete()
+    ComboBookingMachine.objects.bulk_create([
+        ComboBookingMachine(
+            booking=booking,
+            product=product,
+            name=product.name,
+            quantity=quantity,
+            order=order,
+        )
+        for order, (product, quantity) in enumerate(rows)
+    ])
+    lines = _booking_machine_lines(booking, _combo_default_machines(booking.combo))
+    return JsonResponse({
+        'ok': True,
+        'machines': lines,
+        'message': 'Máquinas guardadas.',
     })
 
 
@@ -5774,6 +6526,138 @@ def sales_list(request):
     })
 
 
+def _finance_totals(include_quotes=True, accounting_only=False):
+    """Caja. Contabilidad Mixlab solo suma su propio libro (empieza en cero)."""
+    records = FinanceRecord.objects.all()
+    if accounting_only:
+        records = records.filter(accounting_book=True)
+        include_quotes = False
+    total_pagos_cotizacion = (
+        QuotationPayment.objects.aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    ) if include_quotes else Decimal('0.00')
+    total_gastos = (
+        records.filter(record_type='gasto').aggregate(s=Sum('amount'))['s']
+        or Decimal('0.00')
+    )
+    total_pagos_manuales = (
+        records.filter(record_type='pago').aggregate(s=Sum('amount'))['s']
+        or Decimal('0.00')
+    )
+    total_pagos = total_pagos_cotizacion if include_quotes else total_pagos_manuales
+    total_ingresos = (total_pagos_cotizacion + total_pagos_manuales) if include_quotes else total_pagos_manuales
+    return {
+        'total_pagos': total_pagos,
+        'total_gastos': total_gastos,
+        'total_pagos_manuales': total_pagos_manuales if include_quotes else Decimal('0.00'),
+        'total_ingresos': total_ingresos,
+        'balance': total_ingresos - total_gastos,
+        'quotation_payments_count': QuotationPayment.objects.count() if include_quotes else 0,
+    }
+
+
+def _finance_movements(tipo='', q='', include_quotes=True, accounting_only=False):
+    """Movimientos unificados: abonos de cotización + caja manual."""
+    from datetime import date as date_cls
+
+    movements = []
+    tipo = (tipo or '').strip()
+    q = (q or '').strip()
+
+    if accounting_only:
+        include_quotes = False
+        fr_base = FinanceRecord.objects.filter(accounting_book=True)
+    else:
+        fr_base = FinanceRecord.objects.all()
+
+    if include_quotes and tipo in ('', 'pago'):
+        qp_qs = (
+            QuotationPayment.objects
+            .select_related('quotation', 'created_by')
+            .order_by('-created_at', '-id')
+        )
+        if q:
+            qp_filter = (
+                Q(notes__icontains=q)
+                | Q(quotation__client_name__icontains=q)
+            )
+            q_digits = ''.join(ch for ch in q if ch.isdigit())
+            if q_digits:
+                try:
+                    qp_filter = qp_filter | Q(quotation_id=int(q_digits))
+                except (TypeError, ValueError):
+                    pass
+            qp_qs = qp_qs.filter(qp_filter)
+        for pay in qp_qs[:200]:
+            client = ''
+            if pay.quotation_id:
+                client = pay.quotation.display_client_name or ''
+            movements.append({
+                'source': 'cotizacion',
+                'record_type': 'pago',
+                'recorded_at': pay.created_at.date() if pay.created_at else None,
+                'created_at': pay.created_at,
+                'amount': pay.amount,
+                'description': (
+                    f'Abono COT-{pay.quotation_id}'
+                    + (f' · {client}' if client else '')
+                ),
+                'category_label': pay.get_payment_type_display(),
+                'payee': client,
+                'method_label': pay.get_method_display() if hasattr(pay, 'get_method_display') else '',
+                'quotation_id': pay.quotation_id,
+                'receipt_url': pay.proof.url if pay.proof else '',
+                'can_delete': False,
+                'delete_id': None,
+                'notes': pay.notes or '',
+            })
+
+    if tipo in ('', 'gasto', 'pago', 'nomina'):
+        fr_qs = (
+            fr_base
+            .select_related('created_by', 'related_quotation')
+            .order_by('-recorded_at', '-id')
+        )
+        if tipo == 'gasto':
+            fr_qs = fr_qs.filter(record_type='gasto')
+        elif tipo == 'nomina':
+            fr_qs = fr_qs.filter(category='nomina')
+        elif tipo == 'pago':
+            fr_qs = fr_qs.filter(record_type='pago')
+        if q:
+            fr_qs = fr_qs.filter(
+                Q(description__icontains=q)
+                | Q(notes__icontains=q)
+                | Q(category__icontains=q)
+                | Q(payee__icontains=q)
+            )
+        for r in fr_qs[:200]:
+            movements.append({
+                'source': 'manual',
+                'record_type': r.record_type,
+                'recorded_at': r.recorded_at,
+                'created_at': r.created_at,
+                'amount': r.amount,
+                'description': r.description,
+                'category_label': r.get_category_display(),
+                'payee': r.payee or '',
+                'method_label': r.get_payment_method_display() if r.payment_method else '',
+                'quotation_id': r.related_quotation_id,
+                'receipt_url': r.receipt.url if r.receipt else '',
+                'can_delete': True,
+                'delete_id': r.id,
+                'notes': r.notes or '',
+            })
+
+    movements.sort(
+        key=lambda m: (
+            m['recorded_at'] or date_cls.min,
+            m['created_at'] or timezone.now(),
+        ),
+        reverse=True,
+    )
+    return movements
+
+
 @staff_member_required
 def finance_list(request):
     """
@@ -5809,106 +6693,8 @@ def finance_list(request):
             )
             return redirect('store:finance_list')
 
-    # ── Totales (fórmula) ──────────────────────────────────────────────
-    total_pagos = (
-        QuotationPayment.objects.aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
-    )
-    total_gastos = (
-        FinanceRecord.objects.filter(record_type='gasto').aggregate(s=Sum('amount'))['s']
-        or Decimal('0.00')
-    )
-    # Pagos manuales residuales (otros ingresos no ligados a cotización)
-    total_pagos_manuales = (
-        FinanceRecord.objects.filter(record_type='pago').aggregate(s=Sum('amount'))['s']
-        or Decimal('0.00')
-    )
-    total_ingresos = total_pagos + total_pagos_manuales
-    balance = total_ingresos - total_gastos
-
-    # ── Movimientos unificados ─────────────────────────────────────────
-    movements = []
-
-    if tipo in ('', 'pago'):
-        qp_qs = (
-            QuotationPayment.objects
-            .select_related('quotation', 'created_by')
-            .order_by('-created_at', '-id')
-        )
-        if q:
-            qp_filter = (
-                Q(notes__icontains=q)
-                | Q(quotation__client_name__icontains=q)
-            )
-            q_digits = ''.join(ch for ch in q if ch.isdigit())
-            if q_digits:
-                try:
-                    qp_filter = qp_filter | Q(quotation_id=int(q_digits))
-                except (TypeError, ValueError):
-                    pass
-            qp_qs = qp_qs.filter(qp_filter)
-        for pay in qp_qs[:200]:
-            client = ''
-            if pay.quotation_id:
-                client = pay.quotation.display_client_name or ''
-            movements.append({
-                'source': 'cotizacion',
-                'record_type': 'pago',
-                'recorded_at': pay.created_at.date() if pay.created_at else None,
-                'created_at': pay.created_at,
-                'amount': pay.amount,
-                'description': (
-                    f'Abono COT-{pay.quotation_id}'
-                    + (f' · {client}' if client else '')
-                ),
-                'category_label': pay.get_payment_type_display(),
-                'quotation_id': pay.quotation_id,
-                'receipt_url': pay.proof.url if pay.proof else '',
-                'can_delete': False,
-                'delete_id': None,
-                'notes': pay.notes or '',
-            })
-
-    if tipo in ('', 'gasto', 'pago'):
-        fr_qs = (
-            FinanceRecord.objects
-            .select_related('created_by', 'related_quotation')
-            .order_by('-recorded_at', '-id')
-        )
-        if tipo == 'gasto':
-            fr_qs = fr_qs.filter(record_type='gasto')
-        elif tipo == 'pago':
-            # Solo pagos manuales (otros ingresos); los de cotización ya van arriba
-            fr_qs = fr_qs.filter(record_type='pago')
-        if q:
-            fr_qs = fr_qs.filter(
-                Q(description__icontains=q)
-                | Q(notes__icontains=q)
-                | Q(category__icontains=q)
-            )
-        for r in fr_qs[:200]:
-            movements.append({
-                'source': 'manual',
-                'record_type': r.record_type,
-                'recorded_at': r.recorded_at,
-                'created_at': r.created_at,
-                'amount': r.amount,
-                'description': r.description,
-                'category_label': r.get_category_display(),
-                'quotation_id': r.related_quotation_id,
-                'receipt_url': r.receipt.url if r.receipt else '',
-                'can_delete': True,
-                'delete_id': r.id,
-                'notes': r.notes or '',
-            })
-
-    # Orden: más reciente primero
-    movements.sort(
-        key=lambda m: (
-            m['recorded_at'] or date_cls.min,
-            m['created_at'] or timezone.now(),
-        ),
-        reverse=True,
-    )
+    totals = _finance_totals()
+    movements = _finance_movements(tipo, q)
 
     paginator = Paginator(movements, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -5918,12 +6704,7 @@ def finance_list(request):
         'form': form,
         'filter_tipo': tipo,
         'filter_q': q,
-        'total_pagos': total_pagos,
-        'total_pagos_manuales': total_pagos_manuales,
-        'total_ingresos': total_ingresos,
-        'total_gastos': total_gastos,
-        'balance': balance,
-        'quotation_payments_count': QuotationPayment.objects.count(),
+        **totals,
     })
 
 
@@ -5937,6 +6718,200 @@ def finance_delete(request, record_id):
         messages.success(request, f'{label} eliminado.')
         return redirect('store:finance_list')
     return render(request, 'store/manager/finance_confirm_delete.html', {'record': record})
+
+
+def _contabilidad_staff(request):
+    user = getattr(request, 'user', None)
+    return user if user and user.is_authenticated and user.is_staff else None
+
+
+def _contabilidad_modal_state(request):
+    return {
+        'open_modal': bool(request.session.pop('cm_open', False)),
+        'modal_error': request.session.pop('cm_error', ''),
+        'modal_tipo': request.session.pop('cm_tipo', ''),
+        'modal_data': request.session.pop('cm_data', {}) or {},
+    }
+
+
+CONTABILIDAD_TIPOS = {
+    'salio': {
+        'title': 'Salió dinero',
+        'help': 'Una compra, un servicio o cualquier pago del negocio.',
+        'record_type': 'gasto',
+        'category': '',
+    },
+    'equipo': {
+        'title': 'Pago al equipo',
+        'help': 'Lo que le pagaste a una persona que trabaja contigo.',
+        'record_type': 'gasto',
+        'category': 'nomina',
+    },
+    'entro': {
+        'title': 'Entró dinero',
+        'help': 'Un ingreso que no viene de una cotización.',
+        'record_type': 'pago',
+        'category': 'otro',
+    },
+}
+
+
+def contabilidad_app(request):
+    """Inicio: movimientos de hoy."""
+    from datetime import date as date_cls
+
+    if request.method == 'POST' and request.POST.get('action') == 'login':
+        user = authenticate(
+            request,
+            username=(request.POST.get('username') or '').strip(),
+            password=request.POST.get('password') or '',
+        )
+        if user is not None and user.is_active and user.is_staff:
+            auth_login(request, user)
+            return redirect('store:contabilidad_app')
+        return render(request, 'store/contabilidad_app.html', {
+            'needs_login': True,
+            'login_error': 'Usuario o clave incorrectos, o la cuenta no es de staff.',
+        })
+
+    if not _contabilidad_staff(request):
+        return render(request, 'store/contabilidad_app.html', {'needs_login': True})
+
+    if request.method == 'POST' and request.POST.get('action') == 'logout':
+        from django.contrib.auth import logout
+        logout(request)
+        return redirect('store:contabilidad_app')
+
+    today = date_cls.today()
+    totals = _finance_totals(accounting_only=True)
+    movements = [
+        row for row in _finance_movements('', accounting_only=True)
+        if row.get('recorded_at') == today
+    ]
+    return render(request, 'store/contabilidad_app.html', {
+        'needs_login': False,
+        'today': today,
+        'movements': movements,
+        **totals,
+        **_contabilidad_modal_state(request),
+    })
+
+
+def contabilidad_historial(request):
+    """Todos los movimientos del libro, sin mezclar cotizaciones."""
+    if not _contabilidad_staff(request):
+        return redirect('store:contabilidad_app')
+    tipo = (request.GET.get('tipo') or '').strip()
+    return render(request, 'store/contabilidad_historial.html', {
+        'movements': _finance_movements(tipo, accounting_only=True)[:80],
+        'filter_tipo': tipo,
+        **_contabilidad_modal_state(request),
+    })
+
+
+def contabilidad_tipo(request):
+    """Elegir qué clase de movimiento se va a anotar."""
+    if not _contabilidad_staff(request):
+        return redirect('store:contabilidad_app')
+    return render(request, 'store/contabilidad_tipo.html', {
+        'tipos': [
+            {'key': key, **meta} for key, meta in CONTABILIDAD_TIPOS.items()
+        ],
+    })
+
+
+def contabilidad_nuevo(request, tipo):
+    """Formulario del movimiento ya elegido."""
+    from datetime import date as date_cls
+
+    if not _contabilidad_staff(request):
+        return redirect('store:contabilidad_app')
+    meta = CONTABILIDAD_TIPOS.get(tipo)
+    if not meta:
+        return redirect('store:contabilidad_tipo')
+
+    form_error = ''
+    if request.method == 'POST':
+        description = (request.POST.get('description') or '').strip()
+        payee = (request.POST.get('payee') or '').strip()
+        method = (request.POST.get('payment_method') or '').strip()
+        notes = (request.POST.get('notes') or '').strip()
+        category = meta['category'] or (request.POST.get('category') or '').strip() or 'otro'
+        valid_categories = {key for key, _label in FinanceRecord.CATEGORY_CHOICES}
+        if category not in valid_categories:
+            category = 'otro'
+        try:
+            amount = Decimal(str(request.POST.get('amount') or '0').replace(',', '.'))
+        except Exception:
+            amount = Decimal('0')
+        recorded_raw = (request.POST.get('recorded_at') or '').strip()
+        try:
+            recorded_at = date_cls.fromisoformat(recorded_raw) if recorded_raw else date_cls.today()
+        except ValueError:
+            recorded_at = date_cls.today()
+        sin_soporte = request.POST.get('sin_soporte') == '1'
+        receipt = None if sin_soporte else request.FILES.get('receipt')
+        receipt_error = _portfolio_valid_image(receipt) if receipt else ''
+        if method not in ('efectivo', 'transferencia'):
+            method = ''
+        if amount <= 0:
+            form_error = 'El monto debe ser mayor a cero.'
+        elif not description:
+            form_error = 'Escribe para qué fue el dinero.'
+        elif category == 'nomina' and not payee:
+            form_error = 'Escribe el nombre de la persona.'
+        elif not method:
+            form_error = 'Elige si fue transferencia o efectivo.'
+        elif not receipt and not sin_soporte:
+            form_error = 'Sube el soporte o marca que no hay soporte.'
+        elif receipt_error:
+            form_error = receipt_error
+        else:
+            record = FinanceRecord(
+                record_type=meta['record_type'],
+                amount=amount,
+                description=description[:255],
+                category=category,
+                payee=payee[:160],
+                payment_method=method,
+                notes=notes,
+                recorded_at=recorded_at,
+                created_by=request.user,
+                accounting_book=True,
+            )
+            if receipt:
+                record.receipt = receipt
+            record.save()
+            _notify_wa_finance_record(record, request=request)
+            messages.success(request, 'Movimiento guardado.')
+            nxt = (request.POST.get('next') or '').strip()
+            if not nxt.startswith('/contabilidad'):
+                nxt = ''
+            return redirect(nxt or 'store:contabilidad_app')
+
+        request.session['cm_open'] = True
+        request.session['cm_error'] = form_error
+        request.session['cm_tipo'] = tipo
+        request.session['cm_data'] = {
+            key: request.POST.get(key, '')
+            for key in ('description', 'payee', 'payment_method', 'notes', 'category', 'amount', 'recorded_at', 'sin_soporte')
+        }
+        nxt = (request.POST.get('next') or '').strip()
+        if nxt.startswith('/contabilidad'):
+            return redirect(nxt)
+        return redirect('store:contabilidad_app')
+
+    return render(request, 'store/contabilidad_nuevo.html', {
+        'tipo': tipo,
+        'meta': meta,
+        'form_error': form_error,
+        'today': date_cls.today().isoformat(),
+        'categories': [
+            choice for choice in FinanceRecord.CATEGORY_CHOICES
+            if choice[0] not in ('nomina', 'cliente')
+        ],
+        'methods': FinanceRecord.METHOD_CHOICES,
+    })
 
 
 @staff_member_required
@@ -8850,6 +9825,10 @@ def _notify_wa_finance_record(record: FinanceRecord, request=None) -> None:
         f"Descripción: {record.description}",
         f"Fecha: {record.recorded_at}",
     ]
+    if record.payee:
+        lines.append(f"Beneficiario: {record.payee}")
+    if record.payment_method:
+        lines.append(f"Medio: {record.get_payment_method_display()}")
     if record.related_quotation_id:
         lines.append(f"Cotización: COT-{record.related_quotation_id}")
     if record.notes:
@@ -10235,6 +11214,201 @@ def portfolio_public(request):
         'title': title,
         'cta_label': (settings_obj.portfolio_cta_label or 'Ver paquetes').strip(),
         'hero_video_static': hero_video_static,
+    })
+
+
+def _advisor_flavor_products():
+    return (
+        Product.objects.filter(available=True, category__name__icontains='granizado')
+        .select_related('category')
+        .order_by('category__name', 'name')
+    )
+
+
+def _advisor_flavor_groups():
+    groups = []
+    current = None
+    bucket = None
+    for product in _advisor_flavor_products():
+        name = product.category.name
+        if name != current:
+            bucket = {'name': name, 'products': []}
+            groups.append(bucket)
+            current = name
+        bucket['products'].append(product)
+    return groups
+
+
+ADVISOR_CITY_GROUPS = (
+    ('Barranquilla y alrededores', (
+        'Barranquilla', 'Soledad', 'Malambo', 'Galapa', 'Puerto Colombia',
+        'Sabanagrande', 'Santo Tomás', 'Palmar de Varela', 'Baranoa',
+        'Juan de Acosta', 'Tubará', 'Piojó',
+    )),
+    ('Cartagena y alrededores', (
+        'Cartagena', 'Turbaco', 'Arjona', 'Turbaná', 'Santa Rosa',
+        'Clemencia', 'Santa Catalina', 'Villanueva', 'San Estanislao',
+        'Pasacaballos', 'Bocachica', 'Barú',
+    )),
+)
+ADVISOR_CITIES = {city for _group, cities in ADVISOR_CITY_GROUPS for city in cities}
+
+ADVISOR_INVITE_MESSAGE = (
+    'Hola, tienes 12 horas para dejar listo tu evento. '
+    'Elige el paquete, los adicionales y los sabores. '
+    'Al enviar, tu asesor recibe la selección.'
+)
+
+
+@staff_member_required
+def advisor_invite_list(request):
+    """El asesor arma el enlace. Cierra solo a las 12 horas."""
+    packages = PortfolioPackage.objects.filter(is_active=True)
+    addons = PortfolioAddon.objects.filter(is_active=True)
+    error = ''
+    if request.method == 'POST':
+        try:
+            flavor_limit = int(request.POST.get('flavor_limit') or 3)
+        except (TypeError, ValueError):
+            flavor_limit = 3
+        flavor_limit = min(max(flavor_limit, 1), 8)
+        package = None
+        raw_package = (request.POST.get('package') or '').strip()
+        if raw_package:
+            package = packages.filter(pk=raw_package).first()
+        import secrets
+        invite = AdvisorClientInvite.objects.create(
+            token=secrets.token_urlsafe(18),
+            created_by=request.user,
+            label='',
+            advisor_message=ADVISOR_INVITE_MESSAGE,
+            expires_at=timezone.now() + timedelta(hours=12),
+            flavor_limit=flavor_limit,
+            package=package,
+        )
+        addon_ids = request.POST.getlist('addons')
+        if addon_ids:
+            invite.advisor_addons.set(addons.filter(pk__in=addon_ids))
+        messages.success(request, 'Enlace listo. Compártelo con el cliente antes de que venza.')
+        return redirect('store:advisor_invite_list')
+
+    invites = list(
+        AdvisorClientInvite.objects
+        .select_related('package', 'chosen_package', 'created_by')
+        .prefetch_related('advisor_addons', 'chosen_addons', 'chosen_flavors')
+        .order_by('-created_at')[:40]
+    )
+    for invite in invites:
+        invite.public_url = request.build_absolute_uri(
+            reverse('store:advisor_client_form', kwargs={'token': invite.token})
+        )
+    return render(request, 'store/advisor_invites.html', {
+        'packages': packages,
+        'addons': addons,
+        'invites': invites,
+        'error': error,
+    })
+
+
+def advisor_client_form(request, token):
+    """Página pública, con el mismo tono del portafolio, para que el cliente complete lo que falta."""
+    from datetime import datetime as _dt
+
+    invite = get_object_or_404(
+        AdvisorClientInvite.objects.select_related('package', 'chosen_package').prefetch_related(
+            'advisor_addons', 'chosen_addons', 'chosen_flavors',
+        ),
+        token=token,
+    )
+    settings_obj = SiteSettings.load()
+    packages = list(PortfolioPackage.objects.filter(is_active=True))
+    addons = list(PortfolioAddon.objects.filter(is_active=True))
+    flavor_groups = _advisor_flavor_groups()
+    error = ''
+
+    if request.method == 'POST' and invite.is_open:
+        name = (request.POST.get('client_name') or '').strip()[:200]
+        phone = (request.POST.get('client_phone') or '').strip()[:40]
+        email = (request.POST.get('client_email') or '').strip()
+        city = (request.POST.get('city') or '').strip()[:120]
+        address = (request.POST.get('address') or '').strip()[:200]
+        note = (request.POST.get('client_note') or '').strip()
+        raw_date = (request.POST.get('event_date') or '').strip()
+        event_date = None
+        if raw_date:
+            try:
+                event_date = _dt.strptime(raw_date, '%Y-%m-%d').date()
+            except ValueError:
+                error = 'La fecha del evento no es válida.'
+        if not name or not phone or not address:
+            error = error or 'Escribe tu nombre, teléfono y dirección.'
+        elif city not in ADVISOR_CITIES:
+            error = error or 'Elige la ciudad: Barranquilla y alrededores, o Cartagena y alrededores.'
+
+        chosen_package = invite.package
+        if chosen_package is None and not error:
+            raw_pkg = (request.POST.get('package') or '').strip()
+            chosen_package = next((pkg for pkg in packages if str(pkg.id) == raw_pkg), None)
+            if chosen_package is None:
+                error = 'Elige un paquete.'
+
+        chosen_addon_ids = []
+        if not invite.advisor_addons.all() and not error:
+            chosen_addon_ids = [
+                addon.id for addon in addons if str(addon.id) in request.POST.getlist('addons')
+            ]
+
+        flavor_ids = []
+        if not error:
+            allowed = {product.id for group in flavor_groups for product in group['products']}
+            for raw in request.POST.getlist('flavors'):
+                try:
+                    flavor_id = int(raw)
+                except (TypeError, ValueError):
+                    continue
+                if flavor_id in allowed and flavor_id not in flavor_ids:
+                    flavor_ids.append(flavor_id)
+            if not flavor_ids:
+                error = 'Elige al menos un sabor.'
+            elif len(flavor_ids) > invite.flavor_limit:
+                error = f'Puedes elegir hasta {invite.flavor_limit} sabores.'
+
+        if not error and invite.is_open:
+            invite.client_name = name
+            invite.client_phone = phone
+            invite.client_email = email
+            invite.address = address
+            invite.city = city
+            invite.client_note = note
+            invite.event_date = event_date
+            invite.chosen_package = chosen_package if invite.package_id is None else None
+            invite.submitted_at = timezone.now()
+            invite.save()
+            if not list(invite.advisor_addons.all()):
+                invite.chosen_addons.set(chosen_addon_ids)
+            invite.chosen_flavors.set(flavor_ids)
+            invite = get_object_or_404(
+                AdvisorClientInvite.objects.select_related('package', 'chosen_package').prefetch_related(
+                    'advisor_addons', 'chosen_addons', 'chosen_flavors',
+                ),
+                pk=invite.pk,
+            )
+
+    locked_package = invite.package
+    locked_addons = list(invite.advisor_addons.all())
+    return render(request, 'store/advisor_client.html', {
+        'invite': invite,
+        'settings_obj': settings_obj,
+        'packages': packages,
+        'addons': addons,
+        'flavor_groups': flavor_groups,
+        'locked_package': locked_package,
+        'locked_addons': locked_addons,
+        'ask_package': locked_package is None and invite.submitted_at is None,
+        'ask_addons': not locked_addons and invite.submitted_at is None,
+        'error': error,
+        'expires_iso': invite.expires_at.isoformat(),
+        'city_groups': ADVISOR_CITY_GROUPS,
     })
 
 

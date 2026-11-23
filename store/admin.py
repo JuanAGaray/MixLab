@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
     EventLandingLead,
+    FieldOperator,
     FlowDiagram,
     PortfolioAddon,
     PortfolioGalleryImage,
@@ -25,6 +26,14 @@ from .managers_models import (
     SalesWheelCellMark,
 )
 from .dian.models import DianElectronicInvoice, DianHabilitacionBatch, DianHabilitacionDocument, DianInvoiceSequence, DianSubmissionLog
+
+
+@admin.register(FieldOperator)
+class FieldOperatorAdmin(admin.ModelAdmin):
+    list_display = ('name', 'phone', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'phone')
+    list_editable = ('is_active',)
 
 
 @admin.register(PortfolioPackage)

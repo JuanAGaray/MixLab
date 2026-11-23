@@ -103,10 +103,6 @@
             <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarNavDesktop">
                 <ul class="navbar-nav navbar-nav-center navbar-nav-left">
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:product_list' %}">Productos</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'store:portfolio_public' %}">Portafolio</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'store:prep_public' %}">Preparación</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'store:event_landing' %}">Eventos</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'store:water_calculator' %}">Calculadora</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'store:alianzas' %}">Alianza</a></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Categorías</a>
@@ -124,6 +120,7 @@
                         <ul class="dropdown-menu dropdown-menu-premium" aria-labelledby="managerDropdown">
                             <li><a class="dropdown-item" href="{% url 'store:managers_dashboard' %}"><i class="bi bi-lightning-charge"></i> MixLab Managers</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:advisor_invite_list' %}"><i class="bi bi-link-45deg"></i> Enlace al cliente</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:service_reviews_dashboard' %}"><i class="bi bi-star"></i> Reseñas</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:event_leads_list' %}"><i class="bi bi-calendar-heart"></i> Leads de eventos</a></li>
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>
@@ -202,18 +199,6 @@
                         <a class="nav-link" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-1"></i> Productos</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:portfolio_public' %}"><i class="bi bi-images me-1"></i> Portafolio</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:prep_public' %}"><i class="bi bi-clipboard-check me-1"></i> Preparación</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:event_landing' %}"><i class="bi bi-calendar-event me-1"></i> Eventos</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'store:water_calculator' %}"><i class="bi bi-droplet-half me-1"></i> Calculadora</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{% url 'store:alianzas' %}"><i class="bi bi-handshake me-1"></i> Alianza</a>
                     </li>
                     <li class="nav-item dropdown">
@@ -236,6 +221,7 @@
                         <ul class="dropdown-menu" aria-labelledby="managerDropdownMobile">
                             <li><a class="dropdown-item" href="{% url 'store:managers_dashboard' %}"><i class="bi bi-lightning-charge"></i> MixLab Managers</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:quotation_list' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'store:advisor_invite_list' %}"><i class="bi bi-link-45deg"></i> Enlace al cliente</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:service_reviews_dashboard' %}"><i class="bi bi-star"></i> Reseñas</a></li>
                             <li><a class="dropdown-item" href="{% url 'store:event_leads_list' %}"><i class="bi bi-calendar-heart"></i> Leads de eventos</a></li>
                             <li><a class="dropdown-item" href="{% url 'rentals:rental_list' %}"><i class="bi bi-calendar-check"></i> Alquileres (stock y solicitudes)</a></li>

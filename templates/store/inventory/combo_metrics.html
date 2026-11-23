@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% load store_tags %}
+
+{% block title %}Métricas de eventos{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <a href="{% url 'store:inventory_dashboard' %}#combos" class="text-decoration-none small text-muted">
+    <i class="bi bi-arrow-left"></i> Volver a inventario
+  </a>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mt-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Métricas de eventos</h1>
+      <p class="text-muted small mb-0">Lo vendido se cuenta al agendar. La fecha del evento dice cuándo se presta el servicio. Los cancelados no entran en las ventas.</p>
+    </div>
+  </div>
+  {% include "store/inventory/partials/combo_metrics_loader.html" %}
+</div>
+{% endblock %}

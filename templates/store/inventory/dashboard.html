@@ -471,9 +471,14 @@
                 Combos de alquiler
                 <span class="inv-section-badge is-combo">Eventos / paquetes</span>
             </h3>
+            <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'store:inventory_combo_metrics' %}" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-bar-chart"></i> Métricas
+            </a>
             <a href="{% url 'store:inventory_combo_create' %}" class="btn btn-sm btn-success">
                 <i class="bi bi-plus-lg"></i> Crear combo
             </a>
+            </div>
         </div>
 
         <div class="stat-bar">

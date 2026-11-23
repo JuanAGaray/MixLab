@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 9px; color: #0f172a; }
+    h1 { font-size: 14px; margin: 0 0 4px; }
+    h2 { font-size: 12px; margin: 12px 0 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    th, td { border: 1px solid #cbd5e1; padding: 4px 5px; vertical-align: top; }
+    th { background: #e8eef6; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  {% if not departments %}
+  <p>No hay eventos este día.</p>
+  {% endif %}
+  {% for dept in departments %}
+  <h2>{{ dept.name }}</h2>
+  <table>
+    <thead>
+      <tr>
+        {% for header in headers %}<th>{{ header }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in dept.rows %}
+      <tr>
+        {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">Sin eventos</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+</body>
+</html>
